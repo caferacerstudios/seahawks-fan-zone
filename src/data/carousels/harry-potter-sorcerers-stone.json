@@ -1,5 +1,10 @@
 {
   "folder": "harry-potter-sorcerers-stone",
-  "files": [],
-  "updatedAt": "2026-01-18T05:11:58.589Z"
+  "useConverted": true,
+  "images": [
+    "/images/harry-potter-sorcerers-stone/converted/IMG_8790.jpg",
+    "/images/harry-potter-sorcerers-stone/converted/IMG_8794.jpg",
+    "/images/harry-potter-sorcerers-stone/converted/IMG_8795.jpg"
+  ],
+  "updatedAt": "2026-01-19T00:12:06.181Z"
 }
