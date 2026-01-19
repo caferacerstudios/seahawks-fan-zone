@@ -1,38 +1,55 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import ebayData from "../data/ebay.json";
 
-const title = "Retro Game Fixes";
-const description = "Modern fixes for classic PC games";
+const title = "Seahawks Stats HQ";
+const description = "Accurate Seattle Seahawks stats for every player + team-wide dashboards. Go Hawks.";
 
-// ✅ Edit these as you add more guides
-const guides = [
-  { href: "/guides/harry-potter-sorcerers-stone", label: "Harry Potter and the Sorcerer's Stone (PC)" },
-  { href: "/guides/harry-potter-chamber-of-secrets", label: "Harry Potter and the Chamber of Secrets (PC)" },
-  { href: "/guides/sid-meiers-sim-golf", label: "Sid Meier’s SimGolf (PC)" },
-  // add more
+const navPages = [
+  { href: "/", label: "Home" },
+  { href: "/players", label: "Players" },
+  { href: "/team", label: "Team Stats" },
+  { href: "/schedule", label: "Schedule" },
+  { href: "/about", label: "About" },
 ];
 
-// ✅ Pulled from fetch-ebay.mjs output
-const ebayListings = ebayData?.items ?? [];
-const seller = ebayData?.seller ?? "";
+const featured = [
+  { title: "Team Dashboard", desc: "Offense/defense splits, trends, and season totals.", href: "/team" },
+  { title: "Player Stats", desc: "Passing, rushing, receiving, defense, special teams.", href: "/players" },
+  { title: "Game Logs", desc: "Per-game breakdowns with filters and comparisons.", href: "/games" },
+];
 
-// ✅ AdSense-safe wording: no “trusted download sites”, no “Archive.org for downloads”
-const introText = `Thanks to Microsoft’s “innovations”, most of my favorite childhood PC games are not easy to run on modern Windows.
-While it’s nice to have a classic machine laying around running XP, it’s also a lot of fun to have these games accessible on your daily computer.
-I’ve spent a lot of time over the years finding fixes for each new Windows version they release. It’s usually DirectX problems or SafeDisc issues.
-This site is partly for my future reference, but I also wanted to share this info with other fans looking for solutions.
-All the fixes I recommend are documented elsewhere, but it’s a pain sifting through outdated advice, so my goal is to provide a more comprehensive guide tailored to each OS version.`;
+const quickLinks = [
+  { href: "/players/qb", label: "QB" },
+  { href: "/players/rb", label: "RB" },
+  { href: "/players/wr", label: "WR" },
+  { href: "/players/te", label: "TE" },
+  { href: "/players/ol", label: "OL" },
+  { href: "/players/defense", label: "Defense" },
+  { href: "/players/st", label: "Special Teams" },
+];
+
+const introText = `This is a Seahawks-first stats homepage.
+No fluff — just clean, accurate numbers for every player and the team as a whole.
+If you’re the type of fan who argues in the group chat with receipts, you’re home.
+Go Hawks.`;
 ---
 
 <BaseLayout {title} {description}>
-  <!-- Top header banner (LevelRankings-ish) -->
-  <header class="lr-header">
-    <div class="lr-header-bg" aria-hidden="true"></div>
+  <!-- Top header banner -->
+  <header class="lr-header seahawks-header">
+    <div class="lr-header-bg seahawks-header-bg" aria-hidden="true"></div>
 
     <div class="lr-header-inner">
-      <h1 class="lr-site-title">Retro Game Fixes</h1>
-      <p class="lr-site-tagline">Modern fixes for classic PC games</p>
+      <h1 class="lr-site-title">Seahawks Stats HQ</h1>
+      <p class="lr-site-tagline">Accurate stats for every player + the team as a whole</p>
+
+      <nav class="top-nav" aria-label="Primary">
+        {navPages.map((p) => (
+          <a class="top-nav-link" href={p.href} aria-current={p.href === "/" ? "page" : undefined}>
+            {p.label}
+          </a>
+        ))}
+      </nav>
     </div>
   </header>
 
@@ -41,112 +58,115 @@ All the fixes I recommend are documented elsewhere, but it’s a pain sifting th
     <!-- LEFT SIDEBAR -->
     <aside class="lr-sidebar lr-sidebar-left">
       <section class="lr-panel">
-        <h3 class="lr-panel-title">Pages</h3>
-        <ul class="lr-nav">
-          <li><a href="/" aria-current="page">Home</a></li>
-          <li><a href="/about">About</a></li>
-          <li><a href="/privacy-policy">Privacy Policy</a></li>
-        </ul>
-      </section>
-
-      <section class="lr-panel">
-        <h3 class="lr-panel-title">Guides</h3>
+        <h3 class="lr-panel-title">Quick links</h3>
         <ul class="lr-nav lr-subnav">
-          {guides.map((g) => (
-            <li><a href={g.href}>{g.label}</a></li>
+          {quickLinks.map((x) => (
+            <li><a href={x.href}>{x.label}</a></li>
           ))}
         </ul>
       </section>
 
-      <!-- ✅ Games For Sale -->
       <section class="lr-panel">
-        <h3 class="lr-panel-title">Games For Sale</h3>
-        <ul class="lr-nav lr-subnav">
-          <li><a href="/games-for-sale/">All listings</a></li>
+        <h3 class="lr-panel-title">Site</h3>
+        <ul class="lr-nav">
+          <li><a href="/methodology">Methodology</a></li>
+          <li><a href="/privacy-policy">Privacy Policy</a></li>
         </ul>
       </section>
     </aside>
 
-    <!-- MAIN CONTENT (paper panel) -->
+    <!-- MAIN CONTENT -->
     <main class="lr-main">
-      <article class="lr-paper">
+      <article class="lr-paper seahawks-paper">
         <header class="lr-post-header">
-          <h2 class="lr-post-title">Welcome!</h2>
+          <h2 class="lr-post-title">Welcome</h2>
 
           <div class="lr-tags">
-            <span class="lr-tag-label">Tags:</span>
-            <a class="lr-tag" href="/guides">PC</a>
-            <a class="lr-tag" href="/guides">Windows 10/11</a>
-            <a class="lr-tag" href="/guides">Fixes</a>
+            <span class="lr-tag-label">Focus:</span>
+            <a class="lr-tag" href="/players">Player stats</a>
+            <a class="lr-tag" href="/team">Team stats</a>
+            <a class="lr-tag" href="/games">Game logs</a>
           </div>
         </header>
 
         <div class="lr-post-content">
-          <!-- Intro -->
-          <h3>About this site</h3>
-          <p>{introText}</p>
+          <p class="seahawks-intro">{introText}</p>
 
-          <p class="lr-cta">
-            <a class="lr-btn" href="/about">Read more →</a>
-          </p>
-
-          <!-- Guides -->
-          <h3>Guides</h3>
-          <ul>
-            {guides.map((g) => (
-              <li><a href={g.href}>{g.label}</a></li>
-            ))}
-          </ul>
-
-          <!-- ✅ Listings preview -->
-          <h3>Games For Sale</h3>
-
-          {ebayListings.length === 0 ? (
-            <p><em>No listings found yet.</em></p>
-          ) : (
-            <div class="lr-sale-grid">
-              {ebayListings.slice(0, 3).map((item) => (
-                <a class="lr-sale-card" href={item.href} target="_blank" rel="noopener noreferrer">
-                  {item.img ? (
-                    <img class="lr-sale-img" src={item.img} alt={item.title} loading="lazy" />
-                  ) : (
-                    <div class="lr-sale-img lr-sale-img--placeholder" aria-hidden="true"></div>
-                  )}
-
-                  <div class="lr-sale-meta">
-                    <div class="lr-sale-title">{item.title}</div>
-                    {item.price && <div class="lr-sale-price">{item.price}</div>}
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
-
-          <p class="lr-cta">
-            <a class="lr-btn" href="/games-for-sale/">See more →</a>
-
-            {seller && (
-              <a
-                class="lr-btn"
-                style="margin-left: 0.5rem;"
-                href={`https://www.ebay.com/sch/i.html?_ssn=${encodeURIComponent(seller)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View all on eBay →
+          <!-- Featured -->
+          <h3>Start here</h3>
+          <div class="feature-grid">
+            {featured.map((f) => (
+              <a class="feature-card" href={f.href}>
+                <div class="feature-title">{f.title}</div>
+                <div class="feature-desc">{f.desc}</div>
+                <div class="feature-cta">Open →</div>
               </a>
-            )}
+            ))}
+          </div>
+
+          <!-- “This week” placeholder block -->
+          <h3>Snapshot</h3>
+          <div class="snapshot-grid" role="list">
+            <div class="snapshot" role="listitem">
+              <div class="snapshot-k">Team</div>
+              <div class="snapshot-v">Seattle Seahawks</div>
+              <div class="snapshot-note">Dashboards update automatically</div>
+            </div>
+            <div class="snapshot" role="listitem">
+              <div class="snapshot-k">Season</div>
+              <div class="snapshot-v">2025</div>
+              <div class="snapshot-note">Filters for week / home / away</div>
+            </div>
+            <div class="snapshot" role="listitem">
+              <div class="snapshot-k">Goal</div>
+              <div class="snapshot-v">Accurate stats</div>
+              <div class="snapshot-note">With sources + methodology</div>
+            </div>
+          </div>
+
+          <p class="lr-cta">
+            <a class="lr-btn seahawks-btn" href="/team">Open Team Dashboard →</a>
+            <a class="lr-btn seahawks-btn seahawks-btn--ghost" style="margin-left: 0.5rem;" href="/players">
+              Browse Players →
+            </a>
           </p>
+
+          <!-- Footer note -->
+          <div class="note-box">
+            <strong>Note:</strong> If you’re adding data next, a clean first milestone is:
+            <em>team totals + per-game logs</em>, then player splits by position.
+          </div>
         </div>
       </article>
 
       <footer class="lr-footer">
-        <a href="/about">About</a> · <a href="/privacy-policy">Privacy Policy</a>
+        <a href="/about">About</a> · <a href="/privacy-policy">Privacy Policy</a> · <a href="/methodology">Methodology</a>
         <div class="lr-copyright">
-          &copy; {new Date().getFullYear()} retrogamefixes.com
+          &copy; {new Date().getFullYear()} seahawks-stats
         </div>
       </footer>
     </main>
+
+    <!-- RIGHT SIDEBAR (optional, but fills the 3-col layout nicely) -->
+    <aside class="lr-sidebar lr-sidebar-right">
+      <section class="lr-panel">
+        <h3 class="lr-panel-title">Popular</h3>
+        <ul class="lr-nav">
+          <li><a href="/players/qb">QB room</a></li>
+          <li><a href="/players/defense">Defense leaders</a></li>
+          <li><a href="/team/redzone">Red zone</a></li>
+          <li><a href="/team/3rd-down">3rd down</a></li>
+        </ul>
+      </section>
+
+      <section class="lr-panel">
+        <h3 class="lr-panel-title">Build next</h3>
+        <ul class="lr-nav">
+          <li><a href="/roadmap">Roadmap</a></li>
+          <li><a href="/sources">Sources</a></li>
+        </ul>
+      </section>
+    </aside>
   </div>
 </BaseLayout>
 
