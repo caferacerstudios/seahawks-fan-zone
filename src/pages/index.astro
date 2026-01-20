@@ -36,10 +36,15 @@ const quickLinks = [
   { href: "/players/st", label: "Special Teams" },
 ];
 
-const introText = `This is a Seahawks-first stats homepage.
-No fluff — just clean, accurate numbers for every player and the team as a whole.
-If you’re the type of fan who argues in the group chat with receipts, you’re home.
-Go Hawks.`;
+const introText = `Welcome, 12s — you made it.
+
+This is our little corner of the internet where Seahawks talk lives: news, stats, highlights, and the weekly emotional rollercoaster we all signed up for.
+
+If you’re here to keep up with the season, dig into the numbers, or just soak up the fan energy, you’re in the right place.
+
+We’ll also be sharing fan gear and Seahawks-themed finds along the way. Stick around, check back often, and let’s ride the season together.
+
+Go Hawks!`;
 ---
 
 <BaseLayout {title} {description}>
@@ -48,8 +53,8 @@ Go Hawks.`;
     <div class="lr-header-bg seahawks-header-bg" aria-hidden="true"></div>
 
     <div class="lr-header-inner">
-      <h1 class="lr-site-title">Seahawks Stats HQ</h1>
-      <p class="lr-site-tagline">Accurate stats for every player + the team as a whole</p>
+      <h1 class="lr-site-title">Seahawks Fan Zone</h1>
+      <p class="lr-site-tagline">Home of the 12s</p>
 
       <nav class="top-nav" aria-label="Primary">
         {navPages.map((p) => (
