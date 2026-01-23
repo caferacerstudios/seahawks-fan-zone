@@ -5,11 +5,9 @@ import path from "node:path";
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import data from "../data/nfl/seahawks.json";
 
-// ----- Helpers -----
-
 const pageTitle = `Seahawks Schedule (${data.season})`;
 
-// Always display times as Pacific Time for consistency
+// Pacific time formatting (display only)
 const fmtDateTimePT = (iso) =>
   new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
@@ -27,17 +25,32 @@ const fmtUpdatedPT = (iso) =>
     timeStyle: "medium",
   }).format(new Date(iso));
 
-// Logo resolver: supports .svg/.png/.jpg based on what your downloader saved
+// Logo resolver: supports .svg/.png/.jpg and common abbreviation aliases
 const logoRelBase = "/images/nfl/teams";
 const logoDiskBase = path.resolve("public", "images", "nfl", "teams");
 
+// Common abbreviation mismatches between different sources
+const ABBR_ALIASES = {
+  LAR: ["LA"],
+  LA: ["LAR"],
+  WSH: ["WAS"],
+  WAS: ["WSH"],
+  JAX: ["JAC"],
+  JAC: ["JAX"],
+  LV: ["LVR"],
+  LVR: ["LV"],
+};
+
 function logoFor(abbr) {
   const a = String(abbr || "").toUpperCase();
-  for (const ext of [".svg", ".png", ".jpg"]) {
-    const disk = path.join(logoDiskBase, `${a}${ext}`);
-    if (fs.existsSync(disk)) return `${logoRelBase}/${a}${ext}`;
+  const candidates = [a, ...(ABBR_ALIASES[a] ?? [])];
+
+  for (const cand of candidates) {
+    for (const ext of [".svg", ".png", ".jpg"]) {
+      const disk = path.join(logoDiskBase, `${cand}${ext}`);
+      if (fs.existsSync(disk)) return `${logoRelBase}/${cand}${ext}`;
+    }
   }
-  // optional fallback if you add one later
   return "";
 }
 
@@ -51,15 +64,53 @@ function scoreLine(g) {
   return `${g.visitor_team_score}-${g.home_team_score}`;
 }
 
+function seahawksResult(g) {
+  if (!isFinal(g.status)) return null;
+
+  const seaIsHome = g.home_team?.abbreviation === "SEA";
+  const seaScore = seaIsHome ? g.home_team_score : g.visitor_team_score;
+  const oppScore = seaIsHome ? g.visitor_team_score : g.home_team_score;
+
+  if (typeof seaScore !== "number" || typeof oppScore !== "number") return null;
+  if (seaScore > oppScore) return "win";
+  if (seaScore < oppScore) return "loss";
+  return "tie";
+}
+
+// Postseason labeling so "Week 18 then Week 2" doesn't look wrong.
+// BALLDONTLIE season includes playoffs in Jan of the next year; those often use week 1-4.
+function isLikelyPostseason(g) {
+  if (g.postseason === true) return true;
+  const st = String(g.season_type || g.type || "").toLowerCase();
+  if (st.includes("post")) return true;
+
+  const d = new Date(g.date);
+  const m = d.getUTCMonth() + 1; // 1-12
+  const wk = Number(g.week);
+
+  // Heuristic: small week number + January/February => playoffs
+  if ((m === 1 || m === 2) && wk > 0 && wk <= 6) return true;
+  return false;
+}
+
+function weekLabel(g) {
+  if (!isLikelyPostseason(g)) return `Week ${g.week}`;
+
+  const wk = Number(g.week);
+  if (wk === 1) return "Playoffs: Wild Card";
+  if (wk === 2) return "Playoffs: Divisional";
+  if (wk === 3) return "Playoffs: Conference";
+  if (wk === 4) return "Playoffs: Super Bowl";
+  return "Playoffs";
+}
+
 const games = data.games
   .slice()
   .sort((a, b) => new Date(a.date) - new Date(b.date));
 ---
 
 <SeahawksLayout pageTitle={pageTitle} pageTagline="Schedule and results" activePath="/schedule">
-  <p class="sfz-muted">
-    Updated: {fmtUpdatedPT(data.updatedAt)} PT
-  </p>
+  <p class="sfz-muted">Updated: {fmtUpdatedPT(data.updatedAt)} PT</p>
 
   <div class="sfz-schedule-grid" role="list">
     {games.map((g) => {
@@ -69,10 +120,17 @@ const games = data.games
       const awayLogo = logoFor(away.abbreviation);
       const homeLogo = logoFor(home.abbreviation);
 
+      const outcome = seahawksResult(g); // "win" | "loss" | "tie" | null
+      const cardClass =
+        outcome === "win" ? "sfz-game-card sfz-win"
+        : outcome === "loss" ? "sfz-game-card sfz-loss"
+        : outcome === "tie" ? "sfz-game-card sfz-tie"
+        : "sfz-game-card";
+
       return (
-        <article class="sfz-game-card" role="listitem">
+        <article class={cardClass} role="listitem">
           <div class="sfz-game-top">
-            <div class="sfz-week">Week {g.week}</div>
+            <div class="sfz-week">{weekLabel(g)}</div>
             <div class="sfz-date">{fmtDateTimePT(g.date)} PT</div>
           </div>
 
@@ -114,8 +172,6 @@ const games = data.games
   </div>
 
   <style>
-    /* Local schedule styling so you don't have to touch global CSS */
-
     .sfz-muted {
       margin: 0 0 1rem;
       color: rgba(15, 23, 32, 0.65);
@@ -135,6 +191,30 @@ const games = data.games
       background: #ffffff;
       padding: 0.95rem;
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.07);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Seahawks result styling */
+    .sfz-win {
+      border-color: rgba(105, 190, 40, 0.55);
+      box-shadow: 0 10px 26px rgba(105, 190, 40, 0.14);
+    }
+    .sfz-win::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, rgba(105, 190, 40, 0.10), transparent 55%);
+      pointer-events: none;
+    }
+
+    .sfz-loss {
+      border-color: rgba(0, 34, 68, 0.20);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .sfz-tie {
+      border-color: rgba(165, 172, 175, 0.55);
     }
 
     .sfz-game-top {
@@ -143,6 +223,8 @@ const games = data.games
       align-items: baseline;
       gap: 0.75rem;
       margin-bottom: 0.75rem;
+      position: relative;
+      z-index: 1;
     }
 
     .sfz-week {
@@ -168,6 +250,8 @@ const games = data.games
       padding: 0.75rem 0;
       border-top: 1px solid rgba(0, 34, 68, 0.10);
       border-bottom: 1px solid rgba(0, 34, 68, 0.10);
+      position: relative;
+      z-index: 1;
     }
 
     .sfz-team {
@@ -234,6 +318,8 @@ const games = data.games
       align-items: baseline;
       gap: 0.75rem;
       flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
     }
 
     .sfz-status {
