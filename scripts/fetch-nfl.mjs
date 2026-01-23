@@ -5,7 +5,7 @@
  *   src/data/nfl/players.json
  *
  * Safe behavior:
- * - If network/API fails, DOES NOT overwrite existing good files.
+ * - If fetch fails, it will NOT overwrite existing good files.
  *
  * Requires:
  *   BALLDONTLIE_API_KEY in environment
@@ -27,7 +27,6 @@ function nowIso() {
 }
 
 function guessSeasonYearUTC() {
-  // NFL season year = current year, except Jan/Feb are still previous season.
   const d = new Date();
   const m = d.getUTCMonth() + 1;
   const y = d.getUTCFullYear();
@@ -53,6 +52,7 @@ function isRetryableNetworkError(err) {
 
 async function apiGet(url, { retries = 4 } = {}) {
   let attempt = 0;
+
   while (true) {
     try {
       const res = await fetch(url, {
@@ -73,6 +73,7 @@ async function apiGet(url, { retries = 4 } = {}) {
       return res.json();
     } catch (err) {
       attempt += 1;
+
       if (attempt <= retries && isRetryableNetworkError(err)) {
         const backoff = 400 * Math.pow(2, attempt - 1);
         console.error(`Network/DNS error (attempt ${attempt}/${retries})`);
@@ -82,25 +83,24 @@ async function apiGet(url, { retries = 4 } = {}) {
         await sleep(backoff);
         continue;
       }
+
       throw err;
     }
   }
 }
 
 async function fetchAllPages(makeUrl) {
-  // Cursor pagination. Response: { data: [...], meta: { next_cursor, per_page } }
+  // Cursor pagination: { data: [...], meta: { next_cursor } }
   let out = [];
   let cursor = null;
 
   while (true) {
     const url = makeUrl(cursor);
     const json = await apiGet(url);
-    const data = json?.data ?? [];
-    out = out.concat(data);
+    out = out.concat(json?.data ?? []);
+    const next = json?.meta?.next_cursor;
 
-    const next = json?.meta?.next_cursor ?? null;
     if (next === null || next === undefined) break;
-
     cursor = next;
   }
 
@@ -109,9 +109,7 @@ async function fetchAllPages(makeUrl) {
 
 function safeWriteJsonAtomic(relPath, obj) {
   const full = path.resolve(process.cwd(), relPath);
-  const dir = path.dirname(full);
-  fs.mkdirSync(dir, { recursive: true });
-
+  fs.mkdirSync(path.dirname(full), { recursive: true });
   const tmp = `${full}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
   fs.renameSync(tmp, full);
@@ -119,7 +117,6 @@ function safeWriteJsonAtomic(relPath, obj) {
 }
 
 function safeWriteOnlyOnSuccess(relPath, obj, ok) {
-  // If ok === false, do not overwrite an existing file.
   const full = path.resolve(process.cwd(), relPath);
 
   if (!ok) {
@@ -127,12 +124,7 @@ function safeWriteOnlyOnSuccess(relPath, obj, ok) {
       console.error(`keeping existing ${relPath} (fetch failed)`);
       return;
     }
-    // If no existing file, write a stub so Astro imports won't crash.
-    safeWriteJsonAtomic(relPath, {
-      updatedAt: nowIso(),
-      error: "fetch_failed_no_cache",
-      ...obj,
-    });
+    safeWriteJsonAtomic(relPath, { updatedAt: nowIso(), error: "fetch_failed_no_cache", ...obj });
     return;
   }
 
@@ -153,8 +145,7 @@ async function getSeaTeamId() {
 }
 
 async function fetchSchedule(seaTeamId, seasonYear) {
-  // IMPORTANT: games endpoint uses seasons[] (not season)
-  // https://www.balldontlie.io/blog/nfl-scoreboard-react-tutorial/ shows seasons[] usage.
+  // games uses seasons[] (not season)
   return fetchAllPages((cursor) => {
     const params = new URLSearchParams();
     params.set("per_page", "100");
@@ -166,7 +157,7 @@ async function fetchSchedule(seaTeamId, seasonYear) {
 }
 
 async function fetchTeamPlayers(seaTeamId) {
-  // Pull player identity data (name/pos) so season stats can show real names.
+  // roster / players for SEA
   return fetchAllPages((cursor) => {
     const params = new URLSearchParams();
     params.set("per_page", "100");
@@ -177,7 +168,7 @@ async function fetchTeamPlayers(seaTeamId) {
 }
 
 async function fetchSeasonStats(seaTeamId, seasonYear) {
-  // season_stats endpoint expects season=<year> (your earlier error showed param name is "season")
+  // season_stats expects season=<year>
   return fetchAllPages((cursor) => {
     const params = new URLSearchParams();
     params.set("per_page", "100");
@@ -188,25 +179,54 @@ async function fetchSeasonStats(seaTeamId, seasonYear) {
   });
 }
 
+function getGameSeasonType(game) {
+  const wk = game?.week;
+
+  // If API provides a flag, honor it
+  if (typeof game?.postseason === "boolean") return game.postseason ? "playoffs" : "regular";
+  if (typeof game?.is_postseason === "boolean") return game.is_postseason ? "playoffs" : "regular";
+
+  // If week string includes "Playoff"
+  if (typeof wk === "string" && /playoff/i.test(wk)) return "playoffs";
+
+  // If week is numeric 1-18 => regular
+  const n = Number(wk);
+  if (Number.isFinite(n) && n >= 1 && n <= 18) return "regular";
+
+  // Heuristic by date (Jan/Feb are postseason window)
+  const dt = new Date(game?.date || 0);
+  const month = dt.getUTCMonth() + 1;
+  if (month === 1 || month === 2) return "playoffs";
+
+  return "regular";
+}
+
 function normalizeSchedule(games, seaTeamId, seasonYear) {
-  // Hard filter again, just in case.
   const filtered = (games ?? []).filter((g) => {
-    // Some APIs include "season" on game objects; if missing, still keep.
     if (g?.season && Number(g.season) !== Number(seasonYear)) return false;
 
-    const home = g?.home_team?.abbreviation;
-    const away = g?.visitor_team?.abbreviation;
-    const seaInGame =
-      String(home || "").toUpperCase() === "SEA" || String(away || "").toUpperCase() === "SEA";
-
-    return seaInGame;
+    const home = String(g?.home_team?.abbreviation || "").toUpperCase();
+    const away = String(g?.visitor_team?.abbreviation || "").toUpperCase();
+    return home === "SEA" || away === "SEA";
   });
 
-  // Sort by week then date
-  filtered.sort((a, b) => {
-    const wa = Number(a?.week ?? 0);
-    const wb = Number(b?.week ?? 0);
-    if (wa !== wb) return wa - wb;
+  const enriched = filtered.map((g) => ({
+    ...g,
+    seasonType: getGameSeasonType(g),
+  }));
+
+  // Regular season first (by week), then playoffs (by date)
+  enriched.sort((a, b) => {
+    const ta = a.seasonType === "playoffs" ? 1 : 0;
+    const tb = b.seasonType === "playoffs" ? 1 : 0;
+    if (ta !== tb) return ta - tb;
+
+    if (ta === 0) {
+      const wa = Number(a?.week ?? 0);
+      const wb = Number(b?.week ?? 0);
+      if (wa !== wb) return wa - wb;
+    }
+
     const da = new Date(a?.date ?? 0).getTime();
     const db = new Date(b?.date ?? 0).getTime();
     return da - db;
@@ -216,56 +236,78 @@ function normalizeSchedule(games, seaTeamId, seasonYear) {
     updatedAt: nowIso(),
     season: seasonYear,
     teamId: seaTeamId,
-    games: filtered,
+    games: enriched,
   };
 }
 
-function normalizePlayers(seasonStatsRows, playersList, seaTeamId, seasonYear) {
-  const byId = new Map();
-  for (const p of playersList ?? []) {
-    if (!p?.id) continue;
-    byId.set(Number(p.id), p);
-  }
+function pickPlayerIdFromStatRow(r) {
+  // Different shapes exist; handle common ones.
+  if (Number.isFinite(Number(r?.player_id))) return Number(r.player_id);
+  if (Number.isFinite(Number(r?.player?.id))) return Number(r.player.id);
+  if (Number.isFinite(Number(r?.athlete_id))) return Number(r.athlete_id);
+  return null;
+}
 
-  const rows = (seasonStatsRows ?? []).map((r) => {
-    const pid = Number(r?.player_id ?? r?.player?.id ?? 0);
-    const p = byId.get(pid);
+function makePlayerIndex(playersList) {
+  const idx = new Map();
+  for (const p of playersList ?? []) {
+    const id = Number(p?.id);
+    if (!Number.isFinite(id)) continue;
 
     const fullName =
       p?.full_name ||
       [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim() ||
-      r?.player?.full_name ||
       "Unknown";
 
-    const pos = p?.position || r?.player?.position || "-";
+    const position = p?.position || "-";
+
+    idx.set(id, {
+      id,
+      full_name: fullName,
+      first_name: p?.first_name || null,
+      last_name: p?.last_name || null,
+      position,
+    });
+  }
+  return idx;
+}
+
+function normalizePlayers(seasonStatsRows, playersList, seaTeamId, seasonYear) {
+  const idx = makePlayerIndex(playersList);
+
+  const rows = (seasonStatsRows ?? []).map((r) => {
+    const pid = pickPlayerIdFromStatRow(r);
+    const p = pid ? idx.get(pid) : null;
 
     return {
       ...r,
-      player_id: pid || r?.player_id,
+      player_id: pid ?? r?.player_id ?? null,
       player: {
-        id: pid || r?.player?.id || r?.player_id,
-        full_name: fullName,
-        first_name: p?.first_name || r?.player?.first_name || null,
-        last_name: p?.last_name || r?.player?.last_name || null,
-        position: pos,
+        id: pid ?? null,
+        full_name: p?.full_name || "Unknown",
+        first_name: p?.first_name || null,
+        last_name: p?.last_name || null,
+        position: p?.position || "-",
         team_abbreviation: "SEA",
       },
     };
   });
 
-  // De-dupe by player_id: keep the row with highest games_played if present
+  // De-dupe by player_id: keep row with highest games_played (if present)
   const dedup = new Map();
   for (const r of rows) {
-    const pid = Number(r?.player_id ?? 0);
-    if (!pid) continue;
+    const pid = Number(r?.player_id);
+    if (!Number.isFinite(pid) || pid <= 0) continue;
+
     const prev = dedup.get(pid);
     if (!prev) {
       dedup.set(pid, r);
       continue;
     }
-    const gpA = Number(prev?.games_played ?? prev?.gp ?? 0);
-    const gpB = Number(r?.games_played ?? r?.gp ?? 0);
-    if (gpB >= gpA) dedup.set(pid, r);
+
+    const gpPrev = Number(prev?.games_played ?? prev?.gp ?? 0);
+    const gpCur = Number(r?.games_played ?? r?.gp ?? 0);
+    if (gpCur >= gpPrev) dedup.set(pid, r);
   }
 
   const finalRows = Array.from(dedup.values());
@@ -301,6 +343,10 @@ async function main() {
   try {
     const games = await fetchSchedule(seaTeamId, seasonYear);
     schedulePayload = normalizeSchedule(games, seaTeamId, seasonYear);
+    // If schedule looks too small, treat as failure so we don't overwrite good cache.
+    if ((schedulePayload.games || []).length < 10) {
+      throw new Error(`Schedule payload unexpectedly small (${schedulePayload.games.length}).`);
+    }
     scheduleOk = true;
   } catch (e) {
     console.error("Schedule fetch failed:");
@@ -326,9 +372,12 @@ async function main() {
 
     playersPayload = normalizePlayers(seasonStats, playersList, seaTeamId, seasonYear);
 
-    // If we somehow got an empty set, treat as failure so we don't overwrite good cache.
-    if ((playersPayload.players || []).length < 10) {
-      throw new Error(`Player payload unexpectedly small (${playersPayload.players.length}).`);
+    // Sanity: if nearly everyone is Unknown, join failed. Fail safe and keep cache.
+    const total = playersPayload.players.length;
+    const unknown = playersPayload.players.filter((p) => p?.player?.full_name === "Unknown").length;
+    if (total < 10) throw new Error(`Players payload unexpectedly small (${total}).`);
+    if (unknown / total > 0.25) {
+      throw new Error(`Too many Unknown players after join (${unknown}/${total}).`);
     }
 
     playersOk = true;
