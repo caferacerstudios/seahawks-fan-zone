@@ -1,0 +1,40 @@
+---
+import data from "../data/nfl/seahawks.json";
+
+// Default sort: receiving yards (easy to change later)
+const rows = data.playerSeasonStats
+  .slice()
+  .sort((a, b) => (b.receiving_yards ?? 0) - (a.receiving_yards ?? 0));
+---
+
+<h1>Seahawks Player Stats ({data.season})</h1>
+<p class="muted">Updated: {new Date(data.updatedAt).toLocaleString()}</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Player</th>
+      <th>Pos</th>
+      <th>GP</th>
+      <th>Pass Yds</th>
+      <th>Rush Yds</th>
+      <th>Rec Yds</th>
+      <th>TD (P/R/Rec)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows.map((r) => (
+      <tr>
+        <td>{r.player.first_name} {r.player.last_name}</td>
+        <td>{r.player.position_abbreviation}</td>
+        <td>{r.games_played}</td>
+        <td>{r.passing_yards ?? "-"}</td>
+        <td>{r.rushing_yards ?? "-"}</td>
+        <td>{r.receiving_yards ?? "-"}</td>
+        <td>
+          {(r.passing_touchdowns ?? 0)}/{(r.rushing_touchdowns ?? 0)}/{(r.receiving_touchdowns ?? 0)}
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
