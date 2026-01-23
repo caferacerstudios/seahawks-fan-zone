@@ -1,0 +1,31 @@
+---
+import data from "../data/nfl/seahawks.json";
+const t = data.team;
+const s = data.teamSeasonStats;
+---
+
+<h1>{t.full_name}</h1>
+<p>{t.conference} • {t.division}</p>
+
+<h2>Team Season Stats ({data.season})</h2>
+
+{!s ? (
+  <p>No team stats found.</p>
+) : (
+  <ul>
+    <li><strong>Games played:</strong> {s.games_played}</li>
+    <li><strong>Total points:</strong> {s.total_points} ({s.total_points_per_game}/game)</li>
+    <li><strong>Total offense:</strong> {s.total_offensive_yards} ({s.total_offensive_yards_per_game}/game)</li>
+    <li><strong>Passing:</strong> {s.passing_yards} ({s.passing_yards_per_game}/game)</li>
+    <li><strong>Rushing:</strong> {s.rushing_yards} ({s.rushing_yards_per_game}/game)</li>
+    <li><strong>Takeaways:</strong> {s.misc_total_takeaways}</li>
+    <li><strong>Giveaways:</strong> {s.misc_total_giveaways}</li>
+  </ul>
+)}
+
+<h2>Active Players</h2>
+<ul>
+  {data.activePlayers.map((p) => (
+    <li>{p.jersey_number ?? ""} {p.first_name} {p.last_name} — {p.position_abbreviation}</li>
+  ))}
+</ul>
