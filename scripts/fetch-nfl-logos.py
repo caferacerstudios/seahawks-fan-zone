@@ -3,12 +3,16 @@
 Fetch NFL team logos into:
   public/images/nfl/teams/
 
-What it does:
-1) Downloads logos from nflverse CSV.
-2) Creates alias copies for common abbreviation mismatches.
-3) Reads your current schedule JSON (src/data/nfl/seahawks.json) and ensures every
-   team abbreviation appearing in that file has a logo.
-   - If still missing after nflverse+aliases, it pulls a fallback PNG from ESPN.
+Goal:
+- Reliable local logos for the abbreviations actually used by your site data.
+- Avoid Wikimedia/Wikipedia thumbnail rate limits (HTTP 429).
+
+What it does now:
+1) Reads your schedule JSON (src/data/nfl/seahawks.json) to get the exact set of team abbreviations you need.
+2) Downloads those logos from ESPN first (stable CDN).
+3) Creates alias copies for common abbreviation mismatches.
+4) Optionally backfills from nflverse CSV ONLY for teams that are still missing after ESPN.
+   (This avoids spamming Wikipedia thumbs and getting 429.)
 
 Run from repo root:
   python3 scripts/fetch-nfl-logos.py
@@ -18,21 +22,13 @@ import csv
 import json
 import os
 import sys
+import time
 import urllib.request
 from urllib.parse import urlparse
 
 CSV_URL = "https://raw.githubusercontent.com/nflverse/nflverse-pbp/master/teams_colors_logos.csv"
 OUT_DIR = os.path.join("public", "images", "nfl", "teams")
 SCHEDULE_JSON = os.path.join("src", "data", "nfl", "seahawks.json")
-
-ABBR_CANDIDATES = ["team_abbr", "abbr", "team"]
-LOGO_CANDIDATES = [
-    "team_logo_wikipedia",
-    "team_logo_espn",
-    "team_logo",
-    "logo",
-    "logo_url",
-]
 
 # Alias pairs: if one exists, copy to the other if missing
 ALIASES = [
@@ -42,8 +38,7 @@ ALIASES = [
     ("LV", "LVR"),     # Raiders (rare)
 ]
 
-# ESPN team ID mapping (for fallback download)
-# We only need teams appearing in your schedule file. Add more if needed.
+# ESPN team ID mapping (fallback/stable primary source)
 ESPN_TEAM_IDS = {
     "ARI": 22,
     "ATL": 1,
@@ -61,8 +56,8 @@ ESPN_TEAM_IDS = {
     "IND": 11,
     "JAX": 30,
     "KC": 12,
-    "LA": 14,   # Rams (ESPN uses LA for Rams)
-    "LAR": 14,  # alias
+    "LA": 14,   # Rams
+    "LAR": 14,
     "LAC": 24,
     "LV": 13,
     "MIA": 15,
@@ -78,33 +73,18 @@ ESPN_TEAM_IDS = {
     "TB": 27,
     "TEN": 10,
     "WAS": 28,
-    "WSH": 28,  # alias
+    "WSH": 28,
 }
 
-def ext_from_url(url: str) -> str:
-    path = urlparse(url).path.lower()
-    if path.endswith(".svg"):
-        return ".svg"
-    if path.endswith(".png"):
-        return ".png"
-    if path.endswith(".jpg") or path.endswith(".jpeg"):
-        return ".jpg"
-    return ".img"
+EXTS = [".svg", ".png", ".jpg", ".jpeg", ".img"]
 
 def download_bytes(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "seahawksfanzone/1.0"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.read()
 
-def pick_column(headers, candidates):
-    headers_lc = {h.lower(): h for h in headers if h}
-    for c in candidates:
-        if c.lower() in headers_lc:
-            return headers_lc[c.lower()]
-    return None
-
 def find_existing_file(abbr: str):
-    for ext in [".svg", ".png", ".jpg", ".jpeg", ".img"]:
+    for ext in EXTS:
         p = os.path.join(OUT_DIR, f"{abbr}{ext}")
         if os.path.exists(p) and os.path.getsize(p) > 0:
             return p
@@ -131,40 +111,10 @@ def copy_if_missing(src_abbr: str, dst_abbr: str):
         print(f"FAILED alias {src_abbr} -> {dst_abbr}: {e}", file=sys.stderr)
         return 0
 
-def espn_logo_url(abbr: str) -> str:
-    """
-    ESPN CDN logo endpoint by team id:
-    https://a.espncdn.com/i/teamlogos/nfl/500/<id>.png
-    """
-    team_id = ESPN_TEAM_IDS.get(abbr)
-    if not team_id:
-        return ""
-    return f"https://a.espncdn.com/i/teamlogos/nfl/500/{team_id}.png"
-
-def ensure_from_espn(abbr: str) -> bool:
-    """
-    Download ESPN fallback PNG if abbr still missing.
-    Saves as <ABBR>.png.
-    """
-    url = espn_logo_url(abbr)
-    if not url:
-        return False
-    out_path = os.path.join(OUT_DIR, f"{abbr}.png")
-    if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-        return True
-    try:
-        data = download_bytes(url)
-        with open(out_path, "wb") as f:
-            f.write(data)
-        print(f"espn saved {abbr} -> {out_path}")
-        return True
-    except Exception as e:
-        print(f"FAILED espn {abbr} ({url}): {e}", file=sys.stderr)
-        return False
-
 def read_schedule_abbrs():
     if not os.path.exists(SCHEDULE_JSON):
         return set()
+
     with open(SCHEDULE_JSON, "r") as f:
         data = json.load(f)
 
@@ -178,10 +128,48 @@ def read_schedule_abbrs():
             abbrs.add(str(ht["abbreviation"]).upper())
     return abbrs
 
-def main() -> int:
-    os.makedirs(OUT_DIR, exist_ok=True)
+def espn_logo_url(abbr: str) -> str:
+    team_id = ESPN_TEAM_IDS.get(abbr)
+    if not team_id:
+        return ""
+    return f"https://a.espncdn.com/i/teamlogos/nfl/500/{team_id}.png"
 
-    # 1) Fetch CSV and download what it provides
+def ensure_from_espn(abbr: str) -> bool:
+    url = espn_logo_url(abbr)
+    if not url:
+        return False
+    out_path = os.path.join(OUT_DIR, f"{abbr}.png")
+    if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+        return True
+    try:
+        data = download_bytes(url)
+        with open(out_path, "wb") as f:
+            f.write(data)
+        print(f"espn saved {abbr} -> {out_path}")
+        time.sleep(0.12)  # gentle pacing
+        return True
+    except Exception as e:
+        print(f"FAILED espn {abbr} ({url}): {e}", file=sys.stderr)
+        return False
+
+def ext_from_url(url: str) -> str:
+    p = urlparse(url).path.lower()
+    if p.endswith(".svg"):
+        return ".svg"
+    if p.endswith(".png"):
+        return ".png"
+    if p.endswith(".jpg") or p.endswith(".jpeg"):
+        return ".jpg"
+    return ".img"
+
+def try_nflverse_backfill(missing_abbrs):
+    """
+    Only backfill for remaining missing abbreviations.
+    This can still hit Wikimedia thumbs; we do it last and only for a few.
+    """
+    if not missing_abbrs:
+        return (0, 0)
+
     downloaded = 0
     failed = 0
 
@@ -189,87 +177,103 @@ def main() -> int:
         with urllib.request.urlopen(CSV_URL, timeout=30) as r:
             text = r.read().decode("utf-8", errors="replace")
     except Exception as e:
-        print(f"Failed to fetch CSV: {e}", file=sys.stderr)
-        return 1
+        print(f"Failed to fetch nflverse CSV: {e}", file=sys.stderr)
+        return (0, len(missing_abbrs))
 
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     reader = csv.DictReader(text.splitlines())
     if not reader.fieldnames:
-        print("Could not read CSV headers", file=sys.stderr)
-        return 1
+        return (0, len(missing_abbrs))
 
+    # Find likely columns in a robust way
     headers = [h.strip() for h in reader.fieldnames if h and h.strip()]
-    abbr_col = pick_column(headers, ABBR_CANDIDATES)
-    logo_col = pick_column(headers, LOGO_CANDIDATES)
+    def pick(cands):
+        headers_lc = {h.lower(): h for h in headers}
+        for c in cands:
+            if c.lower() in headers_lc:
+                return headers_lc[c.lower()]
+        return None
+
+    abbr_col = pick(["team_abbr", "abbr", "team"])
+    logo_col = pick(["team_logo_wikipedia", "team_logo_espn", "team_logo", "logo", "logo_url"])
     if not abbr_col or not logo_col:
-        print("Could not find expected columns in CSV.", file=sys.stderr)
-        print("Headers:", headers, file=sys.stderr)
-        return 1
+        return (0, len(missing_abbrs))
+
+    want = set(missing_abbrs)
 
     for row in reader:
         abbr = (row.get(abbr_col) or "").strip().upper()
+        if abbr not in want:
+            continue
+
         logo_url = (row.get(logo_col) or "").strip()
-        if not abbr or not logo_url:
+        if not logo_url:
             continue
 
         ext = ext_from_url(logo_url)
         out_path = os.path.join(OUT_DIR, f"{abbr}{ext}")
-
         if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+            want.discard(abbr)
             continue
 
         try:
             data = download_bytes(logo_url)
             with open(out_path, "wb") as f:
                 f.write(data)
-            print(f"saved {abbr} -> {out_path}")
+            print(f"nflverse saved {abbr} -> {out_path}")
             downloaded += 1
+            want.discard(abbr)
+            time.sleep(0.2)  # slower to reduce chance of 429
         except Exception as e:
-            print(f"FAILED {abbr} ({logo_url}): {e}", file=sys.stderr)
+            print(f"FAILED nflverse {abbr} ({logo_url}): {e}", file=sys.stderr)
             failed += 1
+            time.sleep(0.4)
 
-    # 2) Aliases both directions
+    failed += len(want)
+    return (downloaded, failed)
+
+def main() -> int:
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    schedule_abbrs = read_schedule_abbrs()
+    if not schedule_abbrs:
+        print(f"No abbreviations found in {SCHEDULE_JSON}. Nothing to do.")
+        return 0
+
+    # 1) ESPN first for exactly what you need
+    ensured = 0
+    for abbr in sorted(schedule_abbrs):
+        if find_existing_file(abbr):
+            continue
+        if ensure_from_espn(abbr):
+            ensured += 1
+
+    # 2) Alias copies
     alias_made = 0
     for a, b in ALIASES:
         alias_made += copy_if_missing(a, b)
         alias_made += copy_if_missing(b, a)
 
-    # 3) Ensure all abbreviations in your current schedule JSON exist
-    schedule_abbrs = read_schedule_abbrs()
-    ensured = 0
-    still_missing = []
+    # 3) Backfill remaining missing via nflverse (last resort)
+    remaining = [a for a in sorted(schedule_abbrs) if not find_existing_file(a)]
+    nflverse_downloaded, nflverse_failed = try_nflverse_backfill(remaining)
 
-    for abbr in sorted(schedule_abbrs):
-        if find_existing_file(abbr):
-            continue
+    # Re-run aliases after backfill
+    for a, b in ALIASES:
+        alias_made += copy_if_missing(a, b)
+        alias_made += copy_if_missing(b, a)
 
-        # Try alias sources if possible (copy in the other direction)
-        for a, b in ALIASES:
-            if abbr == a:
-                ensured += copy_if_missing(b, a)
-            if abbr == b:
-                ensured += copy_if_missing(a, b)
-
-        if find_existing_file(abbr):
-            continue
-
-        # Try ESPN fallback
-        if ensure_from_espn(abbr):
-            ensured += 1
-        else:
-            still_missing.append(abbr)
+    still_missing = [a for a in sorted(schedule_abbrs) if not find_existing_file(a)]
 
     print("\nDone.")
-    print(f"Downloaded from nflverse: {downloaded}")
+    print(f"Schedule teams: {len(schedule_abbrs)}")
+    print(f"Ensured via ESPN: {ensured}")
     print(f"Aliases created: {alias_made}")
-    print(f"Ensured via schedule scan: {ensured}")
-    print(f"Failed downloads: {failed}")
-    if still_missing:
-        print("Still missing:", ", ".join(still_missing))
+    print(f"Backfilled via nflverse: {nflverse_downloaded}")
+    print(f"Still missing: {', '.join(still_missing) if still_missing else 'none'}")
     print(f"Output dir: {OUT_DIR}")
 
-    return 0 if (failed == 0 and not still_missing) else 2
+    return 0 if not still_missing else 2
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
