@@ -2,26 +2,26 @@
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import scheduleData from "../data/nfl/seahawks.json";
 
-const pageTitle = "Seahawks Schedule (2025)";
-const pageTagline = "Game-by-game results and upcoming matchups";
-
 const PT_TZ = "America/Los_Angeles";
 
 function formatUpdatedPT(iso) {
   const d = iso ? new Date(iso) : new Date();
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: PT_TZ,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(d) + " PT";
+  return (
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: PT_TZ,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d) + " PT"
+  );
 }
 
 function formatKickoffPT(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
+
   const datePart = new Intl.DateTimeFormat("en-US", {
     timeZone: PT_TZ,
     weekday: "short",
@@ -43,12 +43,11 @@ function safeAbbr(team) {
 }
 
 function teamLogoPath(abbr) {
-  // Keep it simple: you are saving local PNGs as ABBR.png
   return abbr ? `/images/nfl/teams/${abbr}.png` : "";
 }
 
 function isFinal(game) {
-  const s = (game?.status || "").toLowerCase();
+  const s = String(game?.status || "").toLowerCase();
   return s.includes("final");
 }
 
@@ -87,35 +86,57 @@ function seahawksLost(game) {
 function matchupLine(game) {
   const homeAbbr = safeAbbr(game?.home_team);
   const awayAbbr = safeAbbr(game?.visitor_team);
-  const isSeaHome = homeAbbr === "SEA";
-  const left = isSeaHome ? awayAbbr : "SEA";
-  const right = isSeaHome ? "SEA" : homeAbbr;
-  return { left, right, isSeaHome };
+
+  const seaHome = homeAbbr === "SEA";
+  const left = seaHome ? awayAbbr : "SEA";
+  const right = seaHome ? "SEA" : homeAbbr;
+
+  return { left, right, seaHome, homeAbbr, awayAbbr };
 }
 
 function weekLabel(game) {
   const w = game?.week;
   const isPlayoffs = Boolean(game?.postseason || game?.is_postseason);
-  if (isPlayoffs) {
-    // If you later add a round field, you can improve this label.
-    return w ? `Playoffs Week ${w}` : "Playoffs";
-  }
+  if (isPlayoffs) return w ? `Playoffs Week ${w}` : "Playoffs";
   return w ? `Week ${w}` : "Week";
 }
 
-const updatedText = formatUpdatedPT(scheduleData?.updatedAt);
+function seasonFromGames(games) {
+  // Prefer explicit season if present, else derive from first regular season game date.
+  const explicit = scheduleData?.season;
+  if (explicit) return String(explicit);
+
+  const first = games?.find((g) => g?.date)?.date;
+  if (!first) return "";
+  const d = new Date(first);
+
+  // NFL season year is usually the year regular season starts (Sep–Jan)
+  // If game date is Jan/Feb, treat as previous season start year.
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  return m <= 2 ? String(y - 1) : String(y);
+}
+
 const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
+const seasonYear = seasonFromGames(games);
+const updatedText = formatUpdatedPT(scheduleData?.updatedAt);
+
+const pageTitle = "Seahawks Schedule";
+const pageTagline = "Season results and upcoming games";
 ---
 
-<SeahawksLayout pageTitle="Seahawks Schedule" pageTagline="Season results and upcoming games" activePath="/schedule">
+<SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/schedule">
   <section class="sfz-top">
-    <h2 class="sfz-h2">Seahawks Schedule (2025)</h2>
-    <p class="sfz-updated"><strong>Updated:</strong> {updatedText}</p>
+    <p class="sfz-meta">
+      <strong>Season:</strong> {seasonYear || "Current"}
+      <span class="sfz-dot">•</span>
+      <strong>Updated:</strong> {updatedText}
+    </p>
   </section>
 
   <section class="sfz-grid" aria-label="Schedule">
     {games.map((g) => {
-      const { left, right, isSeaHome } = matchupLine(g);
+      const { left, right, seaHome, homeAbbr, awayAbbr } = matchupLine(g);
 
       const leftLogo = teamLogoPath(left);
       const rightLogo = teamLogoPath(right);
@@ -124,21 +145,7 @@ const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
       const final = isFinal(g);
 
       const { home, away } = parseScore(g);
-
-      // Display score in matchup order (left vs right)
-      const leftScore = isSeaHome ? away : away; // left is opponent when SEA home, SEA when away
-      const rightScore = isSeaHome ? home : home; // right is SEA when home, opponent when away
-
-      // But we actually want correct mapping:
-      // home team is right when SEA is away, left when SEA is home? Not quite.
-      // Use direct mapping instead:
-      const homeAbbr = safeAbbr(g?.home_team);
-      const awayAbbr = safeAbbr(g?.visitor_team);
-
-      const scoreMap = {
-        [homeAbbr]: home,
-        [awayAbbr]: away,
-      };
+      const scoreMap = { [homeAbbr]: home, [awayAbbr]: away };
 
       const leftPts = scoreMap[left] ?? 0;
       const rightPts = scoreMap[right] ?? 0;
@@ -167,7 +174,9 @@ const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
                 onerror="this.style.display='none';"
               />
               <div class="sfz-abbr">{left}</div>
-              <div class="sfz-homeaway">{left === "SEA" ? (isSeaHome ? "H" : "A") : (isSeaHome ? "A" : "H")}</div>
+              <div class="sfz-homeaway">
+                {left === "SEA" ? (seaHome ? "H" : "A") : (seaHome ? "A" : "H")}
+              </div>
             </div>
 
             <div class="sfz-at">@</div>
@@ -181,13 +190,16 @@ const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
                 onerror="this.style.display='none';"
               />
               <div class="sfz-abbr">{right}</div>
-              <div class="sfz-homeaway">{right === "SEA" ? (isSeaHome ? "H" : "A") : (isSeaHome ? "A" : "H")}</div>
+              <div class="sfz-homeaway">
+                {right === "SEA" ? (seaHome ? "H" : "A") : (seaHome ? "A" : "H")}
+              </div>
             </div>
           </div>
 
           <footer class="sfz-card-foot">
             <div class="sfz-status">{final ? "Final" : (g?.status || "Scheduled")}</div>
-            <div class="sfz-score">
+
+            <div class="sfz-score" aria-label="Score">
               {final ? (
                 <>
                   <span class={left === "SEA" ? "sfz-scorepart sfz-scorepart--sea" : "sfz-scorepart"}>
@@ -213,20 +225,17 @@ const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
       margin-bottom: 0.9rem;
     }
 
-    .sfz-h2 {
-      margin: 0 0 0.25rem;
-      color: var(--navy);
-      font-weight: 950;
-      letter-spacing: 0.2px;
-      font-size: 2rem;
-      line-height: 1.15;
-    }
-
-    .sfz-updated {
+    .sfz-meta {
       margin: 0;
       color: rgba(15, 23, 32, 0.65);
-      font-weight: 800;
+      font-weight: 850;
       font-size: 0.95rem;
+    }
+
+    .sfz-dot {
+      padding: 0 0.4rem;
+      color: rgba(0, 34, 68, 0.35);
+      font-weight: 900;
     }
 
     .sfz-grid {
@@ -245,7 +254,6 @@ const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
       overflow: hidden;
     }
 
-    /* Wins and losses */
     .sfz-card--win {
       border-color: rgba(105, 190, 40, 0.7);
       box-shadow: 0 10px 26px rgba(105, 190, 40, 0.12);
@@ -261,11 +269,7 @@ const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
       align-items: baseline;
       justify-content: space-between;
       gap: 0.6rem;
-
-      /* key fix: allow wrapping instead of clipping */
       flex-wrap: wrap;
-
-      /* key fix: prevent flex children from forcing overflow */
       min-width: 0;
     }
 
@@ -282,12 +286,7 @@ const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
       font-weight: 850;
       font-size: 0.92rem;
       line-height: 1.25;
-
-      /* key fix: allow wrap */
       white-space: normal;
-      overflow: visible;
-
-      /* key fix: allow this to shrink inside flex row */
       min-width: 0;
       flex: 1 1 12rem;
       text-align: right;
@@ -397,7 +396,6 @@ const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
       .sfz-grid {
         grid-template-columns: 1fr;
       }
-
       .sfz-kickoff {
         text-align: left;
         flex: 1 1 100%;
