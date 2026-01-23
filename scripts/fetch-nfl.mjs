@@ -22,7 +22,7 @@ if (!API_KEY) {
 const OUT_DIR = path.resolve(process.cwd(), "src/data/nfl");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
-// NOTE: NFL endpoints are under /nfl/v1 (not /v1/nfl).
+// NFL endpoints are under /nfl/v1
 const NFL_BASE = "https://api.balldontlie.io/nfl/v1";
 
 function writeJson(relPath, obj) {
@@ -35,7 +35,6 @@ function writeJson(relPath, obj) {
 async function apiGet(url) {
   const res = await fetch(url, {
     headers: {
-      // Per NFL docs: Authorization header is the raw API key (no Bearer).
       Authorization: API_KEY,
       Accept: "application/json",
     },
@@ -86,31 +85,30 @@ function readExistingSeaTeamId() {
 }
 
 async function fetchTeams() {
-  // Free-tier friendly sanity check endpoint.
-  // Docs: GET https://api.balldontlie.io/nfl/v1/teams
   return apiGet(`${NFL_BASE}/teams?per_page=100`);
 }
 
 async function fetchSchedule(seaTeamId, seasonYear) {
-  // Docs show /games exists. We use common filtering params.
-  // If your key/tier supports it, this should work.
+  // If /games uses different params on your tier, we can adjust, but keep as-is for now.
+  // per_page max is 100.
   const url =
     `${NFL_BASE}/games?` +
     `team_ids[]=${encodeURIComponent(seaTeamId)}` +
-    `&seasons[]=${encodeURIComponent(seasonYear)}` +
+    `&season=${encodeURIComponent(seasonYear)}` +
     `&per_page=100`;
 
   return apiGet(url);
 }
 
 async function fetchPlayerSeasonStats(seaTeamId, seasonYear) {
-  // Docs list "Season Stats" endpoint.
-  // GET https://api.balldontlie.io/nfl/v1/season_stats
+  // The API error told us:
+  // - expects season= (singular)
+  // - per_page max is 100
   const url =
     `${NFL_BASE}/season_stats?` +
     `team_ids[]=${encodeURIComponent(seaTeamId)}` +
-    `&seasons[]=${encodeURIComponent(seasonYear)}` +
-    `&per_page=200`;
+    `&season=${encodeURIComponent(seasonYear)}` +
+    `&per_page=100`;
 
   return apiGet(url);
 }
@@ -138,12 +136,10 @@ function normalizePlayers(raw, seasonYear, seaTeamId) {
 async function main() {
   const seasonYear = guessSeasonYearUTC();
 
-  // 1) Make sure auth works at all
-  // (Teams endpoint is documented and should be accessible broadly)
+  // Auth sanity check
   await fetchTeams();
 
-  // 2) Choose SEA team id
-  // If you already have one from prior fetches, use it, otherwise detect from teams list.
+  // Choose SEA team id
   let seaTeamId = readExistingSeaTeamId();
 
   if (!Number.isFinite(seaTeamId)) {
@@ -161,14 +157,13 @@ async function main() {
   console.log(`Using SEA team id: ${seaTeamId}`);
   console.log(`Using season year: ${seasonYear}`);
 
-  // 3) Schedule (don’t hard-fail build if schedule endpoint is unavailable)
+  // Schedule
   try {
     const rawSchedule = await fetchSchedule(seaTeamId, seasonYear);
     const outSchedule = normalizeSchedule(rawSchedule, seasonYear, seaTeamId);
     writeJson("src/data/nfl/seahawks.json", outSchedule);
   } catch (e) {
     console.error("Schedule fetch failed:", e.message);
-    // Keep old file if present; otherwise write a minimal stub
     if (!fs.existsSync(path.resolve(process.cwd(), "src/data/nfl/seahawks.json"))) {
       writeJson("src/data/nfl/seahawks.json", {
         updatedAt: nowIso(),
@@ -180,8 +175,7 @@ async function main() {
     }
   }
 
-  // 4) Player season stats
-  // If tier blocks this (401), still write players.json so Astro import resolves.
+  // Players
   try {
     const rawPlayers = await fetchPlayerSeasonStats(seaTeamId, seasonYear);
     const outPlayers = normalizePlayers(rawPlayers, seasonYear, seaTeamId);
@@ -193,11 +187,11 @@ async function main() {
       season: seasonYear,
       teamId: seaTeamId,
       players: [],
-      error: e.status === 401 ? "unauthorized_or_tier_blocked" : "player_fetch_failed",
+      error: "player_fetch_failed",
     });
 
-    // Only hard fail on non-401 errors (you can change this if you want)
-    if (e.status && e.status !== 401) process.exit(1);
+    // Hard fail on non-401? You can decide. Keeping build alive:
+    // process.exit(1);
   }
 
   console.log("Done.");
