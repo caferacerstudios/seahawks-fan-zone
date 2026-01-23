@@ -28,6 +28,9 @@ function totalYards(r) {
 // Position filter via query param
 const posParam = (Astro.url?.searchParams?.get("pos") || "All").toUpperCase();
 
+// ✅ Use the real current route (avoids trailing-slash redirect issues)
+const basePath = Astro.url?.pathname || "/players/";
+
 // Deduplicate rows by player id, keeping the “best” stat line (most total yards)
 const byPlayer = new Map();
 
@@ -90,11 +93,11 @@ function playerName(r) {
       <select
         id="pos"
         class="sfz-select"
-        onChange="location.href=this.value"
+        onchange="location.href=this.value"
       >
-        <option value="/players" selected={posParam === "ALL"}>All</option>
+        <option value={basePath} selected={posParam === "ALL"}>All</option>
         {positions.map((p) => (
-          <option value={`/players?pos=${encodeURIComponent(p)}`} selected={posParam === p}>
+          <option value={`${basePath}?pos=${encodeURIComponent(p)}`} selected={posParam === p}>
             {p}
           </option>
         ))}
@@ -252,3 +255,4 @@ function playerName(r) {
     }
   </style>
 </SeahawksLayout>
+
