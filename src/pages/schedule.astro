@@ -5,10 +5,26 @@ import scheduleData from "../data/nfl/seahawks.json";
 const season = scheduleData?.season ?? "";
 const updatedAt = scheduleData?.updatedAt ?? "";
 
-const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
+// Accept both shapes:
+// 1) { games: [...] }
+// 2) { gamesRegular: [...], gamesPostseason: [...] }
+const rawGames = Array.isArray(scheduleData?.games)
+  ? scheduleData.games
+  : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
+    ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
+    : [];
 
-const regular = games.filter((g) => g?.seasonType !== "playoffs");
-const playoffs = games.filter((g) => g?.seasonType === "playoffs");
+// Normalize "is playoff" across possible fields
+function isPlayoffGame(g) {
+  const st = String(g?.seasonType ?? g?.season_type ?? "").toLowerCase();
+  if (st.includes("post") || st.includes("playoff")) return true;
+  if (g?.postseason === true) return true;
+  if (g?.is_postseason === true) return true;
+  return false;
+}
+
+const regular = rawGames.filter((g) => !isPlayoffGame(g));
+const playoffs = rawGames.filter((g) => isPlayoffGame(g));
 
 function teamAbbr(teamObj, fallback = "") {
   return String(teamObj?.abbreviation || fallback).toUpperCase();
@@ -29,6 +45,9 @@ function isSeahawksWin(game) {
   if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
 
   const seaIsHome = home === "SEA";
+  const seaIsAway = away === "SEA";
+  if (!seaIsHome && !seaIsAway) return null;
+
   const seaScore = seaIsHome ? hs : as;
   const oppScore = seaIsHome ? as : hs;
 
@@ -64,11 +83,16 @@ function statusText(game) {
 function scoreText(game) {
   const hs = game?.home_team_score;
   const as = game?.visitor_team_score;
+
+  if (hs === null || hs === undefined || as === null || as === undefined) return "TBD";
+
   const home = teamAbbr(game?.home_team);
   const away = teamAbbr(game?.visitor_team);
 
-  if (hs === null || hs === undefined || as === null || as === undefined) return "TBD";
-  return `${away === "SEA" ? as : hs} : ${away === "SEA" ? hs : as}`;
+  // Show as "SEA : OPP" consistently
+  if (home === "SEA") return `${hs} : ${as}`;
+  if (away === "SEA") return `${as} : ${hs}`;
+  return `${as} : ${hs}`;
 }
 
 function oppAbbr(game) {
@@ -80,54 +104,83 @@ function oppAbbr(game) {
 function seaIsHome(game) {
   return teamAbbr(game?.home_team) === "SEA";
 }
+
+// Sort by date, then by week as a fallback
+function sortByDate(a, b) {
+  const ad = a?.date ? new Date(a.date).getTime() : 0;
+  const bd = b?.date ? new Date(b.date).getTime() : 0;
+  if (ad !== bd) return ad - bd;
+  const aw = Number(a?.week);
+  const bw = Number(b?.week);
+  if (Number.isFinite(aw) && Number.isFinite(bw)) return aw - bw;
+  return 0;
+}
+
+regular.sort(sortByDate);
+playoffs.sort(sortByDate);
+
+const fmtUpdatedLine = updatedAt
+  ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) + " PT"
+  : "—";
 ---
 
-<SeahawksLayout title={`Seahawks Schedule (${season})`} description="Season results and upcoming games" activePath="/schedule">
-  <h2 class="lr-post-title">Seahawks Schedule ({season})</h2>
+<SeahawksLayout
+  title={`Seahawks Schedule (${season})`}
+  description="Season results and upcoming games"
+  activePath="/schedule"
+>
   <div class="meta-line">
     <span><strong>Season:</strong> {season}</span>
     <span class="dot">•</span>
-    <span><strong>Updated:</strong> {updatedAt ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) + " PT" : "—"}</span>
+    <span><strong>Updated:</strong> {fmtUpdatedLine}</span>
   </div>
 
   <h3 class="section-title">Regular season</h3>
-  <div class="cards-grid">
-    {regular.map((g) => {
-      const opp = oppAbbr(g);
-      const win = isSeahawksWin(g);
-      const cardClass = win === true ? "card card--win" : win === false ? "card card--loss" : "card";
 
-      return (
-        <article class={cardClass}>
-          <div class="card-top">
-            <div class="week">{typeof g?.week === "number" ? `Week ${g.week}` : String(g?.week || "")}</div>
-            <div class="date">{fmtPT(g?.date)}</div>
-          </div>
+  {regular.length === 0 ? (
+    <div class="empty">No regular season games found in the current data file.</div>
+  ) : (
+    <div class="cards-grid">
+      {regular.map((g) => {
+        const opp = oppAbbr(g);
+        const win = isSeahawksWin(g);
+        const cardClass =
+          win === true ? "card card--win" : win === false ? "card card--loss" : "card";
 
-          <div class="matchup">
-            <div class="team">
-              <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
-              <div class="abbr">SEA</div>
-              <div class="ha">{seaIsHome(g) ? "H" : "A"}</div>
+        return (
+          <article class={cardClass}>
+            <div class="card-top">
+              <div class="week">
+                {Number.isFinite(Number(g?.week)) ? `Week ${g.week}` : String(g?.week || "")}
+              </div>
+              <div class="date">{fmtPT(g?.date)}</div>
             </div>
 
-            <div class="at">@</div>
+            <div class="matchup">
+              <div class="team">
+                <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
+                <div class="abbr">SEA</div>
+                <div class="ha">{seaIsHome(g) ? "H" : "A"}</div>
+              </div>
 
-            <div class="team">
-              <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
-              <div class="abbr">{opp}</div>
-              <div class="ha">{seaIsHome(g) ? "A" : "H"}</div>
+              <div class="at">@</div>
+
+              <div class="team">
+                <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
+                <div class="abbr">{opp}</div>
+                <div class="ha">{seaIsHome(g) ? "A" : "H"}</div>
+              </div>
             </div>
-          </div>
 
-          <div class="card-bottom">
-            <div class="status">{statusText(g)}</div>
-            <div class="score">{scoreText(g)}</div>
-          </div>
-        </article>
-      );
-    })}
-  </div>
+            <div class="card-bottom">
+              <div class="status">{statusText(g)}</div>
+              <div class="score">{scoreText(g)}</div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  )}
 
   {playoffs.length > 0 && (
     <>
@@ -136,12 +189,17 @@ function seaIsHome(game) {
         {playoffs.map((g) => {
           const opp = oppAbbr(g);
           const win = isSeahawksWin(g);
-          const cardClass = win === true ? "card card--win" : win === false ? "card card--loss" : "card";
+          const cardClass =
+            win === true ? "card card--win" : win === false ? "card card--loss" : "card";
 
           return (
             <article class={cardClass}>
               <div class="card-top">
-                <div class="week">{typeof g?.week === "number" ? `Week ${g.week}` : String(g?.week || "Playoffs")}</div>
+                <div class="week">
+                  {Number.isFinite(Number(g?.week))
+                    ? `Playoffs Week ${g.week}`
+                    : "Playoffs"}
+                </div>
                 <div class="date">{fmtPT(g?.date)}</div>
               </div>
 
@@ -185,6 +243,14 @@ function seaIsHome(game) {
     .section-title{
       color:var(--navy);
       margin: 0.75rem 0 0.7rem;
+    }
+    .empty{
+      padding: .9rem 1rem;
+      border-radius: 14px;
+      border: 1px solid rgba(0,34,68,0.14);
+      background: rgba(165,172,175,0.18);
+      color: rgba(15,23,32,0.85);
+      font-weight: 800;
     }
     .cards-grid{
       display:grid;
