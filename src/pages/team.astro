@@ -6,7 +6,19 @@ import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import data from "../data/nfl/seahawks.json";
 
 const t = data.team;
-const s = data.teamSeasonStats;
+
+// ✅ Normalize team season stats across common shapes
+// Handles:
+// - teamSeasonStats: { ... }
+// - teamSeasonStats: [ ... ]
+// - teamSeasonStats: { teamSeasonStats: { ... } }
+// - team_season_stats / teamSeason
+const s =
+  data.teamSeasonStats?.teamSeasonStats ??
+  (Array.isArray(data.teamSeasonStats) ? data.teamSeasonStats[0] : data.teamSeasonStats) ??
+  data.team_season_stats ??
+  data.teamSeason ??
+  null;
 
 const pageTitle = `Team Stats (${data.season})`;
 
@@ -57,7 +69,9 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
   {!s ? (
     <div class="sfz-empty">
       <strong>No team season stats found.</strong>
-      <div class="sfz-empty-sub">This usually means the API did not return a season aggregate for that year yet.</div>
+      <div class="sfz-empty-sub">
+        This usually means the JSON doesn’t include a team aggregate for that season yet (or it’s under a different key).
+      </div>
     </div>
   ) : (
     <div class="sfz-cards">
@@ -66,17 +80,17 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Games played</div>
-            <div class="sfz-v">{s.games_played}</div>
+            <div class="sfz-v">{s.games_played ?? "-"}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Total points</div>
-            <div class="sfz-v">{s.total_points}</div>
-            <div class="sfz-note">{s.total_points_per_game} per game</div>
+            <div class="sfz-v">{s.total_points ?? "-"}</div>
+            <div class="sfz-note">{s.total_points_per_game ?? "-"} per game</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Total offense</div>
-            <div class="sfz-v">{s.total_offensive_yards}</div>
-            <div class="sfz-note">{s.total_offensive_yards_per_game} per game</div>
+            <div class="sfz-v">{s.total_offensive_yards ?? "-"}</div>
+            <div class="sfz-note">{s.total_offensive_yards_per_game ?? "-"} per game</div>
           </div>
         </div>
       </section>
@@ -86,13 +100,13 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Passing yards</div>
-            <div class="sfz-v">{s.passing_yards}</div>
-            <div class="sfz-note">{s.passing_yards_per_game} per game</div>
+            <div class="sfz-v">{s.passing_yards ?? "-"}</div>
+            <div class="sfz-note">{s.passing_yards_per_game ?? "-"} per game</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Rushing yards</div>
-            <div class="sfz-v">{s.rushing_yards}</div>
-            <div class="sfz-note">{s.rushing_yards_per_game} per game</div>
+            <div class="sfz-v">{s.rushing_yards ?? "-"}</div>
+            <div class="sfz-note">{s.rushing_yards_per_game ?? "-"} per game</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">First downs</div>
@@ -106,11 +120,11 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Takeaways</div>
-            <div class="sfz-v">{s.misc_total_takeaways}</div>
+            <div class="sfz-v">{s.misc_total_takeaways ?? "-"}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Giveaways</div>
-            <div class="sfz-v">{s.misc_total_giveaways}</div>
+            <div class="sfz-v">{s.misc_total_giveaways ?? "-"}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Turnover margin</div>
@@ -124,6 +138,32 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
   )}
 
   <style>
+    /* ✅ prevent flex/grid overflow */
+    .sfz-team-header,
+    .sfz-team-text,
+    .sfz-cards,
+    .sfz-card,
+    .sfz-stat-grid,
+    .sfz-stat {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* ✅ allow wrapping inside cards */
+    .sfz-team-name,
+    .sfz-team-meta,
+    .sfz-updated,
+    .sfz-card-title,
+    .sfz-k,
+    .sfz-v,
+    .sfz-note,
+    .sfz-empty,
+    .sfz-empty-sub {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
     .sfz-team-header {
       display: flex;
       gap: 1rem;
@@ -197,6 +237,7 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
       background: #ffffff;
       padding: 1rem;
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+      overflow: hidden; /* ✅ last resort containment */
     }
 
     .sfz-card-title {
