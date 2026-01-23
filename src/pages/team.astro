@@ -7,19 +7,6 @@ import data from "../data/nfl/seahawks.json";
 
 const t = data.team;
 
-// ✅ Normalize team season stats across common shapes
-// Handles:
-// - teamSeasonStats: { ... }
-// - teamSeasonStats: [ ... ]
-// - teamSeasonStats: { teamSeasonStats: { ... } }
-// - team_season_stats / teamSeason
-const s =
-  data.teamSeasonStats?.teamSeasonStats ??
-  (Array.isArray(data.teamSeasonStats) ? data.teamSeasonStats[0] : data.teamSeasonStats) ??
-  data.team_season_stats ??
-  data.teamSeason ??
-  null;
-
 const pageTitle = `Team Stats (${data.season})`;
 
 const fmtUpdatedPT = (iso) =>
@@ -31,7 +18,7 @@ const fmtUpdatedPT = (iso) =>
 
 const logoRelBase = "/images/nfl/teams";
 
-// ✅ Always resolve from the Astro project root (not whatever cwd happens to be)
+// ✅ Always resolve from Astro project root
 const projectRoot = Astro.root ?? process.cwd();
 const logoDiskBase = path.join(projectRoot, "public", "images", "nfl", "teams");
 
@@ -45,6 +32,144 @@ function logoFor(abbr) {
 }
 
 const seahawksLogo = logoFor(t?.abbreviation || "SEA");
+
+// ------------------------------
+// 1) Try to locate team stats in JSON (no guessing keys)
+// ------------------------------
+function looksLikeTeamSeasonStats(o) {
+  if (!o || typeof o !== "object" || Array.isArray(o)) return false;
+
+  // Pick a few “signature” fields
+  const hasGames = "games_played" in o || "gamesPlayed" in o;
+  const hasPoints = "total_points" in o || "points_for" in o || "pointsFor" in o;
+  const hasPass = "passing_yards" in o || "pass_yards" in o || "passingYards" in o;
+  const hasRush = "rushing_yards" in o || "rush_yards" in o || "rushingYards" in o;
+
+  // Needs at least 2 of these to count
+  const score = [hasGames, hasPoints, hasPass, hasRush].filter(Boolean).length;
+  return score >= 2;
+}
+
+function findFirstTeamSeasonStats(root) {
+  const seen = new Set();
+  const q = [root];
+  let steps = 0;
+
+  while (q.length && steps < 5000) {
+    const cur = q.shift();
+    steps++;
+
+    if (!cur || typeof cur !== "object") continue;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+
+    if (looksLikeTeamSeasonStats(cur)) return cur;
+
+    if (Array.isArray(cur)) {
+      for (const v of cur) q.push(v);
+    } else {
+      for (const v of Object.values(cur)) q.push(v);
+    }
+  }
+  return null;
+}
+
+const sFound = findFirstTeamSeasonStats(data);
+
+// ------------------------------
+// 2) If missing, compute fallback totals from available data
+// ------------------------------
+function n(v) {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+function teamAbbr(teamObj, fallback = "") {
+  return String(teamObj?.abbreviation || fallback).toUpperCase();
+}
+
+function seaScoreFromGame(g) {
+  const home = teamAbbr(g?.home_team);
+  const away = teamAbbr(g?.visitor_team);
+  const hs = Number(g?.home_team_score);
+  const as = Number(g?.visitor_team_score);
+
+  if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
+
+  if (home === "SEA") return hs;
+  if (away === "SEA") return as;
+  return null;
+}
+
+function oppScoreFromGame(g) {
+  const home = teamAbbr(g?.home_team);
+  const away = teamAbbr(g?.visitor_team);
+  const hs = Number(g?.home_team_score);
+  const as = Number(g?.visitor_team_score);
+
+  if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
+
+  if (home === "SEA") return as;
+  if (away === "SEA") return hs;
+  return null;
+}
+
+const rawGames = Array.isArray(data?.games)
+  ? data.games
+  : Array.isArray(data?.gamesRegular) || Array.isArray(data?.gamesPostseason)
+    ? [...(data.gamesRegular || []), ...(data.gamesPostseason || [])]
+    : [];
+
+const scoredGames = rawGames
+  .map((g) => ({ g, sea: seaScoreFromGame(g), opp: oppScoreFromGame(g) }))
+  .filter((x) => Number.isFinite(x.sea) && Number.isFinite(x.opp));
+
+const games_played_fallback = scoredGames.length;
+
+const total_points_fallback = scoredGames.reduce((acc, x) => acc + Number(x.sea), 0);
+const total_points_per_game_fallback =
+  games_played_fallback > 0 ? (total_points_fallback / games_played_fallback) : null;
+
+// Yard totals fallback from player season stats (sum per-player totals)
+const playerStats = Array.isArray(data?.playerSeasonStats) ? data.playerSeasonStats : [];
+const passing_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.passing_yards), 0);
+const rushing_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.rushing_yards), 0);
+const receiving_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.receiving_yards), 0);
+
+const total_offensive_yards_fallback = passing_yards_fallback + rushing_yards_fallback;
+
+const passing_yards_per_game_fallback =
+  games_played_fallback > 0 ? (passing_yards_fallback / games_played_fallback) : null;
+const rushing_yards_per_game_fallback =
+  games_played_fallback > 0 ? (rushing_yards_fallback / games_played_fallback) : null;
+const total_offensive_yards_per_game_fallback =
+  games_played_fallback > 0 ? (total_offensive_yards_fallback / games_played_fallback) : null;
+
+// If we found real stats, use them. Otherwise use computed fallback if it’s meaningful.
+const s =
+  sFound ??
+  (games_played_fallback > 0 || passing_yards_fallback > 0 || rushing_yards_fallback > 0
+    ? {
+        __computed: true,
+        games_played: games_played_fallback,
+        total_points: total_points_fallback,
+        total_points_per_game:
+          total_points_per_game_fallback === null ? null : Number(total_points_per_game_fallback.toFixed(1)),
+        passing_yards: passing_yards_fallback,
+        passing_yards_per_game:
+          passing_yards_per_game_fallback === null ? null : Number(passing_yards_per_game_fallback.toFixed(1)),
+        rushing_yards: rushing_yards_fallback,
+        rushing_yards_per_game:
+          rushing_yards_per_game_fallback === null ? null : Number(rushing_yards_per_game_fallback.toFixed(1)),
+        receiving_yards: receiving_yards_fallback,
+        total_offensive_yards: total_offensive_yards_fallback,
+        total_offensive_yards_per_game:
+          total_offensive_yards_per_game_fallback === null ? null : Number(total_offensive_yards_per_game_fallback.toFixed(1)),
+      }
+    : null);
+
+function v(x) {
+  return x === null || x === undefined || x === "" ? "-" : x;
+}
 ---
 
 <SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team">
@@ -70,27 +195,36 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
     <div class="sfz-empty">
       <strong>No team season stats found.</strong>
       <div class="sfz-empty-sub">
-        This usually means the JSON doesn’t include a team aggregate for that season yet (or it’s under a different key).
+        Your current JSON file doesn’t contain team aggregates (and there weren’t enough games/player stats to compute them).
       </div>
     </div>
   ) : (
     <div class="sfz-cards">
+      {s.__computed && (
+        <div class="sfz-empty" style="margin-bottom:.9rem;">
+          <strong>Computed totals</strong>
+          <div class="sfz-empty-sub">
+            Team totals were computed from games + player season stats because the JSON didn’t include a teamSeasonStats block.
+          </div>
+        </div>
+      )}
+
       <section class="sfz-card">
         <div class="sfz-card-title">Overview</div>
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Games played</div>
-            <div class="sfz-v">{s.games_played ?? "-"}</div>
+            <div class="sfz-v">{v(s.games_played)}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Total points</div>
-            <div class="sfz-v">{s.total_points ?? "-"}</div>
-            <div class="sfz-note">{s.total_points_per_game ?? "-"} per game</div>
+            <div class="sfz-v">{v(s.total_points)}</div>
+            <div class="sfz-note">{v(s.total_points_per_game)} per game</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Total offense</div>
-            <div class="sfz-v">{s.total_offensive_yards ?? "-"}</div>
-            <div class="sfz-note">{s.total_offensive_yards_per_game ?? "-"} per game</div>
+            <div class="sfz-v">{v(s.total_offensive_yards)}</div>
+            <div class="sfz-note">{v(s.total_offensive_yards_per_game)} per game</div>
           </div>
         </div>
       </section>
@@ -100,17 +234,17 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Passing yards</div>
-            <div class="sfz-v">{s.passing_yards ?? "-"}</div>
-            <div class="sfz-note">{s.passing_yards_per_game ?? "-"} per game</div>
+            <div class="sfz-v">{v(s.passing_yards)}</div>
+            <div class="sfz-note">{v(s.passing_yards_per_game)} per game</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Rushing yards</div>
-            <div class="sfz-v">{s.rushing_yards ?? "-"}</div>
-            <div class="sfz-note">{s.rushing_yards_per_game ?? "-"} per game</div>
+            <div class="sfz-v">{v(s.rushing_yards)}</div>
+            <div class="sfz-note">{v(s.rushing_yards_per_game)} per game</div>
           </div>
           <div class="sfz-stat">
-            <div class="sfz-k">First downs</div>
-            <div class="sfz-v">{s.first_downs_total ?? "-"}</div>
+            <div class="sfz-k">Receiving yards</div>
+            <div class="sfz-v">{v(s.receiving_yards)}</div>
           </div>
         </div>
       </section>
@@ -120,11 +254,11 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Takeaways</div>
-            <div class="sfz-v">{s.misc_total_takeaways ?? "-"}</div>
+            <div class="sfz-v">{v(s.misc_total_takeaways)}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Giveaways</div>
-            <div class="sfz-v">{s.misc_total_giveaways ?? "-"}</div>
+            <div class="sfz-v">{v(s.misc_total_giveaways)}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Turnover margin</div>
@@ -138,7 +272,7 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
   )}
 
   <style>
-    /* ✅ prevent flex/grid overflow */
+    /* overflow protection */
     .sfz-team-header,
     .sfz-team-text,
     .sfz-cards,
@@ -150,7 +284,6 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
       box-sizing: border-box;
     }
 
-    /* ✅ allow wrapping inside cards */
     .sfz-team-name,
     .sfz-team-meta,
     .sfz-updated,
@@ -191,9 +324,7 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
       letter-spacing: 0.4px;
     }
 
-    .sfz-team-text {
-      min-width: 0;
-    }
+    .sfz-team-text { min-width: 0; }
 
     .sfz-team-name {
       margin: 0;
@@ -214,9 +345,7 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
       flex-wrap: wrap;
     }
 
-    .sfz-dot {
-      opacity: 0.7;
-    }
+    .sfz-dot { opacity: 0.7; }
 
     .sfz-updated {
       margin-top: 0.35rem;
@@ -237,7 +366,7 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
       background: #ffffff;
       padding: 1rem;
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
-      overflow: hidden; /* ✅ last resort containment */
+      overflow: hidden;
     }
 
     .sfz-card-title {
@@ -297,14 +426,10 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
     }
 
     @media (max-width: 980px) {
-      .sfz-stat-grid {
-        grid-template-columns: 1fr;
-      }
-      .sfz-team-logo {
-        width: 56px;
-        height: 56px;
-      }
+      .sfz-stat-grid { grid-template-columns: 1fr; }
+      .sfz-team-logo { width: 56px; height: 56px; }
     }
   </style>
 </SeahawksLayout>
+
 
