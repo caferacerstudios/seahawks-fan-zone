@@ -389,3 +389,42 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+/* Paper content helpers */
+.lr-paper .muted {
+  color: rgba(15, 23, 32, 0.6);
+  font-size: 0.9rem;
+}
+
+.lr-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.lr-list-item {
+  margin: 0.45rem 0;
+  line-height: 1.5;
+}
+
+/* Basic table styling for /players later */
+.lr-paper table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.lr-paper th,
+.lr-paper td {
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid rgba(0, 34, 68, 0.12);
+}
+
+.lr-paper th {
+  text-align: left;
+  color: rgba(0, 34, 68, 0.85);
+  font-weight: 900;
+}
+
+.lr-paper tr:hover td {
+  background: rgba(105, 190, 40, 0.08);
+}
