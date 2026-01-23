@@ -1,27 +1,258 @@
 ---
+import fs from "node:fs";
+import path from "node:path";
+
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import data from "../data/nfl/seahawks.json";
+
+// ----- Helpers -----
+
+const pageTitle = `Seahawks Schedule (${data.season})`;
+
+// Always display times as Pacific Time for consistency
+const fmtDateTimePT = (iso) =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(iso));
+
+const fmtUpdatedPT = (iso) =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(new Date(iso));
+
+// Logo resolver: supports .svg/.png/.jpg based on what your downloader saved
+const logoRelBase = "/images/nfl/teams";
+const logoDiskBase = path.resolve("public", "images", "nfl", "teams");
+
+function logoFor(abbr) {
+  const a = String(abbr || "").toUpperCase();
+  for (const ext of [".svg", ".png", ".jpg"]) {
+    const disk = path.join(logoDiskBase, `${a}${ext}`);
+    if (fs.existsSync(disk)) return `${logoRelBase}/${a}${ext}`;
+  }
+  // optional fallback if you add one later
+  return "";
+}
+
+function isFinal(status) {
+  const s = String(status || "").toLowerCase();
+  return s === "final" || s.startsWith("final/");
+}
+
+function scoreLine(g) {
+  if (!isFinal(g.status)) return "";
+  return `${g.visitor_team_score}-${g.home_team_score}`;
+}
 
 const games = data.games
   .slice()
   .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-const pageTitle = `Seahawks Schedule (${data.season})`;
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Schedule, stats, and highlights for the 12s" activePath="/schedule">
-  <p class="muted">Updated: {new Date(data.updatedAt).toLocaleString()}</p>
+<SeahawksLayout pageTitle={pageTitle} pageTagline="Schedule and results" activePath="/schedule">
+  <p class="sfz-muted">
+    Updated: {fmtUpdatedPT(data.updatedAt)} PT
+  </p>
 
-  <ul class="lr-list">
-    {games.map((g) => (
-      <li class="lr-list-item">
-        <strong>Week {g.week}</strong>{" "}
-        {new Date(g.date).toLocaleString()} —{" "}
-        {g.visitor_team.abbreviation} @ {g.home_team.abbreviation}
-        {" — "}
-        {g.status}
-        {g.status === "Final" ? ` (${g.visitor_team_score}-${g.home_team_score})` : ""}
-      </li>
-    ))}
-  </ul>
+  <div class="sfz-schedule-grid" role="list">
+    {games.map((g) => {
+      const away = g.visitor_team;
+      const home = g.home_team;
+
+      const awayLogo = logoFor(away.abbreviation);
+      const homeLogo = logoFor(home.abbreviation);
+
+      return (
+        <article class="sfz-game-card" role="listitem">
+          <div class="sfz-game-top">
+            <div class="sfz-week">Week {g.week}</div>
+            <div class="sfz-date">{fmtDateTimePT(g.date)} PT</div>
+          </div>
+
+          <div class="sfz-matchup">
+            <div class="sfz-team">
+              {awayLogo ? (
+                <img class="sfz-logo" src={awayLogo} alt={`${away.abbreviation} logo`} loading="lazy" />
+              ) : (
+                <div class="sfz-logo sfz-logo-fallback" aria-hidden="true">{away.abbreviation}</div>
+              )}
+              <div class="sfz-team-text">
+                <div class="sfz-abbr">{away.abbreviation}</div>
+                <div class="sfz-name">{away.full_name}</div>
+              </div>
+            </div>
+
+            <div class="sfz-at">@</div>
+
+            <div class="sfz-team">
+              {homeLogo ? (
+                <img class="sfz-logo" src={homeLogo} alt={`${home.abbreviation} logo`} loading="lazy" />
+              ) : (
+                <div class="sfz-logo sfz-logo-fallback" aria-hidden="true">{home.abbreviation}</div>
+              )}
+              <div class="sfz-team-text">
+                <div class="sfz-abbr">{home.abbreviation}</div>
+                <div class="sfz-name">{home.full_name}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sfz-game-bottom">
+            <div class="sfz-status">{g.status || "Scheduled"}</div>
+            <div class="sfz-score">{scoreLine(g)}</div>
+          </div>
+        </article>
+      );
+    })}
+  </div>
+
+  <style>
+    /* Local schedule styling so you don't have to touch global CSS */
+
+    .sfz-muted {
+      margin: 0 0 1rem;
+      color: rgba(15, 23, 32, 0.65);
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .sfz-schedule-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.95rem;
+    }
+
+    .sfz-game-card {
+      border-radius: 16px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: #ffffff;
+      padding: 0.95rem;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.07);
+    }
+
+    .sfz-game-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .sfz-week {
+      font-weight: 900;
+      color: var(--navy);
+      font-size: 1rem;
+      letter-spacing: 0.2px;
+    }
+
+    .sfz-date {
+      color: rgba(15, 23, 32, 0.65);
+      font-weight: 700;
+      font-size: 0.92rem;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .sfz-matchup {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.75rem 0;
+      border-top: 1px solid rgba(0, 34, 68, 0.10);
+      border-bottom: 1px solid rgba(0, 34, 68, 0.10);
+    }
+
+    .sfz-team {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .sfz-logo {
+      width: 38px;
+      height: 38px;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
+
+    .sfz-logo-fallback {
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: rgba(0, 34, 68, 0.06);
+      border: 1px solid rgba(0, 34, 68, 0.10);
+      color: rgba(0, 34, 68, 0.8);
+      font-weight: 900;
+      font-size: 0.85rem;
+      letter-spacing: 0.3px;
+    }
+
+    .sfz-team-text {
+      min-width: 0;
+      text-align: left;
+    }
+
+    .sfz-abbr {
+      font-weight: 900;
+      color: var(--navy);
+      font-size: 1.05rem;
+      line-height: 1.1;
+    }
+
+    .sfz-name {
+      color: rgba(15, 23, 32, 0.62);
+      font-weight: 700;
+      font-size: 0.9rem;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 240px;
+    }
+
+    .sfz-at {
+      font-weight: 900;
+      color: rgba(15, 23, 32, 0.55);
+      font-size: 1.05rem;
+      padding: 0 0.15rem;
+    }
+
+    .sfz-game-bottom {
+      margin-top: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .sfz-status {
+      font-weight: 900;
+      color: rgba(0, 34, 68, 0.88);
+    }
+
+    .sfz-score {
+      font-weight: 900;
+      color: rgba(15, 23, 32, 0.72);
+    }
+
+    @media (max-width: 980px) {
+      .sfz-schedule-grid {
+        grid-template-columns: 1fr;
+      }
+      .sfz-name {
+        max-width: 190px;
+      }
+    }
+  </style>
 </SeahawksLayout>
