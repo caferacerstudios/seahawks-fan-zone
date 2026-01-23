@@ -25,12 +25,6 @@ function totalYards(r) {
   return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
 }
 
-// Position filter via query param
-const posParam = (Astro.url?.searchParams?.get("pos") || "All").toUpperCase();
-
-// ✅ Use the real current route (avoids trailing-slash redirect issues)
-const basePath = Astro.url?.pathname || "/players/";
-
 // Deduplicate rows by player id, keeping the “best” stat line (most total yards)
 const byPlayer = new Map();
 
@@ -44,13 +38,12 @@ for (const r of (data.playerSeasonStats || [])) {
     continue;
   }
 
-  // Keep whichever row seems “more complete”
   if (totalYards(r) > totalYards(existing)) byPlayer.set(pid, r);
 }
 
 const deduped = Array.from(byPlayer.values());
 
-// Build list of positions present (nice for dropdown)
+// Positions for dropdown
 const positions = Array.from(
   new Set(
     deduped
@@ -59,18 +52,8 @@ const positions = Array.from(
   )
 ).sort();
 
-// Apply filter
-const filtered =
-  posParam === "ALL"
-    ? deduped
-    : deduped.filter(
-        (r) => (r?.player?.position_abbreviation || "").toUpperCase() === posParam
-      );
-
-// Sort (same idea as your original)
-const rows = filtered
-  .slice()
-  .sort((a, b) => totalYards(b) - totalYards(a));
+// ✅ Always render ALL rows (static build). Filter happens in browser.
+const rows = deduped.slice().sort((a, b) => totalYards(b) - totalYards(a));
 
 function playerName(r) {
   const p = r?.player;
@@ -85,25 +68,23 @@ function playerName(r) {
 <SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
   <div class="sfz-topbar">
     <div class="sfz-meta">
-      <div class="sfz-sub">Season: {data.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(data.updatedAt)} PT</div>
+      <div class="sfz-sub">
+        Season: {data.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(data.updatedAt)} PT
+      </div>
     </div>
 
     <div class="sfz-controls">
       <label class="sfz-label" for="pos">Position</label>
-      <select
-        id="pos"
-        class="sfz-select"
-        onchange="location.href=this.value"
-      >
-        <option value={basePath} selected={posParam === "ALL"}>All</option>
+
+      <!-- ✅ value is just the code; JS updates URL + filters -->
+      <select id="pos" class="sfz-select">
+        <option value="ALL">All</option>
         {positions.map((p) => (
-          <option value={`${basePath}?pos=${encodeURIComponent(p)}`} selected={posParam === p}>
-            {p}
-          </option>
+          <option value={p}>{p}</option>
         ))}
       </select>
 
-      <div class="sfz-count">{rows.length} players</div>
+      <div class="sfz-count"><span id="playerCount">{rows.length}</span> players</div>
     </div>
   </div>
 
@@ -121,18 +102,21 @@ function playerName(r) {
         </tr>
       </thead>
 
-      <tbody>
-        {rows.map((r) => (
-          <tr>
-            <td class="name">{playerName(r)}</td>
-            <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
-            <td class="num">{dashIfNull(r.games_played)}</td>
-            <td class="num">{dashIfNull(r.passing_yards)}</td>
-            <td class="num">{dashIfNull(r.rushing_yards)}</td>
-            <td class="num">{dashIfNull(r.receiving_yards)}</td>
-            <td class="num">{tdTriplet(r)}</td>
-          </tr>
-        ))}
+      <tbody id="playersBody">
+        {rows.map((r) => {
+          const pos = (r?.player?.position_abbreviation || "").toUpperCase();
+          return (
+            <tr data-pos={pos}>
+              <td class="name">{playerName(r)}</td>
+              <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
+              <td class="num">{dashIfNull(r.games_played)}</td>
+              <td class="num">{dashIfNull(r.passing_yards)}</td>
+              <td class="num">{dashIfNull(r.rushing_yards)}</td>
+              <td class="num">{dashIfNull(r.receiving_yards)}</td>
+              <td class="num">{tdTriplet(r)}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>
@@ -140,6 +124,53 @@ function playerName(r) {
   <div class="sfz-note">
     <strong>Note:</strong> This page is deduped by player id. Next upgrade: leader views per position.
   </div>
+
+  <!-- ✅ Client-side filter for static Astro -->
+  <script is:inline>
+    (() => {
+      const select = document.getElementById("pos");
+      const body = document.getElementById("playersBody");
+      const countEl = document.getElementById("playerCount");
+
+      function getPosFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        return (params.get("pos") || "ALL").toUpperCase();
+      }
+
+      function setUrlPos(pos) {
+        const url = new URL(window.location.href);
+        if (!pos || pos === "ALL") url.searchParams.delete("pos");
+        else url.searchParams.set("pos", pos);
+        window.history.replaceState({}, "", url);
+      }
+
+      function applyFilter(pos) {
+        const rows = body.querySelectorAll("tr[data-pos]");
+        let shown = 0;
+
+        rows.forEach((tr) => {
+          const rpos = (tr.getAttribute("data-pos") || "").toUpperCase();
+          const visible = (pos === "ALL") || (rpos === pos);
+          tr.style.display = visible ? "" : "none";
+          if (visible) shown++;
+        });
+
+        countEl.textContent = String(shown);
+      }
+
+      // Init from URL
+      const initialPos = getPosFromUrl();
+      select.value = initialPos;
+      applyFilter(initialPos);
+
+      // On change: filter + update URL (no reload)
+      select.addEventListener("change", () => {
+        const pos = (select.value || "ALL").toUpperCase();
+        setUrlPos(pos);
+        applyFilter(pos);
+      });
+    })();
+  </script>
 
   <style>
     .sfz-topbar {
@@ -255,4 +286,5 @@ function playerName(r) {
     }
   </style>
 </SeahawksLayout>
+
 
