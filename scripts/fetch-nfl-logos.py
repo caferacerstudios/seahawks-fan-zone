@@ -4,7 +4,8 @@ One-time downloader for NFL team logos into:
   public/images/nfl/teams/
 
 It pulls a public CSV that includes team abbreviations + logo URLs,
-then downloads each logo to a local file named like SEA.svg / SF.png etc.
+downloads each logo to SEA.svg / SF.png etc, and then creates alias
+files for common abbreviation mismatches (LA <-> LAR, WAS <-> WSH, etc).
 
 Run from repo root:
   python3 scripts/fetch-nfl-logos.py
@@ -28,6 +29,15 @@ LOGO_CANDIDATES = [
     "logo_url",
 ]
 
+# Alias pairs: if one exists, copy to the other if missing.
+# This handles common source differences across providers.
+ALIASES = [
+    ("LA", "LAR"),     # Rams
+    ("WSH", "WAS"),    # Washington
+    ("JAX", "JAC"),    # Jaguars (rare)
+    ("LV", "LVR"),     # Raiders (rare)
+]
+
 def ext_from_url(url: str) -> str:
     path = urlparse(url).path.lower()
     if path.endswith(".svg"):
@@ -49,6 +59,36 @@ def pick_column(headers, candidates):
         if c.lower() in headers_lc:
             return headers_lc[c.lower()]
     return None
+
+def find_existing_file(abbr: str):
+    """Return path to an existing file for abbr (any ext), else None."""
+    for ext in [".svg", ".png", ".jpg", ".jpeg", ".img"]:
+        p = os.path.join(OUT_DIR, f"{abbr}{ext}")
+        if os.path.exists(p) and os.path.getsize(p) > 0:
+            return p
+    return None
+
+def copy_if_missing(src_abbr: str, dst_abbr: str):
+    src_file = find_existing_file(src_abbr)
+    if not src_file:
+        return 0
+
+    # Copy to dst with same extension if dst missing
+    _, ext = os.path.splitext(src_file)
+    dst_file = os.path.join(OUT_DIR, f"{dst_abbr}{ext}")
+    if os.path.exists(dst_file) and os.path.getsize(dst_file) > 0:
+        return 0
+
+    try:
+        with open(src_file, "rb") as f:
+            data = f.read()
+        with open(dst_file, "wb") as f:
+            f.write(data)
+        print(f"alias {src_abbr} -> {dst_abbr} ({os.path.basename(dst_file)})")
+        return 1
+    except Exception as e:
+        print(f"FAILED alias {src_abbr} -> {dst_abbr}: {e}", file=sys.stderr)
+        return 0
 
 def main() -> int:
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -104,8 +144,15 @@ def main() -> int:
             print(f"FAILED {abbr} ({logo_url}): {e}", file=sys.stderr)
             failed += 1
 
-    print(f"\nDone.")
+    # Create aliases both directions
+    alias_made = 0
+    for a, b in ALIASES:
+        alias_made += copy_if_missing(a, b)
+        alias_made += copy_if_missing(b, a)
+
+    print("\nDone.")
     print(f"Downloaded: {downloaded}")
+    print(f"Aliases created: {alias_made}")
     print(f"Failed: {failed}")
     print(f"Output dir: {OUT_DIR}")
     return 0 if failed == 0 else 2
