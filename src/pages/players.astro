@@ -1,96 +1,278 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
-import data from "../data/nfl/seahawks.json";
+import playersData from "../data/nfl/players.json";
 
-const pageTitle = `Player Stats (${data.season})`;
+const PT_TZ = "America/Los_Angeles";
 
-const fmtUpdatedPT = (iso) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    dateStyle: "short",
-    timeStyle: "medium",
-  }).format(new Date(iso));
-
-function n(v) {
-  return typeof v === "number" ? v : 0;
+function formatUpdatedPT(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  return (
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: PT_TZ,
+      year: "2-digit",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d) + " PT"
+  );
 }
 
-function dashIfNull(v) {
-  return typeof v === "number" ? v : "-";
+function toNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function tdTriplet(r) {
-  return `${n(r.passing_touchdowns)}/${n(r.rushing_touchdowns)}/${n(r.receiving_touchdowns)}`;
+function pickSeasonLabel(rows) {
+  const explicit = playersData?.season;
+  if (explicit) return String(explicit);
+
+  // If API rows include season/year, use the most common
+  const counts = new Map();
+  for (const r of rows) {
+    const y = r?.season ?? r?.year;
+    if (y == null) continue;
+    const k = String(y);
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  if (counts.size === 0) return "";
+
+  let bestK = "";
+  let bestV = -1;
+  for (const [k, v] of counts.entries()) {
+    if (v > bestV) {
+      bestV = v;
+      bestK = k;
+    }
+  }
+  return bestK;
 }
 
-const rows = data.playerSeasonStats
-  .slice()
-  .sort((a, b) => (n(b.receiving_yards) + n(b.rushing_yards) + n(b.passing_yards)) - (n(a.receiving_yards) + n(a.rushing_yards) + n(a.passing_yards)));
+function playerKey(p) {
+  const id = p?.player_id ?? p?.id ?? p?.playerId;
+  if (id != null && String(id).trim() !== "") return `id:${id}`;
+
+  const name = String(p?.player_name ?? p?.name ?? "").trim().toLowerCase();
+  const pos = String(p?.position ?? p?.pos ?? "").trim().toUpperCase();
+  return `np:${name}|${pos}`;
+}
+
+function scoreRow(p) {
+  // Used to choose which duplicate to keep
+  const gp = toNum(p?.gp ?? p?.games_played ?? p?.games ?? 0);
+  const pass = toNum(p?.passing_yards ?? p?.pass_yds ?? p?.pass_yards ?? 0);
+  const rush = toNum(p?.rushing_yards ?? p?.rush_yds ?? p?.rush_yards ?? 0);
+  const rec = toNum(p?.receiving_yards ?? p?.rec_yds ?? p?.rec_yards ?? 0);
+  const tds =
+    toNum(p?.passing_tds ?? p?.pass_tds ?? 0) +
+    toNum(p?.rushing_tds ?? p?.rush_tds ?? 0) +
+    toNum(p?.receiving_tds ?? p?.rec_tds ?? 0);
+
+  // Primary: highest GP, then most total yards, then most TDs
+  return gp * 1_000_000 + (pass + rush + rec) * 10 + tds;
+}
+
+function dedupePlayers(rows) {
+  const best = new Map();
+  for (const p of rows) {
+    const k = playerKey(p);
+    const cur = best.get(k);
+    if (!cur) {
+      best.set(k, p);
+      continue;
+    }
+    if (scoreRow(p) > scoreRow(cur)) best.set(k, p);
+  }
+  return Array.from(best.values());
+}
+
+function posOf(p) {
+  return String(p?.position ?? p?.pos ?? "").trim().toUpperCase();
+}
+
+const rawPlayers = Array.isArray(playersData?.players) ? playersData.players : (Array.isArray(playersData) ? playersData : []);
+const players = dedupePlayers(rawPlayers);
+
+const seasonLabel = pickSeasonLabel(players);
+const updatedText = formatUpdatedPT(playersData?.updatedAt);
+
+const positions = Array.from(
+  new Set(players.map((p) => posOf(p)).filter((x) => x))
+).sort((a, b) => a.localeCompare(b));
+
+const pageTitle = "Player Stats";
+const pageTagline = "Sortable totals with quick position filters";
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
-  <div class="sfz-topbar">
-    <div class="sfz-sub">Updated: {fmtUpdatedPT(data.updatedAt)} PT</div>
-    <div class="sfz-count">{rows.length} players</div>
-  </div>
+<SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/players">
+  <section class="sfz-top">
+    <div class="sfz-topline">
+      <div class="sfz-meta">
+        <strong>Season:</strong> {seasonLabel || "Current"}
+        <span class="sfz-dot">•</span>
+        <strong>Updated:</strong> {updatedText}
+      </div>
 
-  <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
-    <table class="sfz-table">
+      <div class="sfz-count">{players.length} players</div>
+    </div>
+
+    <div class="sfz-filters">
+      <label class="sfz-filter">
+        <span class="sfz-filter-label">Position</span>
+        <select id="posFilter" class="sfz-select">
+          <option value="ALL">All</option>
+          {positions.map((p) => (
+            <option value={p}>{p}</option>
+          ))}
+        </select>
+      </label>
+
+      <div class="sfz-filter-note" id="filterNote"></div>
+    </div>
+  </section>
+
+  <section class="sfz-table-wrap" aria-label="Players table">
+    <table class="sfz-table" id="playersTable">
       <thead>
         <tr>
-          <th class="sticky">Player</th>
-          <th class="sticky">Pos</th>
-          <th class="sticky num">GP</th>
-          <th class="sticky num">Pass Yds</th>
-          <th class="sticky num">Rush Yds</th>
-          <th class="sticky num">Rec Yds</th>
-          <th class="sticky num">TD P/R/Rec</th>
+          <th class="c-left">Player</th>
+          <th>Pos</th>
+          <th>GP</th>
+          <th>Pass Yds</th>
+          <th>Rush Yds</th>
+          <th>Rec Yds</th>
+          <th>TD P/R/Rec</th>
         </tr>
       </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr>
-            <td class="name">
-              {r.player.first_name} {r.player.last_name}
-            </td>
-            <td class="pos">{r.player.position_abbreviation}</td>
-            <td class="num">{dashIfNull(r.games_played)}</td>
-            <td class="num">{dashIfNull(r.passing_yards)}</td>
-            <td class="num">{dashIfNull(r.rushing_yards)}</td>
-            <td class="num">{dashIfNull(r.receiving_yards)}</td>
-            <td class="num">{tdTriplet(r)}</td>
-          </tr>
-        ))}
+
+      <tbody id="playersTbody">
+        {players.map((p) => {
+          const name = p?.player_name ?? p?.name ?? "Unknown";
+          const pos = posOf(p);
+
+          const gp = toNum(p?.gp ?? p?.games_played ?? p?.games ?? 0);
+
+          const passY = p?.passing_yards ?? p?.pass_yds ?? p?.pass_yards ?? "";
+          const rushY = p?.rushing_yards ?? p?.rush_yds ?? p?.rush_yards ?? "";
+          const recY = p?.receiving_yards ?? p?.rec_yds ?? p?.rec_yards ?? "";
+
+          const tdP = p?.passing_tds ?? p?.pass_tds ?? 0;
+          const tdR = p?.rushing_tds ?? p?.rush_tds ?? 0;
+          const tdRec = p?.receiving_tds ?? p?.rec_tds ?? 0;
+
+          return (
+            <tr data-pos={pos || ""}>
+              <td class="c-left sfz-player">{name}</td>
+              <td class="sfz-pos">{pos || "-"}</td>
+              <td>{gp || "-"}</td>
+              <td>{passY === "" ? "-" : passY}</td>
+              <td>{rushY === "" ? "-" : rushY}</td>
+              <td>{recY === "" ? "-" : recY}</td>
+              <td>{`${tdP || 0}/${tdR || 0}/${tdRec || 0}`}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
-  </div>
+  </section>
 
-  <div class="sfz-note">
-    <strong>Note:</strong> This table is a first pass. Next upgrade is filters (QB, RB, WR, TE, Defense) and leader views.
-  </div>
+  <script is:inline>
+    (function () {
+      const sel = document.getElementById("posFilter");
+      const tbody = document.getElementById("playersTbody");
+      const note = document.getElementById("filterNote");
+
+      function apply() {
+        const v = sel.value;
+        let shown = 0;
+        const rows = tbody.querySelectorAll("tr");
+
+        rows.forEach((tr) => {
+          const p = tr.getAttribute("data-pos") || "";
+          const ok = (v === "ALL") || (p === v);
+          tr.style.display = ok ? "" : "none";
+          if (ok) shown += 1;
+        });
+
+        if (v === "ALL") {
+          note.textContent = "";
+        } else {
+          note.textContent = `Showing ${shown} players at ${v}`;
+        }
+      }
+
+      sel.addEventListener("change", apply);
+      apply();
+    })();
+  </script>
 
   <style>
-    .sfz-topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      margin-bottom: 0.85rem;
-      padding-bottom: 0.75rem;
-      border-bottom: 1px solid rgba(0, 34, 68, 0.12);
+    .sfz-top {
+      margin-bottom: 0.9rem;
     }
 
-    .sfz-sub {
+    .sfz-topline {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+    }
+
+    .sfz-meta {
+      margin: 0;
       color: rgba(15, 23, 32, 0.65);
-      font-weight: 800;
+      font-weight: 850;
       font-size: 0.95rem;
+    }
+
+    .sfz-dot {
+      padding: 0 0.4rem;
+      color: rgba(0, 34, 68, 0.35);
+      font-weight: 900;
     }
 
     .sfz-count {
-      color: rgba(0, 34, 68, 0.85);
+      color: rgba(15, 23, 32, 0.65);
       font-weight: 900;
       font-size: 0.95rem;
+      white-space: nowrap;
+    }
+
+    .sfz-filters {
+      display: flex;
+      align-items: end;
+      gap: 0.75rem;
+      margin-top: 0.7rem;
+      flex-wrap: wrap;
+    }
+
+    .sfz-filter {
+      display: grid;
+      gap: 0.25rem;
+    }
+
+    .sfz-filter-label {
+      color: rgba(0, 34, 68, 0.75);
+      font-weight: 950;
+      font-size: 0.9rem;
+    }
+
+    .sfz-select {
+      border-radius: 12px;
+      border: 1px solid rgba(0, 34, 68, 0.18);
+      background: #ffffff;
+      padding: 0.5rem 0.65rem;
+      font-weight: 850;
+      color: rgba(0, 34, 68, 0.9);
+      min-width: 160px;
+    }
+
+    .sfz-filter-note {
+      color: rgba(15, 23, 32, 0.6);
+      font-weight: 800;
+      font-size: 0.95rem;
+      padding-bottom: 0.35rem;
     }
 
     .sfz-table-wrap {
@@ -98,65 +280,59 @@ const rows = data.playerSeasonStats
       border: 1px solid rgba(0, 34, 68, 0.14);
       background: #ffffff;
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
-      overflow: auto;
-      max-height: 70vh;
+      overflow: hidden;
     }
 
     .sfz-table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 760px;
-      font-size: 0.95rem;
+      font-weight: 750;
     }
 
-    .sfz-table th,
-    .sfz-table td {
-      padding: 0.65rem 0.7rem;
+    .sfz-table thead th {
+      text-align: center;
+      background: rgba(0, 34, 68, 0.04);
+      color: rgba(0, 34, 68, 0.9);
+      font-weight: 950;
+      padding: 0.8rem 0.7rem;
       border-bottom: 1px solid rgba(0, 34, 68, 0.10);
       white-space: nowrap;
     }
 
-    .sfz-table thead th {
-      background: rgba(0, 34, 68, 0.04);
-      color: rgba(0, 34, 68, 0.88);
-      font-weight: 900;
-      letter-spacing: 0.2px;
-    }
-
-    .sticky {
-      position: sticky;
-      top: 0;
-      z-index: 2;
+    .sfz-table tbody td {
+      padding: 0.7rem 0.7rem;
+      border-bottom: 1px solid rgba(0, 34, 68, 0.08);
+      text-align: center;
+      color: rgba(15, 23, 32, 0.78);
+      white-space: nowrap;
     }
 
     .sfz-table tbody tr:hover td {
-      background: rgba(105, 190, 40, 0.10);
+      background: rgba(105, 190, 40, 0.06);
     }
 
-    .name {
-      font-weight: 900;
-      color: var(--navy);
+    .c-left {
+      text-align: left !important;
     }
 
-    .pos {
-      color: rgba(15, 23, 32, 0.7);
-      font-weight: 800;
+    .sfz-player {
+      font-weight: 950;
+      color: rgba(0, 34, 68, 0.95);
     }
 
-    .num {
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-      font-weight: 800;
-      color: rgba(15, 23, 32, 0.75);
+    .sfz-pos {
+      font-weight: 950;
+      color: rgba(0, 34, 68, 0.75);
     }
 
-    .sfz-note {
-      margin-top: 1rem;
-      padding: 0.85rem 0.95rem;
-      border-radius: 14px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: rgba(165, 172, 175, 0.18);
-      color: rgba(15, 23, 32, 0.85);
+    @media (max-width: 980px) {
+      .sfz-table-wrap {
+        overflow-x: auto;
+      }
+      .sfz-table {
+        min-width: 760px;
+      }
     }
   </style>
 </SeahawksLayout>
+
