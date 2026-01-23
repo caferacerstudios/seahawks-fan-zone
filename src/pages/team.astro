@@ -6,7 +6,6 @@ import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import data from "../data/nfl/seahawks.json";
 
 const t = data.team;
-
 const pageTitle = `Team Stats (${data.season})`;
 
 const fmtUpdatedPT = (iso) =>
@@ -17,8 +16,6 @@ const fmtUpdatedPT = (iso) =>
   }).format(new Date(iso));
 
 const logoRelBase = "/images/nfl/teams";
-
-// ✅ Always resolve from Astro project root
 const projectRoot = Astro.root ?? process.cwd();
 const logoDiskBase = path.join(projectRoot, "public", "images", "nfl", "teams");
 
@@ -30,24 +27,47 @@ function logoFor(abbr) {
   }
   return "";
 }
-
 const seahawksLogo = logoFor(t?.abbreviation || "SEA");
 
 // ------------------------------
-// 1) Try to locate team stats in JSON (no guessing keys)
+// helpers
+// ------------------------------
+function n(v) {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+}
+function isNum(v) {
+  const x = Number(v);
+  return Number.isFinite(x);
+}
+function v(x) {
+  return x === null || x === undefined || x === "" ? "-" : x;
+}
+function fixed1(x) {
+  return x === null || x === undefined ? null : Number(x.toFixed(1));
+}
+function teamAbbr(teamObj, fallback = "") {
+  return String(teamObj?.abbreviation || fallback).toUpperCase();
+}
+
+// ------------------------------
+// 1) Try to locate a real team season stats object anywhere in JSON
 // ------------------------------
 function looksLikeTeamSeasonStats(o) {
   if (!o || typeof o !== "object" || Array.isArray(o)) return false;
 
-  // Pick a few “signature” fields
-  const hasGames = "games_played" in o || "gamesPlayed" in o;
-  const hasPoints = "total_points" in o || "points_for" in o || "pointsFor" in o;
-  const hasPass = "passing_yards" in o || "pass_yards" in o || "passingYards" in o;
-  const hasRush = "rushing_yards" in o || "rush_yards" in o || "rushingYards" in o;
+  const keys = new Set(Object.keys(o));
+  const hasGames = keys.has("games_played") || keys.has("gamesPlayed");
+  const hasPoints = keys.has("total_points") || keys.has("points_for") || keys.has("pointsFor");
+  const hasOffYds =
+    keys.has("total_offensive_yards") ||
+    keys.has("totalYards") ||
+    keys.has("offense_yards") ||
+    keys.has("offensive_yards");
+  const hasPass = keys.has("passing_yards") || keys.has("pass_yards") || keys.has("passingYards");
+  const hasRush = keys.has("rushing_yards") || keys.has("rush_yards") || keys.has("rushingYards");
 
-  // Needs at least 2 of these to count
-  const score = [hasGames, hasPoints, hasPass, hasRush].filter(Boolean).length;
-  return score >= 2;
+  return [hasGames, hasPoints, hasOffYds, hasPass, hasRush].filter(Boolean).length >= 2;
 }
 
 function findFirstTeamSeasonStats(root) {
@@ -55,7 +75,7 @@ function findFirstTeamSeasonStats(root) {
   const q = [root];
   let steps = 0;
 
-  while (q.length && steps < 5000) {
+  while (q.length && steps < 8000) {
     const cur = q.shift();
     steps++;
 
@@ -77,23 +97,34 @@ function findFirstTeamSeasonStats(root) {
 const sFound = findFirstTeamSeasonStats(data);
 
 // ------------------------------
-// 2) If missing, compute fallback totals from available data
+// 2) Build "raw games" list
 // ------------------------------
-function n(v) {
-  return typeof v === "number" && Number.isFinite(v) ? v : 0;
-}
+const rawGames = Array.isArray(data?.games)
+  ? data.games
+  : Array.isArray(data?.gamesRegular) || Array.isArray(data?.gamesPostseason)
+    ? [...(data.gamesRegular || []), ...(data.gamesPostseason || [])]
+    : [];
 
-function teamAbbr(teamObj, fallback = "") {
-  return String(teamObj?.abbreviation || fallback).toUpperCase();
+function getScore(game, side /* "home" | "away" */) {
+  // support multiple common score fields
+  const candidates =
+    side === "home"
+      ? [game?.home_team_score, game?.homeScore, game?.home_points, game?.homePoints]
+      : [game?.visitor_team_score, game?.away_team_score, game?.awayScore, game?.away_points, game?.awayPoints];
+
+  for (const c of candidates) {
+    const x = Number(c);
+    if (Number.isFinite(x)) return x;
+  }
+  return null;
 }
 
 function seaScoreFromGame(g) {
   const home = teamAbbr(g?.home_team);
   const away = teamAbbr(g?.visitor_team);
-  const hs = Number(g?.home_team_score);
-  const as = Number(g?.visitor_team_score);
-
-  if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
+  const hs = getScore(g, "home");
+  const as = getScore(g, "away");
+  if (hs === null || as === null) return null;
 
   if (home === "SEA") return hs;
   if (away === "SEA") return as;
@@ -103,73 +134,144 @@ function seaScoreFromGame(g) {
 function oppScoreFromGame(g) {
   const home = teamAbbr(g?.home_team);
   const away = teamAbbr(g?.visitor_team);
-  const hs = Number(g?.home_team_score);
-  const as = Number(g?.visitor_team_score);
-
-  if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
+  const hs = getScore(g, "home");
+  const as = getScore(g, "away");
+  if (hs === null || as === null) return null;
 
   if (home === "SEA") return as;
   if (away === "SEA") return hs;
   return null;
 }
 
-const rawGames = Array.isArray(data?.games)
-  ? data.games
-  : Array.isArray(data?.gamesRegular) || Array.isArray(data?.gamesPostseason)
-    ? [...(data.gamesRegular || []), ...(data.gamesPostseason || [])]
-    : [];
-
 const scoredGames = rawGames
   .map((g) => ({ g, sea: seaScoreFromGame(g), opp: oppScoreFromGame(g) }))
-  .filter((x) => Number.isFinite(x.sea) && Number.isFinite(x.opp));
+  .filter((x) => x.sea !== null && x.opp !== null);
 
 const games_played_fallback = scoredGames.length;
 
-const total_points_fallback = scoredGames.reduce((acc, x) => acc + Number(x.sea), 0);
+// points
+const total_points_fallback = scoredGames.reduce((acc, x) => acc + n(x.sea), 0);
+const points_against_fallback = scoredGames.reduce((acc, x) => acc + n(x.opp), 0);
+
 const total_points_per_game_fallback =
-  games_played_fallback > 0 ? (total_points_fallback / games_played_fallback) : null;
+  games_played_fallback > 0 ? total_points_fallback / games_played_fallback : null;
 
-// Yard totals fallback from player season stats (sum per-player totals)
+// ------------------------------
+// 3) Yards from playerSeasonStats (if present)
+// ------------------------------
 const playerStats = Array.isArray(data?.playerSeasonStats) ? data.playerSeasonStats : [];
-const passing_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.passing_yards), 0);
-const rushing_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.rushing_yards), 0);
-const receiving_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.receiving_yards), 0);
 
+const passing_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.passing_yards ?? r?.passingYards), 0);
+const rushing_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.rushing_yards ?? r?.rushingYards), 0);
+const receiving_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.receiving_yards ?? r?.receivingYards), 0);
+
+// Some feeds double-count offense if you sum passing + receiving; keep “total offense” as pass + rush
 const total_offensive_yards_fallback = passing_yards_fallback + rushing_yards_fallback;
 
 const passing_yards_per_game_fallback =
-  games_played_fallback > 0 ? (passing_yards_fallback / games_played_fallback) : null;
+  games_played_fallback > 0 ? passing_yards_fallback / games_played_fallback : null;
 const rushing_yards_per_game_fallback =
-  games_played_fallback > 0 ? (rushing_yards_fallback / games_played_fallback) : null;
+  games_played_fallback > 0 ? rushing_yards_fallback / games_played_fallback : null;
 const total_offensive_yards_per_game_fallback =
-  games_played_fallback > 0 ? (total_offensive_yards_fallback / games_played_fallback) : null;
+  games_played_fallback > 0 ? total_offensive_yards_fallback / games_played_fallback : null;
 
-// If we found real stats, use them. Otherwise use computed fallback if it’s meaningful.
+// ------------------------------
+// 4) Turnovers (best-effort)
+// ------------------------------
+// Team-level fields if present:
+function pickAny(obj, keys) {
+  for (const k of keys) {
+    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+  }
+  return null;
+}
+
+const takeaways_from_found =
+  sFound
+    ? pickAny(sFound, ["misc_total_takeaways", "takeaways", "total_takeaways", "def_takeaways"])
+    : null;
+
+const giveaways_from_found =
+  sFound
+    ? pickAny(sFound, ["misc_total_giveaways", "giveaways", "total_giveaways", "off_giveaways"])
+    : null;
+
+const margin_from_found =
+  sFound
+    ? pickAny(sFound, ["misc_turnover_margin", "turnover_margin", "turnoverMargin"])
+    : null;
+
+// Player-derived takeaways: interceptions + fumble recoveries if available
+const ints_thrown = playerStats.reduce((acc, r) => acc + n(r?.passing_interceptions ?? r?.interceptions), 0);
+const fumbles_lost = playerStats.reduce((acc, r) => acc + n(r?.fumbles_lost ?? r?.fumblesLost), 0);
+
+// We can’t reliably compute takeaways from player stats without defensive stats,
+// so only compute giveaways from player stats.
+const giveaways_fallback = (ints_thrown || fumbles_lost) ? (ints_thrown + fumbles_lost) : null;
+
+// ------------------------------
+// 5) Final stats object to render
+// ------------------------------
+// Prefer real stats; else computed.
 const s =
   sFound ??
-  (games_played_fallback > 0 || passing_yards_fallback > 0 || rushing_yards_fallback > 0
+  (games_played_fallback > 0 || passing_yards_fallback > 0 || rushing_yards_fallback > 0 || total_points_fallback > 0
     ? {
         __computed: true,
         games_played: games_played_fallback,
-        total_points: total_points_fallback,
-        total_points_per_game:
-          total_points_per_game_fallback === null ? null : Number(total_points_per_game_fallback.toFixed(1)),
-        passing_yards: passing_yards_fallback,
-        passing_yards_per_game:
-          passing_yards_per_game_fallback === null ? null : Number(passing_yards_per_game_fallback.toFixed(1)),
-        rushing_yards: rushing_yards_fallback,
-        rushing_yards_per_game:
-          rushing_yards_per_game_fallback === null ? null : Number(rushing_yards_per_game_fallback.toFixed(1)),
-        receiving_yards: receiving_yards_fallback,
-        total_offensive_yards: total_offensive_yards_fallback,
-        total_offensive_yards_per_game:
-          total_offensive_yards_per_game_fallback === null ? null : Number(total_offensive_yards_per_game_fallback.toFixed(1)),
+
+        total_points: total_points_fallback || null,
+        total_points_per_game: fixed1(total_points_per_game_fallback),
+
+        // extra (not displayed unless you add it)
+        points_against: points_against_fallback || null,
+
+        passing_yards: passing_yards_fallback || null,
+        passing_yards_per_game: fixed1(passing_yards_per_game_fallback),
+
+        rushing_yards: rushing_yards_fallback || null,
+        rushing_yards_per_game: fixed1(rushing_yards_per_game_fallback),
+
+        receiving_yards: receiving_yards_fallback || null,
+
+        total_offensive_yards: total_offensive_yards_fallback || null,
+        total_offensive_yards_per_game: fixed1(total_offensive_yards_per_game_fallback),
+
+        misc_total_takeaways: takeaways_from_found ?? null,
+        misc_total_giveaways: giveaways_from_found ?? giveaways_fallback,
+        misc_turnover_margin:
+          isNum(margin_from_found) ? Number(margin_from_found)
+          : (isNum(takeaways_from_found) && isNum(giveaways_from_found))
+            ? Number(takeaways_from_found) - Number(giveaways_from_found)
+            : null,
       }
     : null);
 
-function v(x) {
-  return x === null || x === undefined || x === "" ? "-" : x;
+// optional: if real stats exist, still normalize key variants for rendering
+function read(obj, variants) {
+  for (const k of variants) {
+    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+  }
+  return null;
 }
+
+const gamesPlayed = read(s, ["games_played", "gamesPlayed"]);
+const totalPoints = read(s, ["total_points", "points_for", "pointsFor"]);
+const totalPointsPerGame = read(s, ["total_points_per_game", "points_per_game", "pointsPerGame"]);
+const totalOffYds = read(s, ["total_offensive_yards", "totalYards", "offensive_yards", "offense_yards"]);
+const totalOffYdsPerGame = read(s, ["total_offensive_yards_per_game", "offense_yards_per_game", "totalYardsPerGame"]);
+
+const passYds = read(s, ["passing_yards", "pass_yards", "passingYards"]);
+const passYdsPerGame = read(s, ["passing_yards_per_game", "pass_yards_per_game", "passingYardsPerGame"]);
+
+const rushYds = read(s, ["rushing_yards", "rush_yards", "rushingYards"]);
+const rushYdsPerGame = read(s, ["rushing_yards_per_game", "rush_yards_per_game", "rushingYardsPerGame"]);
+
+const recYds = read(s, ["receiving_yards", "receivingYards"]);
+
+const takeaways = read(s, ["misc_total_takeaways", "takeaways", "total_takeaways"]);
+const giveaways = read(s, ["misc_total_giveaways", "giveaways", "total_giveaways"]);
+const margin = read(s, ["misc_turnover_margin", "turnover_margin", "turnoverMargin"]);
 ---
 
 <SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team">
@@ -195,16 +297,16 @@ function v(x) {
     <div class="sfz-empty">
       <strong>No team season stats found.</strong>
       <div class="sfz-empty-sub">
-        Your current JSON file doesn’t contain team aggregates (and there weren’t enough games/player stats to compute them).
+        Your JSON doesn’t have team aggregates, and there weren’t enough values to compute them.
       </div>
     </div>
   ) : (
     <div class="sfz-cards">
       {s.__computed && (
-        <div class="sfz-empty" style="margin-bottom:.9rem;">
+        <div class="sfz-computed">
           <strong>Computed totals</strong>
-          <div class="sfz-empty-sub">
-            Team totals were computed from games + player season stats because the JSON didn’t include a teamSeasonStats block.
+          <div class="sfz-computed-sub">
+            Some totals were computed from your games + playerSeasonStats because the feed didn’t include a teamSeasonStats block.
           </div>
         </div>
       )}
@@ -214,17 +316,17 @@ function v(x) {
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Games played</div>
-            <div class="sfz-v">{v(s.games_played)}</div>
+            <div class="sfz-v">{v(gamesPlayed)}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Total points</div>
-            <div class="sfz-v">{v(s.total_points)}</div>
-            <div class="sfz-note">{v(s.total_points_per_game)} per game</div>
+            <div class="sfz-v">{v(totalPoints)}</div>
+            <div class="sfz-note">{v(totalPointsPerGame)} per game</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Total offense</div>
-            <div class="sfz-v">{v(s.total_offensive_yards)}</div>
-            <div class="sfz-note">{v(s.total_offensive_yards_per_game)} per game</div>
+            <div class="sfz-v">{v(totalOffYds)}</div>
+            <div class="sfz-note">{v(totalOffYdsPerGame)} per game</div>
           </div>
         </div>
       </section>
@@ -234,17 +336,17 @@ function v(x) {
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Passing yards</div>
-            <div class="sfz-v">{v(s.passing_yards)}</div>
-            <div class="sfz-note">{v(s.passing_yards_per_game)} per game</div>
+            <div class="sfz-v">{v(passYds)}</div>
+            <div class="sfz-note">{v(passYdsPerGame)} per game</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Rushing yards</div>
-            <div class="sfz-v">{v(s.rushing_yards)}</div>
-            <div class="sfz-note">{v(s.rushing_yards_per_game)} per game</div>
+            <div class="sfz-v">{v(rushYds)}</div>
+            <div class="sfz-note">{v(rushYdsPerGame)} per game</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Receiving yards</div>
-            <div class="sfz-v">{v(s.receiving_yards)}</div>
+            <div class="sfz-v">{v(recYds)}</div>
           </div>
         </div>
       </section>
@@ -254,17 +356,15 @@ function v(x) {
         <div class="sfz-stat-grid">
           <div class="sfz-stat">
             <div class="sfz-k">Takeaways</div>
-            <div class="sfz-v">{v(s.misc_total_takeaways)}</div>
+            <div class="sfz-v">{v(takeaways)}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Giveaways</div>
-            <div class="sfz-v">{v(s.misc_total_giveaways)}</div>
+            <div class="sfz-v">{v(giveaways)}</div>
           </div>
           <div class="sfz-stat">
             <div class="sfz-k">Turnover margin</div>
-            <div class="sfz-v">
-              {typeof s.misc_turnover_margin === "number" ? s.misc_turnover_margin : "-"}
-            </div>
+            <div class="sfz-v">{typeof margin === "number" ? margin : "-"}</div>
           </div>
         </div>
       </section>
@@ -292,7 +392,9 @@ function v(x) {
     .sfz-v,
     .sfz-note,
     .sfz-empty,
-    .sfz-empty-sub {
+    .sfz-empty-sub,
+    .sfz-computed,
+    .sfz-computed-sub {
       overflow-wrap: anywhere;
       word-break: break-word;
     }
@@ -358,6 +460,21 @@ function v(x) {
       display: grid;
       grid-template-columns: 1fr;
       gap: 0.9rem;
+    }
+
+    .sfz-computed {
+      border-radius: 16px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: rgba(165, 172, 175, 0.18);
+      padding: 0.85rem 0.95rem;
+      color: rgba(15, 23, 32, 0.85);
+    }
+
+    .sfz-computed-sub {
+      margin-top: 0.35rem;
+      color: rgba(15, 23, 32, 0.7);
+      font-weight: 700;
+      font-size: 0.95rem;
     }
 
     .sfz-card {
@@ -431,5 +548,6 @@ function v(x) {
     }
   </style>
 </SeahawksLayout>
+
 
 
