@@ -1,40 +1,162 @@
 ---
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import data from "../data/nfl/seahawks.json";
 
-// Default sort: receiving yards (easy to change later)
+const pageTitle = `Player Stats (${data.season})`;
+
+const fmtUpdatedPT = (iso) =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(new Date(iso));
+
+function n(v) {
+  return typeof v === "number" ? v : 0;
+}
+
+function dashIfNull(v) {
+  return typeof v === "number" ? v : "-";
+}
+
+function tdTriplet(r) {
+  return `${n(r.passing_touchdowns)}/${n(r.rushing_touchdowns)}/${n(r.receiving_touchdowns)}`;
+}
+
 const rows = data.playerSeasonStats
   .slice()
-  .sort((a, b) => (b.receiving_yards ?? 0) - (a.receiving_yards ?? 0));
+  .sort((a, b) => (n(b.receiving_yards) + n(b.rushing_yards) + n(b.passing_yards)) - (n(a.receiving_yards) + n(a.rushing_yards) + n(a.passing_yards)));
 ---
 
-<h1>Seahawks Player Stats ({data.season})</h1>
-<p class="muted">Updated: {new Date(data.updatedAt).toLocaleString()}</p>
+<SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
+  <div class="sfz-topbar">
+    <div class="sfz-sub">Updated: {fmtUpdatedPT(data.updatedAt)} PT</div>
+    <div class="sfz-count">{rows.length} players</div>
+  </div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Player</th>
-      <th>Pos</th>
-      <th>GP</th>
-      <th>Pass Yds</th>
-      <th>Rush Yds</th>
-      <th>Rec Yds</th>
-      <th>TD (P/R/Rec)</th>
-    </tr>
-  </thead>
-  <tbody>
-    {rows.map((r) => (
-      <tr>
-        <td>{r.player.first_name} {r.player.last_name}</td>
-        <td>{r.player.position_abbreviation}</td>
-        <td>{r.games_played}</td>
-        <td>{r.passing_yards ?? "-"}</td>
-        <td>{r.rushing_yards ?? "-"}</td>
-        <td>{r.receiving_yards ?? "-"}</td>
-        <td>
-          {(r.passing_touchdowns ?? 0)}/{(r.rushing_touchdowns ?? 0)}/{(r.receiving_touchdowns ?? 0)}
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</table>
+  <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
+    <table class="sfz-table">
+      <thead>
+        <tr>
+          <th class="sticky">Player</th>
+          <th class="sticky">Pos</th>
+          <th class="sticky num">GP</th>
+          <th class="sticky num">Pass Yds</th>
+          <th class="sticky num">Rush Yds</th>
+          <th class="sticky num">Rec Yds</th>
+          <th class="sticky num">TD P/R/Rec</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr>
+            <td class="name">
+              {r.player.first_name} {r.player.last_name}
+            </td>
+            <td class="pos">{r.player.position_abbreviation}</td>
+            <td class="num">{dashIfNull(r.games_played)}</td>
+            <td class="num">{dashIfNull(r.passing_yards)}</td>
+            <td class="num">{dashIfNull(r.rushing_yards)}</td>
+            <td class="num">{dashIfNull(r.receiving_yards)}</td>
+            <td class="num">{tdTriplet(r)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sfz-note">
+    <strong>Note:</strong> This table is a first pass. Next upgrade is filters (QB, RB, WR, TE, Defense) and leader views.
+  </div>
+
+  <style>
+    .sfz-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(0, 34, 68, 0.12);
+    }
+
+    .sfz-sub {
+      color: rgba(15, 23, 32, 0.65);
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+
+    .sfz-count {
+      color: rgba(0, 34, 68, 0.85);
+      font-weight: 900;
+      font-size: 0.95rem;
+    }
+
+    .sfz-table-wrap {
+      border-radius: 16px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: #ffffff;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+      overflow: auto;
+      max-height: 70vh;
+    }
+
+    .sfz-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      font-size: 0.95rem;
+    }
+
+    .sfz-table th,
+    .sfz-table td {
+      padding: 0.65rem 0.7rem;
+      border-bottom: 1px solid rgba(0, 34, 68, 0.10);
+      white-space: nowrap;
+    }
+
+    .sfz-table thead th {
+      background: rgba(0, 34, 68, 0.04);
+      color: rgba(0, 34, 68, 0.88);
+      font-weight: 900;
+      letter-spacing: 0.2px;
+    }
+
+    .sticky {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .sfz-table tbody tr:hover td {
+      background: rgba(105, 190, 40, 0.10);
+    }
+
+    .name {
+      font-weight: 900;
+      color: var(--navy);
+    }
+
+    .pos {
+      color: rgba(15, 23, 32, 0.7);
+      font-weight: 800;
+    }
+
+    .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      color: rgba(15, 23, 32, 0.75);
+    }
+
+    .sfz-note {
+      margin-top: 1rem;
+      padding: 0.85rem 0.95rem;
+      border-radius: 14px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: rgba(165, 172, 175, 0.18);
+      color: rgba(15, 23, 32, 0.85);
+    }
+  </style>
+</SeahawksLayout>
