@@ -1,343 +1,406 @@
 ---
-import fs from "node:fs";
-import path from "node:path";
-
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
-import data from "../data/nfl/seahawks.json";
+import scheduleData from "../data/nfl/seahawks.json";
 
-const pageTitle = `Seahawks Schedule (${data.season})`;
+const pageTitle = "Seahawks Schedule (2025)";
+const pageTagline = "Game-by-game results and upcoming matchups";
 
-// Pacific time formatting (display only)
-const fmtDateTimePT = (iso) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    weekday: "short",
-    month: "short",
+const PT_TZ = "America/Los_Angeles";
+
+function formatUpdatedPT(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: PT_TZ,
+    year: "numeric",
+    month: "numeric",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(iso));
+  }).format(d) + " PT";
+}
 
-const fmtUpdatedPT = (iso) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    dateStyle: "short",
-    timeStyle: "medium",
-  }).format(new Date(iso));
+function formatKickoffPT(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const datePart = new Intl.DateTimeFormat("en-US", {
+    timeZone: PT_TZ,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(d);
 
-// Logo resolver: supports .svg/.png/.jpg and common abbreviation aliases
-const logoRelBase = "/images/nfl/teams";
-const logoDiskBase = path.resolve("public", "images", "nfl", "teams");
+  const timePart = new Intl.DateTimeFormat("en-US", {
+    timeZone: PT_TZ,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
 
-// Common abbreviation mismatches between different sources
-const ABBR_ALIASES = {
-  LAR: ["LA"],
-  LA: ["LAR"],
-  WSH: ["WAS"],
-  WAS: ["WSH"],
-  JAX: ["JAC"],
-  JAC: ["JAX"],
-  LV: ["LVR"],
-  LVR: ["LV"],
-};
+  return `${datePart}, ${timePart} PT`;
+}
 
-function logoFor(abbr) {
-  const a = String(abbr || "").toUpperCase();
-  const candidates = [a, ...(ABBR_ALIASES[a] ?? [])];
+function safeAbbr(team) {
+  return (team?.abbreviation || "").toUpperCase();
+}
 
-  for (const cand of candidates) {
-    for (const ext of [".svg", ".png", ".jpg"]) {
-      const disk = path.join(logoDiskBase, `${cand}${ext}`);
-      if (fs.existsSync(disk)) return `${logoRelBase}/${cand}${ext}`;
-    }
-  }
+function teamLogoPath(abbr) {
+  // Keep it simple: you are saving local PNGs as ABBR.png
+  return abbr ? `/images/nfl/teams/${abbr}.png` : "";
+}
+
+function isFinal(game) {
+  const s = (game?.status || "").toLowerCase();
+  return s.includes("final");
+}
+
+function parseScore(game) {
+  const home = Number(game?.home_team_score ?? game?.home_score ?? 0);
+  const away = Number(game?.visitor_team_score ?? game?.visitor_score ?? 0);
+  return { home, away };
+}
+
+function seahawksSide(game) {
+  const homeAbbr = safeAbbr(game?.home_team);
+  const awayAbbr = safeAbbr(game?.visitor_team);
+  if (homeAbbr === "SEA") return "home";
+  if (awayAbbr === "SEA") return "away";
   return "";
 }
 
-function isFinal(status) {
-  const s = String(status || "").toLowerCase();
-  return s === "final" || s.startsWith("final/");
-}
-
-function scoreLine(g) {
-  if (!isFinal(g.status)) return "";
-  return `${g.visitor_team_score}-${g.home_team_score}`;
-}
-
-function seahawksResult(g) {
-  if (!isFinal(g.status)) return null;
-
-  const seaIsHome = g.home_team?.abbreviation === "SEA";
-  const seaScore = seaIsHome ? g.home_team_score : g.visitor_team_score;
-  const oppScore = seaIsHome ? g.visitor_team_score : g.home_team_score;
-
-  if (typeof seaScore !== "number" || typeof oppScore !== "number") return null;
-  if (seaScore > oppScore) return "win";
-  if (seaScore < oppScore) return "loss";
-  return "tie";
-}
-
-// Postseason labeling so "Week 18 then Week 2" doesn't look wrong.
-// BALLDONTLIE season includes playoffs in Jan of the next year; those often use week 1-4.
-function isLikelyPostseason(g) {
-  if (g.postseason === true) return true;
-  const st = String(g.season_type || g.type || "").toLowerCase();
-  if (st.includes("post")) return true;
-
-  const d = new Date(g.date);
-  const m = d.getUTCMonth() + 1; // 1-12
-  const wk = Number(g.week);
-
-  // Heuristic: small week number + January/February => playoffs
-  if ((m === 1 || m === 2) && wk > 0 && wk <= 6) return true;
+function seahawksWon(game) {
+  if (!isFinal(game)) return false;
+  const side = seahawksSide(game);
+  const { home, away } = parseScore(game);
+  if (side === "home") return home > away;
+  if (side === "away") return away > home;
   return false;
 }
 
-function weekLabel(g) {
-  if (!isLikelyPostseason(g)) return `Week ${g.week}`;
-
-  const wk = Number(g.week);
-  if (wk === 1) return "Playoffs: Wild Card";
-  if (wk === 2) return "Playoffs: Divisional";
-  if (wk === 3) return "Playoffs: Conference";
-  if (wk === 4) return "Playoffs: Super Bowl";
-  return "Playoffs";
+function seahawksLost(game) {
+  if (!isFinal(game)) return false;
+  const side = seahawksSide(game);
+  const { home, away } = parseScore(game);
+  if (side === "home") return home < away;
+  if (side === "away") return away < home;
+  return false;
 }
 
-const games = data.games
-  .slice()
-  .sort((a, b) => new Date(a.date) - new Date(b.date));
+function matchupLine(game) {
+  const homeAbbr = safeAbbr(game?.home_team);
+  const awayAbbr = safeAbbr(game?.visitor_team);
+  const isSeaHome = homeAbbr === "SEA";
+  const left = isSeaHome ? awayAbbr : "SEA";
+  const right = isSeaHome ? "SEA" : homeAbbr;
+  return { left, right, isSeaHome };
+}
+
+function weekLabel(game) {
+  const w = game?.week;
+  const isPlayoffs = Boolean(game?.postseason || game?.is_postseason);
+  if (isPlayoffs) {
+    // If you later add a round field, you can improve this label.
+    return w ? `Playoffs Week ${w}` : "Playoffs";
+  }
+  return w ? `Week ${w}` : "Week";
+}
+
+const updatedText = formatUpdatedPT(scheduleData?.updatedAt);
+const games = Array.isArray(scheduleData?.games) ? scheduleData.games : [];
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Schedule and results" activePath="/schedule">
-  <p class="sfz-muted">Updated: {fmtUpdatedPT(data.updatedAt)} PT</p>
+<SeahawksLayout pageTitle="Seahawks Schedule" pageTagline="Season results and upcoming games" activePath="/schedule">
+  <section class="sfz-top">
+    <h2 class="sfz-h2">Seahawks Schedule (2025)</h2>
+    <p class="sfz-updated"><strong>Updated:</strong> {updatedText}</p>
+  </section>
 
-  <div class="sfz-schedule-grid" role="list">
+  <section class="sfz-grid" aria-label="Schedule">
     {games.map((g) => {
-      const away = g.visitor_team;
-      const home = g.home_team;
+      const { left, right, isSeaHome } = matchupLine(g);
 
-      const awayLogo = logoFor(away.abbreviation);
-      const homeLogo = logoFor(home.abbreviation);
+      const leftLogo = teamLogoPath(left);
+      const rightLogo = teamLogoPath(right);
 
-      const outcome = seahawksResult(g); // "win" | "loss" | "tie" | null
+      const kickoff = formatKickoffPT(g?.date);
+      const final = isFinal(g);
+
+      const { home, away } = parseScore(g);
+
+      // Display score in matchup order (left vs right)
+      const leftScore = isSeaHome ? away : away; // left is opponent when SEA home, SEA when away
+      const rightScore = isSeaHome ? home : home; // right is SEA when home, opponent when away
+
+      // But we actually want correct mapping:
+      // home team is right when SEA is away, left when SEA is home? Not quite.
+      // Use direct mapping instead:
+      const homeAbbr = safeAbbr(g?.home_team);
+      const awayAbbr = safeAbbr(g?.visitor_team);
+
+      const scoreMap = {
+        [homeAbbr]: home,
+        [awayAbbr]: away,
+      };
+
+      const leftPts = scoreMap[left] ?? 0;
+      const rightPts = scoreMap[right] ?? 0;
+
       const cardClass =
-        outcome === "win" ? "sfz-game-card sfz-win"
-        : outcome === "loss" ? "sfz-game-card sfz-loss"
-        : outcome === "tie" ? "sfz-game-card sfz-tie"
-        : "sfz-game-card";
+        seahawksWon(g) ? "sfz-card sfz-card--win" :
+        seahawksLost(g) ? "sfz-card sfz-card--loss" :
+        "sfz-card";
 
       return (
-        <article class={cardClass} role="listitem">
-          <div class="sfz-game-top">
+        <article class={cardClass}>
+          <header class="sfz-card-head">
             <div class="sfz-week">{weekLabel(g)}</div>
-            <div class="sfz-date">{fmtDateTimePT(g.date)} PT</div>
-          </div>
+            <div class="sfz-kickoff">{kickoff}</div>
+          </header>
+
+          <div class="sfz-divider" aria-hidden="true"></div>
 
           <div class="sfz-matchup">
             <div class="sfz-team">
-              {awayLogo ? (
-                <img class="sfz-logo" src={awayLogo} alt={`${away.abbreviation} logo`} loading="lazy" />
-              ) : (
-                <div class="sfz-logo sfz-logo-fallback" aria-hidden="true">{away.abbreviation}</div>
-              )}
-              <div class="sfz-team-text">
-                <div class="sfz-abbr">{away.abbreviation}</div>
-                <div class="sfz-name">{away.full_name}</div>
-              </div>
+              <img
+                class="sfz-logo"
+                src={leftLogo}
+                alt={`${left} logo`}
+                loading="lazy"
+                onerror="this.style.display='none';"
+              />
+              <div class="sfz-abbr">{left}</div>
+              <div class="sfz-homeaway">{left === "SEA" ? (isSeaHome ? "H" : "A") : (isSeaHome ? "A" : "H")}</div>
             </div>
 
             <div class="sfz-at">@</div>
 
-            <div class="sfz-team">
-              {homeLogo ? (
-                <img class="sfz-logo" src={homeLogo} alt={`${home.abbreviation} logo`} loading="lazy" />
-              ) : (
-                <div class="sfz-logo sfz-logo-fallback" aria-hidden="true">{home.abbreviation}</div>
-              )}
-              <div class="sfz-team-text">
-                <div class="sfz-abbr">{home.abbreviation}</div>
-                <div class="sfz-name">{home.full_name}</div>
-              </div>
+            <div class="sfz-team sfz-team--right">
+              <img
+                class="sfz-logo"
+                src={rightLogo}
+                alt={`${right} logo`}
+                loading="lazy"
+                onerror="this.style.display='none';"
+              />
+              <div class="sfz-abbr">{right}</div>
+              <div class="sfz-homeaway">{right === "SEA" ? (isSeaHome ? "H" : "A") : (isSeaHome ? "A" : "H")}</div>
             </div>
           </div>
 
-          <div class="sfz-game-bottom">
-            <div class="sfz-status">{g.status || "Scheduled"}</div>
-            <div class="sfz-score">{scoreLine(g)}</div>
-          </div>
+          <footer class="sfz-card-foot">
+            <div class="sfz-status">{final ? "Final" : (g?.status || "Scheduled")}</div>
+            <div class="sfz-score">
+              {final ? (
+                <>
+                  <span class={left === "SEA" ? "sfz-scorepart sfz-scorepart--sea" : "sfz-scorepart"}>
+                    {leftPts}
+                  </span>
+                  <span class="sfz-scoresep">:</span>
+                  <span class={right === "SEA" ? "sfz-scorepart sfz-scorepart--sea" : "sfz-scorepart"}>
+                    {rightPts}
+                  </span>
+                </>
+              ) : (
+                <span class="sfz-scorepart sfz-scorepart--pending">TBD</span>
+              )}
+            </div>
+          </footer>
         </article>
       );
     })}
-  </div>
+  </section>
 
   <style>
-    .sfz-muted {
-      margin: 0 0 1rem;
+    .sfz-top {
+      margin-bottom: 0.9rem;
+    }
+
+    .sfz-h2 {
+      margin: 0 0 0.25rem;
+      color: var(--navy);
+      font-weight: 950;
+      letter-spacing: 0.2px;
+      font-size: 2rem;
+      line-height: 1.15;
+    }
+
+    .sfz-updated {
+      margin: 0;
       color: rgba(15, 23, 32, 0.65);
-      font-weight: 700;
+      font-weight: 800;
       font-size: 0.95rem;
     }
 
-    .sfz-schedule-grid {
+    .sfz-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.95rem;
+      gap: 0.9rem;
+      align-items: start;
     }
 
-    .sfz-game-card {
+    .sfz-card {
       border-radius: 16px;
       border: 1px solid rgba(0, 34, 68, 0.14);
       background: #ffffff;
-      padding: 0.95rem;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.07);
-      position: relative;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+      padding: 0.9rem 0.95rem;
       overflow: hidden;
     }
 
-    /* Seahawks result styling */
-    .sfz-win {
-      border-color: rgba(105, 190, 40, 0.55);
-      box-shadow: 0 10px 26px rgba(105, 190, 40, 0.14);
-    }
-    .sfz-win::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, rgba(105, 190, 40, 0.10), transparent 55%);
-      pointer-events: none;
+    /* Wins and losses */
+    .sfz-card--win {
+      border-color: rgba(105, 190, 40, 0.7);
+      box-shadow: 0 10px 26px rgba(105, 190, 40, 0.12);
     }
 
-    .sfz-loss {
-      border-color: rgba(0, 34, 68, 0.20);
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+    .sfz-card--loss {
+      border-color: rgba(210, 60, 60, 0.55);
+      box-shadow: 0 10px 26px rgba(210, 60, 60, 0.10);
     }
 
-    .sfz-tie {
-      border-color: rgba(165, 172, 175, 0.55);
-    }
-
-    .sfz-game-top {
+    .sfz-card-head {
       display: flex;
-      justify-content: space-between;
       align-items: baseline;
-      gap: 0.75rem;
-      margin-bottom: 0.75rem;
-      position: relative;
-      z-index: 1;
+      justify-content: space-between;
+      gap: 0.6rem;
+
+      /* key fix: allow wrapping instead of clipping */
+      flex-wrap: wrap;
+
+      /* key fix: prevent flex children from forcing overflow */
+      min-width: 0;
     }
 
     .sfz-week {
-      font-weight: 900;
+      font-weight: 950;
       color: var(--navy);
       font-size: 1rem;
-      letter-spacing: 0.2px;
+      line-height: 1.2;
+      flex: 0 0 auto;
     }
 
-    .sfz-date {
-      color: rgba(15, 23, 32, 0.65);
-      font-weight: 700;
+    .sfz-kickoff {
+      color: rgba(15, 23, 32, 0.62);
+      font-weight: 850;
       font-size: 0.92rem;
+      line-height: 1.25;
+
+      /* key fix: allow wrap */
+      white-space: normal;
+      overflow: visible;
+
+      /* key fix: allow this to shrink inside flex row */
+      min-width: 0;
+      flex: 1 1 12rem;
       text-align: right;
-      white-space: nowrap;
+    }
+
+    .sfz-divider {
+      height: 1px;
+      background: rgba(0, 34, 68, 0.10);
+      margin: 0.65rem 0 0.7rem;
     }
 
     .sfz-matchup {
       display: grid;
       grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      gap: 0.65rem;
-      padding: 0.75rem 0;
-      border-top: 1px solid rgba(0, 34, 68, 0.10);
-      border-bottom: 1px solid rgba(0, 34, 68, 0.10);
-      position: relative;
-      z-index: 1;
+      gap: 0.55rem;
+      margin-bottom: 0.7rem;
+      min-width: 0;
     }
 
     .sfz-team {
-      display: flex;
+      display: grid;
+      grid-template-columns: 34px auto;
+      grid-template-rows: auto auto;
+      column-gap: 0.55rem;
+      row-gap: 0.05rem;
       align-items: center;
-      gap: 0.7rem;
-      justify-content: center;
       min-width: 0;
+    }
+
+    .sfz-team--right {
+      justify-items: end;
+      grid-template-columns: auto 34px;
     }
 
     .sfz-logo {
-      width: 38px;
-      height: 38px;
+      width: 34px;
+      height: 34px;
       object-fit: contain;
-      flex: 0 0 auto;
+      grid-row: 1 / span 2;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,0.08));
     }
 
-    .sfz-logo-fallback {
-      display: grid;
-      place-items: center;
-      border-radius: 10px;
-      background: rgba(0, 34, 68, 0.06);
-      border: 1px solid rgba(0, 34, 68, 0.10);
-      color: rgba(0, 34, 68, 0.8);
-      font-weight: 900;
-      font-size: 0.85rem;
-      letter-spacing: 0.3px;
-    }
-
-    .sfz-team-text {
-      min-width: 0;
-      text-align: left;
+    .sfz-team--right .sfz-logo {
+      grid-column: 2;
     }
 
     .sfz-abbr {
-      font-weight: 900;
+      font-weight: 950;
       color: var(--navy);
       font-size: 1.05rem;
-      line-height: 1.1;
+      line-height: 1.05;
+      white-space: nowrap;
     }
 
-    .sfz-name {
-      color: rgba(15, 23, 32, 0.62);
-      font-weight: 700;
-      font-size: 0.9rem;
-      line-height: 1.2;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .sfz-homeaway {
+      font-weight: 900;
+      font-size: 0.85rem;
+      color: rgba(15, 23, 32, 0.55);
       white-space: nowrap;
-      max-width: 240px;
     }
 
     .sfz-at {
-      font-weight: 900;
-      color: rgba(15, 23, 32, 0.55);
-      font-size: 1.05rem;
-      padding: 0 0.15rem;
+      font-weight: 950;
+      color: rgba(0, 34, 68, 0.55);
+      padding: 0 0.1rem;
     }
 
-    .sfz-game-bottom {
-      margin-top: 0.75rem;
+    .sfz-card-foot {
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      position: relative;
-      z-index: 1;
+      align-items: center;
+      gap: 0.6rem;
+      min-width: 0;
     }
 
     .sfz-status {
-      font-weight: 900;
-      color: rgba(0, 34, 68, 0.88);
+      font-weight: 950;
+      color: rgba(0, 34, 68, 0.78);
     }
 
     .sfz-score {
+      font-weight: 950;
+      color: rgba(0, 34, 68, 0.85);
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.25rem;
+      white-space: nowrap;
+    }
+
+    .sfz-scorepart--sea {
+      color: var(--navy);
+    }
+
+    .sfz-scorepart--pending {
+      color: rgba(0, 34, 68, 0.55);
       font-weight: 900;
-      color: rgba(15, 23, 32, 0.72);
+      font-size: 0.95rem;
+    }
+
+    .sfz-scoresep {
+      color: rgba(0, 34, 68, 0.35);
+      font-weight: 900;
     }
 
     @media (max-width: 980px) {
-      .sfz-schedule-grid {
+      .sfz-grid {
         grid-template-columns: 1fr;
       }
-      .sfz-name {
-        max-width: 190px;
+
+      .sfz-kickoff {
+        text-align: left;
+        flex: 1 1 100%;
       }
     }
   </style>
