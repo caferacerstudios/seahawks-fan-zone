@@ -2,140 +2,55 @@
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import playersData from "../data/nfl/players.json";
 
-const PT_TZ = "America/Los_Angeles";
+const season = playersData?.season ?? "";
+const updatedAt = playersData?.updatedAt ?? "";
+const rows = Array.isArray(playersData?.players) ? playersData.players : [];
 
-function formatUpdatedPT(iso) {
-  const d = iso ? new Date(iso) : new Date();
-  return (
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: PT_TZ,
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(d) + " PT"
-  );
+// derive unique positions
+const posSet = new Set();
+for (const r of rows) {
+  const p = String(r?.player?.position || "").trim();
+  if (p) posSet.add(p);
 }
+const positions = ["All", ...Array.from(posSet).sort((a, b) => a.localeCompare(b))];
 
-function toNum(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+function n(v) {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : null;
 }
-
-function pickSeasonLabel(rows) {
-  const explicit = playersData?.season;
-  if (explicit) return String(explicit);
-
-  // If API rows include season/year, use the most common
-  const counts = new Map();
-  for (const r of rows) {
-    const y = r?.season ?? r?.year;
-    if (y == null) continue;
-    const k = String(y);
-    counts.set(k, (counts.get(k) || 0) + 1);
-  }
-  if (counts.size === 0) return "";
-
-  let bestK = "";
-  let bestV = -1;
-  for (const [k, v] of counts.entries()) {
-    if (v > bestV) {
-      bestV = v;
-      bestK = k;
-    }
-  }
-  return bestK;
+function show(v) {
+  const x = n(v);
+  return x === null ? "–" : x.toLocaleString("en-US");
 }
-
-function playerKey(p) {
-  const id = p?.player_id ?? p?.id ?? p?.playerId;
-  if (id != null && String(id).trim() !== "") return `id:${id}`;
-
-  const name = String(p?.player_name ?? p?.name ?? "").trim().toLowerCase();
-  const pos = String(p?.position ?? p?.pos ?? "").trim().toUpperCase();
-  return `np:${name}|${pos}`;
-}
-
-function scoreRow(p) {
-  // Used to choose which duplicate to keep
-  const gp = toNum(p?.gp ?? p?.games_played ?? p?.games ?? 0);
-  const pass = toNum(p?.passing_yards ?? p?.pass_yds ?? p?.pass_yards ?? 0);
-  const rush = toNum(p?.rushing_yards ?? p?.rush_yds ?? p?.rush_yards ?? 0);
-  const rec = toNum(p?.receiving_yards ?? p?.rec_yds ?? p?.rec_yards ?? 0);
-  const tds =
-    toNum(p?.passing_tds ?? p?.pass_tds ?? 0) +
-    toNum(p?.rushing_tds ?? p?.rush_tds ?? 0) +
-    toNum(p?.receiving_tds ?? p?.rec_tds ?? 0);
-
-  // Primary: highest GP, then most total yards, then most TDs
-  return gp * 1_000_000 + (pass + rush + rec) * 10 + tds;
-}
-
-function dedupePlayers(rows) {
-  const best = new Map();
-  for (const p of rows) {
-    const k = playerKey(p);
-    const cur = best.get(k);
-    if (!cur) {
-      best.set(k, p);
-      continue;
-    }
-    if (scoreRow(p) > scoreRow(cur)) best.set(k, p);
-  }
-  return Array.from(best.values());
-}
-
-function posOf(p) {
-  return String(p?.position ?? p?.pos ?? "").trim().toUpperCase();
-}
-
-const rawPlayers = Array.isArray(playersData?.players) ? playersData.players : (Array.isArray(playersData) ? playersData : []);
-const players = dedupePlayers(rawPlayers);
-
-const seasonLabel = pickSeasonLabel(players);
-const updatedText = formatUpdatedPT(playersData?.updatedAt);
-
-const positions = Array.from(
-  new Set(players.map((p) => posOf(p)).filter((x) => x))
-).sort((a, b) => a.localeCompare(b));
-
-const pageTitle = "Player Stats";
-const pageTagline = "Sortable totals with quick position filters";
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/players">
-  <section class="sfz-top">
-    <div class="sfz-topline">
-      <div class="sfz-meta">
-        <strong>Season:</strong> {seasonLabel || "Current"}
-        <span class="sfz-dot">•</span>
-        <strong>Updated:</strong> {updatedText}
+<SeahawksLayout title={`Player Stats (${season})`} description="Sortable totals with quick position filters" activePath="/players">
+  <div class="players-head">
+    <div>
+      <h2 class="lr-post-title">Player Stats</h2>
+      <div class="meta-line">
+        <span><strong>Season:</strong> {season}</span>
+        <span class="dot">•</span>
+        <span><strong>Updated:</strong> {updatedAt ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) + " PT" : "—"}</span>
       </div>
-
-      <div class="sfz-count">{players.length} players</div>
     </div>
+    <div class="count">{rows.length.toLocaleString("en-US")} players</div>
+  </div>
 
-    <div class="sfz-filters">
-      <label class="sfz-filter">
-        <span class="sfz-filter-label">Position</span>
-        <select id="posFilter" class="sfz-select">
-          <option value="ALL">All</option>
-          {positions.map((p) => (
-            <option value={p}>{p}</option>
-          ))}
-        </select>
-      </label>
+  <div class="controls">
+    <label class="control">
+      <div class="control-label">Position</div>
+      <select id="posFilter" class="select">
+        {positions.map((p) => <option value={p}>{p}</option>)}
+      </select>
+    </label>
+  </div>
 
-      <div class="sfz-filter-note" id="filterNote"></div>
-    </div>
-  </section>
-
-  <section class="sfz-table-wrap" aria-label="Players table">
-    <table class="sfz-table" id="playersTable">
+  <div class="table-wrap">
+    <table class="tbl" id="playersTable">
       <thead>
         <tr>
-          <th class="c-left">Player</th>
+          <th>Player</th>
           <th>Pos</th>
           <th>GP</th>
           <th>Pass Yds</th>
@@ -144,195 +59,129 @@ const pageTagline = "Sortable totals with quick position filters";
           <th>TD P/R/Rec</th>
         </tr>
       </thead>
+      <tbody>
+        {rows.map((r) => {
+          const name = r?.player?.full_name ?? "Unknown";
+          const pos = r?.player?.position ?? "-";
+          const gp = show(r?.games_played ?? r?.gp);
 
-      <tbody id="playersTbody">
-        {players.map((p) => {
-          const name = p?.player_name ?? p?.name ?? "Unknown";
-          const pos = posOf(p);
+          const passY = show(r?.passing_yards ?? r?.pass_yds ?? r?.pass_yards);
+          const rushY = show(r?.rushing_yards ?? r?.rush_yds ?? r?.rush_yards);
+          const recY  = show(r?.receiving_yards ?? r?.rec_yds ?? r?.rec_yards);
 
-          const gp = toNum(p?.gp ?? p?.games_played ?? p?.games ?? 0);
-
-          const passY = p?.passing_yards ?? p?.pass_yds ?? p?.pass_yards ?? "";
-          const rushY = p?.rushing_yards ?? p?.rush_yds ?? p?.rush_yards ?? "";
-          const recY = p?.receiving_yards ?? p?.rec_yds ?? p?.rec_yards ?? "";
-
-          const tdP = p?.passing_tds ?? p?.pass_tds ?? 0;
-          const tdR = p?.rushing_tds ?? p?.rush_tds ?? 0;
-          const tdRec = p?.receiving_tds ?? p?.rec_tds ?? 0;
+          const tdp = n(r?.passing_tds ?? r?.pass_tds) ?? 0;
+          const tdr = n(r?.rushing_tds ?? r?.rush_tds) ?? 0;
+          const tdrc = n(r?.receiving_tds ?? r?.rec_tds) ?? 0;
 
           return (
-            <tr data-pos={pos || ""}>
-              <td class="c-left sfz-player">{name}</td>
-              <td class="sfz-pos">{pos || "-"}</td>
-              <td>{gp || "-"}</td>
-              <td>{passY === "" ? "-" : passY}</td>
-              <td>{rushY === "" ? "-" : rushY}</td>
-              <td>{recY === "" ? "-" : recY}</td>
-              <td>{`${tdP || 0}/${tdR || 0}/${tdRec || 0}`}</td>
+            <tr data-pos={String(pos)}>
+              <td class="player">{name}</td>
+              <td class="pos">{pos}</td>
+              <td>{gp}</td>
+              <td>{passY}</td>
+              <td>{rushY}</td>
+              <td>{recY}</td>
+              <td class="tds">{tdp}/{tdr}/{tdrc}</td>
             </tr>
           );
         })}
       </tbody>
     </table>
-  </section>
+  </div>
 
   <script is:inline>
-    (function () {
-      const sel = document.getElementById("posFilter");
-      const tbody = document.getElementById("playersTbody");
-      const note = document.getElementById("filterNote");
+    const sel = document.getElementById("posFilter");
+    const tbody = document.querySelector("#playersTable tbody");
 
-      function apply() {
-        const v = sel.value;
-        let shown = 0;
-        const rows = tbody.querySelectorAll("tr");
-
-        rows.forEach((tr) => {
-          const p = tr.getAttribute("data-pos") || "";
-          const ok = (v === "ALL") || (p === v);
-          tr.style.display = ok ? "" : "none";
-          if (ok) shown += 1;
-        });
-
-        if (v === "ALL") {
-          note.textContent = "";
-        } else {
-          note.textContent = `Showing ${shown} players at ${v}`;
-        }
+    function apply() {
+      const want = sel.value;
+      for (const tr of tbody.querySelectorAll("tr")) {
+        const pos = tr.getAttribute("data-pos") || "";
+        const ok = want === "All" || pos === want;
+        tr.style.display = ok ? "" : "none";
       }
+    }
 
-      sel.addEventListener("change", apply);
-      apply();
-    })();
+    sel.addEventListener("change", apply);
+    apply();
   </script>
 
   <style>
-    .sfz-top {
-      margin-bottom: 0.9rem;
+    .players-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:1rem;
+      flex-wrap:wrap;
+      margin-bottom:.75rem;
     }
-
-    .sfz-topline {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 0.8rem;
-      flex-wrap: wrap;
+    .meta-line{
+      display:flex;
+      align-items:center;
+      gap:.5rem;
+      color:rgba(15,23,32,.65);
+      margin-top:.25rem;
+      flex-wrap:wrap;
     }
-
-    .sfz-meta {
-      margin: 0;
-      color: rgba(15, 23, 32, 0.65);
-      font-weight: 850;
-      font-size: 0.95rem;
+    .dot{opacity:.5}
+    .count{
+      color:rgba(15,23,32,.65);
+      font-weight:800;
     }
-
-    .sfz-dot {
-      padding: 0 0.4rem;
-      color: rgba(0, 34, 68, 0.35);
-      font-weight: 900;
+    .controls{
+      display:flex;
+      gap:1rem;
+      align-items:flex-end;
+      flex-wrap:wrap;
+      margin: .75rem 0 1rem;
     }
-
-    .sfz-count {
-      color: rgba(15, 23, 32, 0.65);
-      font-weight: 900;
-      font-size: 0.95rem;
-      white-space: nowrap;
+    .control-label{
+      font-size:.85rem;
+      color:rgba(15,23,32,.65);
+      font-weight:800;
+      margin-bottom:.25rem;
     }
-
-    .sfz-filters {
-      display: flex;
-      align-items: end;
-      gap: 0.75rem;
-      margin-top: 0.7rem;
-      flex-wrap: wrap;
-    }
-
-    .sfz-filter {
-      display: grid;
-      gap: 0.25rem;
-    }
-
-    .sfz-filter-label {
-      color: rgba(0, 34, 68, 0.75);
-      font-weight: 950;
-      font-size: 0.9rem;
-    }
-
-    .sfz-select {
+    .select{
+      padding:.55rem .65rem;
       border-radius: 12px;
-      border: 1px solid rgba(0, 34, 68, 0.18);
-      background: #ffffff;
-      padding: 0.5rem 0.65rem;
-      font-weight: 850;
-      color: rgba(0, 34, 68, 0.9);
+      border: 1px solid rgba(0,34,68,.18);
+      background: #fff;
+      font-weight: 800;
       min-width: 160px;
     }
-
-    .sfz-filter-note {
-      color: rgba(15, 23, 32, 0.6);
-      font-weight: 800;
-      font-size: 0.95rem;
-      padding-bottom: 0.35rem;
+    .table-wrap{
+      border-radius: 14px;
+      border: 1px solid rgba(0,34,68,0.16);
+      overflow:auto;
+      background:#fff;
+      box-shadow: 0 10px 22px rgba(0,0,0,.08);
     }
-
-    .sfz-table-wrap {
-      border-radius: 16px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: #ffffff;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
-      overflow: hidden;
+    .tbl{
+      width:100%;
+      border-collapse:collapse;
+      font-size:.95rem;
     }
-
-    .sfz-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-weight: 750;
+    thead th{
+      text-align:left;
+      padding:.7rem .8rem;
+      background: rgba(0,34,68,.04);
+      border-bottom: 1px solid rgba(0,34,68,.12);
+      color: rgba(0,34,68,.90);
+      font-weight: 900;
+      white-space:nowrap;
     }
-
-    .sfz-table thead th {
-      text-align: center;
-      background: rgba(0, 34, 68, 0.04);
-      color: rgba(0, 34, 68, 0.9);
-      font-weight: 950;
-      padding: 0.8rem 0.7rem;
-      border-bottom: 1px solid rgba(0, 34, 68, 0.10);
-      white-space: nowrap;
+    tbody td{
+      padding:.65rem .8rem;
+      border-bottom: 1px solid rgba(0,34,68,.08);
+      vertical-align:middle;
+      white-space:nowrap;
     }
-
-    .sfz-table tbody td {
-      padding: 0.7rem 0.7rem;
-      border-bottom: 1px solid rgba(0, 34, 68, 0.08);
-      text-align: center;
-      color: rgba(15, 23, 32, 0.78);
-      white-space: nowrap;
+    tbody tr:hover{
+      background: rgba(105,190,40,.06);
     }
-
-    .sfz-table tbody tr:hover td {
-      background: rgba(105, 190, 40, 0.06);
-    }
-
-    .c-left {
-      text-align: left !important;
-    }
-
-    .sfz-player {
-      font-weight: 950;
-      color: rgba(0, 34, 68, 0.95);
-    }
-
-    .sfz-pos {
-      font-weight: 950;
-      color: rgba(0, 34, 68, 0.75);
-    }
-
-    @media (max-width: 980px) {
-      .sfz-table-wrap {
-        overflow-x: auto;
-      }
-      .sfz-table {
-        min-width: 760px;
-      }
-    }
+    .player{ font-weight: 900; color: rgba(0,34,68,.92); }
+    .pos{ font-weight: 900; color: rgba(15,23,32,.65); }
+    .tds{ font-weight: 900; color: rgba(0,34,68,.85); }
   </style>
 </SeahawksLayout>
 
