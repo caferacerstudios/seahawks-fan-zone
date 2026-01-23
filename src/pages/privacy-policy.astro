@@ -1,87 +1,136 @@
 ---
-import BaseLayout from "../layouts/BaseLayout.astro";
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 
-const title = "Privacy Policy | Retro Game Fixes";
-const description =
-  "Privacy and cookies information for retrogamefixes.com, including Google AdSense.";
+const pageTitle = "Privacy Policy";
+const pageTagline = "How data is handled on this site";
+
+const updated = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  dateStyle: "long",
+}).format(new Date());
 ---
 
-<BaseLayout {title} {description}>
-  <section class="policy-wrap">
-    <div class="policy-head">
-      <a class="lr-btn policy-back" href="/">← Back to Menu</a>
-      <span class="policy-meta">Last updated: 2026-01-03</span>
-    </div>
+<SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/privacy-policy">
+  <section class="sfz-card">
+    <p class="sfz-updated"><strong>Last updated:</strong> {updated} (Pacific Time)</p>
 
-    <h1 class="policy-title">Privacy Policy</h1>
-    <p class="policy-intro">
-      This policy explains how <strong>retrogamefixes.com</strong> ("this site")
-      collects and uses information when you visit.
+    <h3>Overview</h3>
+    <p>
+      Seahawks Fan Zone is a stats-focused fan site. We aim to collect as little personal information as possible.
+      This policy explains what information may be collected automatically when you use the site, especially if advertising is enabled.
     </p>
 
-    <div class="policy-cards">
-      <section class="policy-card">
-        <h2>Who Runs This Site</h2>
-        <p>
-          This site is a personal project. For questions about this policy, you can
-          email <a href="mailto:laura@caferacerstudios.com">laura@caferacerstudios.com</a>.
-        </p>
-      </section>
+    <h3>Information we may collect</h3>
+    <ul class="sfz-list">
+      <li>
+        <strong>Basic usage data:</strong> like pages viewed and approximate device information, typically collected via server logs or analytics.
+      </li>
+      <li>
+        <strong>IP address:</strong> may appear in server logs for security, abuse prevention, and basic diagnostics.
+      </li>
+      <li>
+        <strong>Cookies and similar technologies:</strong> used for site functionality and, if enabled, advertising and analytics.
+      </li>
+    </ul>
 
-      <section class="policy-card">
-        <h2>Information Collected</h2>
-        <p>
-          The site itself does not require accounts or logins. However, basic
-          technical information may be logged automatically, such as:
-        </p>
-        <ul>
-          <li>IP address</li>
-          <li>browser type and settings</li>
-          <li>date and time of access</li>
-          <li>pages visited and referring page</li>
-        </ul>
-      </section>
+    <h3>Advertising</h3>
+    <p>
+      This site may show ads provided by third-party ad networks (for example, Google AdSense).
+      Ad networks may use cookies or similar technologies to:
+    </p>
+    <ul class="sfz-list">
+      <li>deliver and measure advertisements</li>
+      <li>limit repeated ads</li>
+      <li>report aggregated performance metrics</li>
+      <li>in some cases, personalize ads based on your interests</li>
+    </ul>
 
-      <section class="policy-card">
-        <h2>Cookies and Advertising</h2>
-        <p>
-          This site may display ads served by <strong>Google AdSense</strong> and
-          other third-party vendors. These services use cookies and similar
-          technologies to show ads based on your visits to this and other websites.
-        </p>
-        <p>
-          Google’s use of advertising cookies enables it and its partners to serve
-          ads to you based on your visit to this site and/or other sites on the
-          Internet. You can control personalized ads in your
-          <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">
-            Google Ads Settings
-          </a>.
-        </p>
-        <p>
-          You can also learn more about choices for interest-based advertising at
-          <a href="https://www.aboutads.info/choices" target="_blank" rel="noopener noreferrer">
-            www.aboutads.info/choices
-          </a>.
-        </p>
-      </section>
+    <p>
+      If you prefer fewer personalized ads, you can adjust ad personalization settings in your Google account (if applicable)
+      and use browser controls to limit cookies. Some ad features may not work correctly if cookies are disabled.
+    </p>
 
-      <section class="policy-card">
-        <h2>Third-Party Links and Tools</h2>
-        <p>
-          Guides on this site may link to external tools and resources (for example,
-          Internet Archive or dgVoodoo2). Those sites have their own privacy
-          policies, and this site has no control over how they collect or use data.
-        </p>
-      </section>
+    <h3>Analytics</h3>
+    <p>
+      This site may use analytics to understand what pages are useful and to improve performance.
+      Analytics tools typically collect aggregated usage information, not sensitive personal details.
+    </p>
 
-      <section class="policy-card">
-        <h2>Changes to This Policy</h2>
-        <p>
-          This policy may be updated occasionally. Any changes will be posted on
-          this page with a new "Last updated" date. Your continued use of the site
-          after changes are posted means you accept the updated policy.
-        </p>
-      </section>
-    </div>
+    <h3>Cookies</h3>
+    <p>
+      Cookies are small text files stored by your browser. This site may use cookies for:
+      site functionality, basic preferences, measuring traffic, and ad delivery if ads are enabled.
+    </p>
+
+    <h3>Sharing</h3>
+    <p>
+      We do not sell your personal information. Data may be shared with service providers only as needed to operate the site,
+      such as hosting, analytics, and advertising providers.
+    </p>
+
+    <h3>External links</h3>
+    <p>
+      This site may link to external sites. We are not responsible for the privacy practices of those sites.
+    </p>
+
+    <h3>Children</h3>
+    <p>
+      This site is not intended for children under 13. If you believe a child has provided personal information, contact us and we will address it.
+    </p>
+
+    <h3>Contact</h3>
+    <p>
+      If you have privacy questions, contact: <a href="mailto:contact@seahawksfanzone.com">contact@seahawksfanzone.com</a>
+      <span class="sfz-muted"> (update this address if you use a different one)</span>
+    </p>
   </section>
-</BaseLayout>
+
+  <style>
+    .sfz-card {
+      border-radius: 16px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: #ffffff;
+      padding: 1rem 1.05rem;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+      margin-bottom: 0.95rem;
+    }
+
+    .sfz-updated {
+      margin: 0 0 0.9rem;
+      color: rgba(15, 23, 32, 0.65);
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+
+    .sfz-card h3 {
+      margin: 0.9rem 0 0.55rem;
+      color: var(--navy);
+      font-weight: 900;
+    }
+
+    .sfz-card p {
+      margin: 0 0 0.75rem;
+      color: rgba(15, 23, 32, 0.78);
+      line-height: 1.6;
+      font-weight: 650;
+    }
+
+    .sfz-list {
+      margin: 0 0 0.75rem;
+      padding-left: 1.2rem;
+      color: rgba(15, 23, 32, 0.75);
+      line-height: 1.55;
+      font-weight: 650;
+    }
+
+    .sfz-list li {
+      margin: 0.3rem 0;
+    }
+
+    .sfz-muted {
+      color: rgba(15, 23, 32, 0.6);
+      font-weight: 650;
+      font-size: 0.95rem;
+    }
+  </style>
+</SeahawksLayout>
