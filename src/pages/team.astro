@@ -1,31 +1,265 @@
 ---
+import fs from "node:fs";
+import path from "node:path";
+
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import data from "../data/nfl/seahawks.json";
+
 const t = data.team;
 const s = data.teamSeasonStats;
+
+const pageTitle = `Team Stats (${data.season})`;
+
+const fmtUpdatedPT = (iso) =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(new Date(iso));
+
+const logoRelBase = "/images/nfl/teams";
+const logoDiskBase = path.resolve("public", "images", "nfl", "teams");
+
+function logoFor(abbr) {
+  const a = String(abbr || "").toUpperCase();
+  for (const ext of [".svg", ".png", ".jpg"]) {
+    const disk = path.join(logoDiskBase, `${a}${ext}`);
+    if (fs.existsSync(disk)) return `${logoRelBase}/${a}${ext}`;
+  }
+  return "";
+}
+
+const seahawksLogo = logoFor(t?.abbreviation || "SEA");
 ---
 
-<h1>{t.full_name}</h1>
-<p>{t.conference} • {t.division}</p>
+<SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team">
+  <div class="sfz-team-header">
+    {seahawksLogo ? (
+      <img class="sfz-team-logo" src={seahawksLogo} alt="SEA logo" loading="lazy" />
+    ) : (
+      <div class="sfz-team-logo sfz-team-logo-fallback" aria-hidden="true">SEA</div>
+    )}
 
-<h2>Team Season Stats ({data.season})</h2>
+    <div class="sfz-team-text">
+      <h3 class="sfz-team-name">{t?.full_name ?? "Seattle Seahawks"}</h3>
+      <div class="sfz-team-meta">
+        <span>{t?.conference ?? "NFC"}</span>
+        <span class="sfz-dot">•</span>
+        <span>{t?.division ?? "West"}</span>
+      </div>
+      <div class="sfz-updated">Updated: {fmtUpdatedPT(data.updatedAt)} PT</div>
+    </div>
+  </div>
 
-{!s ? (
-  <p>No team stats found.</p>
-) : (
-  <ul>
-    <li><strong>Games played:</strong> {s.games_played}</li>
-    <li><strong>Total points:</strong> {s.total_points} ({s.total_points_per_game}/game)</li>
-    <li><strong>Total offense:</strong> {s.total_offensive_yards} ({s.total_offensive_yards_per_game}/game)</li>
-    <li><strong>Passing:</strong> {s.passing_yards} ({s.passing_yards_per_game}/game)</li>
-    <li><strong>Rushing:</strong> {s.rushing_yards} ({s.rushing_yards_per_game}/game)</li>
-    <li><strong>Takeaways:</strong> {s.misc_total_takeaways}</li>
-    <li><strong>Giveaways:</strong> {s.misc_total_giveaways}</li>
-  </ul>
-)}
+  {!s ? (
+    <div class="sfz-empty">
+      <strong>No team season stats found.</strong>
+      <div class="sfz-empty-sub">This usually means the API did not return a season aggregate for that year yet.</div>
+    </div>
+  ) : (
+    <div class="sfz-cards">
+      <section class="sfz-card">
+        <div class="sfz-card-title">Overview</div>
+        <div class="sfz-stat-grid">
+          <div class="sfz-stat">
+            <div class="sfz-k">Games played</div>
+            <div class="sfz-v">{s.games_played}</div>
+          </div>
+          <div class="sfz-stat">
+            <div class="sfz-k">Total points</div>
+            <div class="sfz-v">{s.total_points}</div>
+            <div class="sfz-note">{s.total_points_per_game} per game</div>
+          </div>
+          <div class="sfz-stat">
+            <div class="sfz-k">Total offense</div>
+            <div class="sfz-v">{s.total_offensive_yards}</div>
+            <div class="sfz-note">{s.total_offensive_yards_per_game} per game</div>
+          </div>
+        </div>
+      </section>
 
-<h2>Active Players</h2>
-<ul>
-  {data.activePlayers.map((p) => (
-    <li>{p.jersey_number ?? ""} {p.first_name} {p.last_name} — {p.position_abbreviation}</li>
-  ))}
-</ul>
+      <section class="sfz-card">
+        <div class="sfz-card-title">Offense</div>
+        <div class="sfz-stat-grid">
+          <div class="sfz-stat">
+            <div class="sfz-k">Passing yards</div>
+            <div class="sfz-v">{s.passing_yards}</div>
+            <div class="sfz-note">{s.passing_yards_per_game} per game</div>
+          </div>
+          <div class="sfz-stat">
+            <div class="sfz-k">Rushing yards</div>
+            <div class="sfz-v">{s.rushing_yards}</div>
+            <div class="sfz-note">{s.rushing_yards_per_game} per game</div>
+          </div>
+          <div class="sfz-stat">
+            <div class="sfz-k">First downs</div>
+            <div class="sfz-v">{s.first_downs_total ?? "-"}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sfz-card">
+        <div class="sfz-card-title">Turnovers</div>
+        <div class="sfz-stat-grid">
+          <div class="sfz-stat">
+            <div class="sfz-k">Takeaways</div>
+            <div class="sfz-v">{s.misc_total_takeaways}</div>
+          </div>
+          <div class="sfz-stat">
+            <div class="sfz-k">Giveaways</div>
+            <div class="sfz-v">{s.misc_total_giveaways}</div>
+          </div>
+          <div class="sfz-stat">
+            <div class="sfz-k">Turnover margin</div>
+            <div class="sfz-v">
+              {typeof s.misc_turnover_margin === "number" ? s.misc_turnover_margin : "-"}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  )}
+
+  <style>
+    .sfz-team-header {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 1.1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(0, 34, 68, 0.12);
+    }
+
+    .sfz-team-logo {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
+
+    .sfz-team-logo-fallback {
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: rgba(0, 34, 68, 0.06);
+      border: 1px solid rgba(0, 34, 68, 0.10);
+      color: rgba(0, 34, 68, 0.85);
+      font-weight: 900;
+      letter-spacing: 0.4px;
+    }
+
+    .sfz-team-text {
+      min-width: 0;
+    }
+
+    .sfz-team-name {
+      margin: 0;
+      color: var(--navy);
+      font-size: 1.45rem;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .sfz-team-meta {
+      margin-top: 0.25rem;
+      color: rgba(15, 23, 32, 0.65);
+      font-weight: 800;
+      font-size: 0.95rem;
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .sfz-dot {
+      opacity: 0.7;
+    }
+
+    .sfz-updated {
+      margin-top: 0.35rem;
+      color: rgba(15, 23, 32, 0.6);
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .sfz-cards {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.9rem;
+    }
+
+    .sfz-card {
+      border-radius: 16px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: #ffffff;
+      padding: 1rem;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    .sfz-card-title {
+      font-weight: 900;
+      color: var(--navy);
+      margin-bottom: 0.75rem;
+      font-size: 1.05rem;
+    }
+
+    .sfz-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.85rem;
+    }
+
+    .sfz-stat {
+      border-radius: 14px;
+      border: 1px solid rgba(0, 34, 68, 0.12);
+      background: rgba(0, 34, 68, 0.03);
+      padding: 0.75rem 0.85rem;
+    }
+
+    .sfz-k {
+      color: rgba(0, 34, 68, 0.7);
+      font-weight: 900;
+      font-size: 0.9rem;
+    }
+
+    .sfz-v {
+      margin-top: 0.25rem;
+      color: var(--navy);
+      font-weight: 900;
+      font-size: 1.25rem;
+      letter-spacing: 0.2px;
+    }
+
+    .sfz-note {
+      margin-top: 0.2rem;
+      color: rgba(15, 23, 32, 0.6);
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .sfz-empty {
+      border-radius: 16px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: rgba(165, 172, 175, 0.18);
+      padding: 0.95rem;
+      color: rgba(15, 23, 32, 0.85);
+    }
+
+    .sfz-empty-sub {
+      margin-top: 0.35rem;
+      color: rgba(15, 23, 32, 0.7);
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 980px) {
+      .sfz-stat-grid {
+        grid-template-columns: 1fr;
+      }
+      .sfz-team-logo {
+        width: 56px;
+        height: 56px;
+      }
+    }
+  </style>
+</SeahawksLayout>
