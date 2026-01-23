@@ -18,7 +18,10 @@ const fmtUpdatedPT = (iso) =>
   }).format(new Date(iso));
 
 const logoRelBase = "/images/nfl/teams";
-const logoDiskBase = path.resolve("public", "images", "nfl", "teams");
+
+// ✅ Always resolve from the Astro project root (not whatever cwd happens to be)
+const projectRoot = Astro.root ?? process.cwd();
+const logoDiskBase = path.join(projectRoot, "public", "images", "nfl", "teams");
 
 function logoFor(abbr) {
   const a = String(abbr || "").toUpperCase();
@@ -263,3 +266,4 @@ const seahawksLogo = logoFor(t?.abbreviation || "SEA");
     }
   </style>
 </SeahawksLayout>
+
