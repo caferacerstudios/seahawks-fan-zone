@@ -1,0 +1,23 @@
+---
+import data from "../data/nfl/seahawks.json";
+
+const games = data.games
+  .slice()
+  .sort((a, b) => new Date(a.date) - new Date(b.date));
+---
+
+<h1>Seahawks Schedule ({data.season})</h1>
+<p class="muted">Updated: {new Date(data.updatedAt).toLocaleString()}</p>
+
+<ul>
+  {games.map((g) => (
+    <li>
+      <strong>Week {g.week}</strong>{" "}
+      {new Date(g.date).toLocaleString()} —{" "}
+      {g.visitor_team.abbreviation} @ {g.home_team.abbreviation}
+      {" — "}
+      {g.status}
+      {g.status === "Final" ? ` (${g.visitor_team_score}-${g.home_team_score})` : ""}
+    </li>
+  ))}
+</ul>
