@@ -50,8 +50,47 @@ function teamAbbr(teamObj, fallback = "") {
   return String(teamObj?.abbreviation || fallback).toUpperCase();
 }
 
+// Walk any object and collect numeric values whose KEY matches one of the regexes.
+// Optional min/max to avoid grabbing IDs.
+function findNumbersByKey(root, regexes, { min = -Infinity, max = Infinity } = {}) {
+  const out = [];
+  const seen = new Set();
+  const q = [{ node: root, path: "" }];
+
+  while (q.length) {
+    const { node } = q.shift();
+    if (!node || typeof node !== "object") continue;
+    if (seen.has(node)) continue;
+    seen.add(node);
+
+    if (Array.isArray(node)) {
+      for (const child of node) q.push({ node: child });
+      continue;
+    }
+
+    for (const [k, val] of Object.entries(node)) {
+      if (val && typeof val === "object") q.push({ node: val });
+
+      if (typeof val === "number" && Number.isFinite(val)) {
+        if (val < min || val > max) continue;
+        if (regexes.some((re) => re.test(k))) out.push(val);
+      }
+    }
+  }
+
+  return out;
+}
+
+// pick first non-null among candidates
+function pickAny(obj, keys) {
+  for (const k of keys) {
+    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+  }
+  return null;
+}
+
 // ------------------------------
-// 1) Try to locate a real team season stats object anywhere in JSON
+// 1) Find a team season stats object anywhere (best effort)
 // ------------------------------
 function looksLikeTeamSeasonStats(o) {
   if (!o || typeof o !== "object" || Array.isArray(o)) return false;
@@ -97,7 +136,7 @@ function findFirstTeamSeasonStats(root) {
 const sFound = findFirstTeamSeasonStats(data);
 
 // ------------------------------
-// 2) Build "raw games" list
+// 2) Raw games list
 // ------------------------------
 const rawGames = Array.isArray(data?.games)
   ? data.games
@@ -105,25 +144,34 @@ const rawGames = Array.isArray(data?.games)
     ? [...(data.gamesRegular || []), ...(data.gamesPostseason || [])]
     : [];
 
-function getScore(game, side /* "home" | "away" */) {
-  // support multiple common score fields
-  const candidates =
+// Get scores robustly:
+// - first try common top-level keys
+// - if not present, do deep-key sniffing for score/points under a reasonable range (0..80)
+function scoreFromGameSide(game, side /* "home"|"away" */) {
+  const direct =
     side === "home"
       ? [game?.home_team_score, game?.homeScore, game?.home_points, game?.homePoints]
       : [game?.visitor_team_score, game?.away_team_score, game?.awayScore, game?.away_points, game?.awayPoints];
 
-  for (const c of candidates) {
+  for (const c of direct) {
     const x = Number(c);
     if (Number.isFinite(x)) return x;
   }
-  return null;
+
+  const regexes =
+    side === "home"
+      ? [/^home.*(score|points)$/i, /(home|host).*(score|points)/i]
+      : [/^(away|visitor).*(score|points)$/i, /(away|visitor).*(score|points)/i];
+
+  const hits = findNumbersByKey(game, regexes, { min: 0, max: 80 });
+  return hits.length ? hits[0] : null;
 }
 
 function seaScoreFromGame(g) {
   const home = teamAbbr(g?.home_team);
   const away = teamAbbr(g?.visitor_team);
-  const hs = getScore(g, "home");
-  const as = getScore(g, "away");
+  const hs = scoreFromGameSide(g, "home");
+  const as = scoreFromGameSide(g, "away");
   if (hs === null || as === null) return null;
 
   if (home === "SEA") return hs;
@@ -134,8 +182,8 @@ function seaScoreFromGame(g) {
 function oppScoreFromGame(g) {
   const home = teamAbbr(g?.home_team);
   const away = teamAbbr(g?.visitor_team);
-  const hs = getScore(g, "home");
-  const as = getScore(g, "away");
+  const hs = scoreFromGameSide(g, "home");
+  const as = scoreFromGameSide(g, "away");
   if (hs === null || as === null) return null;
 
   if (home === "SEA") return as;
@@ -147,107 +195,114 @@ const scoredGames = rawGames
   .map((g) => ({ g, sea: seaScoreFromGame(g), opp: oppScoreFromGame(g) }))
   .filter((x) => x.sea !== null && x.opp !== null);
 
-const games_played_fallback = scoredGames.length;
+const games_played_from_scores = scoredGames.length;
 
-// points
-const total_points_fallback = scoredGames.reduce((acc, x) => acc + n(x.sea), 0);
-const points_against_fallback = scoredGames.reduce((acc, x) => acc + n(x.opp), 0);
-
-const total_points_per_game_fallback =
-  games_played_fallback > 0 ? total_points_fallback / games_played_fallback : null;
+const total_points_from_scores = scoredGames.reduce((acc, x) => acc + n(x.sea), 0);
+const total_points_per_game_from_scores =
+  games_played_from_scores > 0 ? total_points_from_scores / games_played_from_scores : null;
 
 // ------------------------------
-// 3) Yards from playerSeasonStats (if present)
+// 3) Player season stats yards (robust)
 // ------------------------------
 const playerStats = Array.isArray(data?.playerSeasonStats) ? data.playerSeasonStats : [];
 
-const passing_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.passing_yards ?? r?.passingYards), 0);
-const rushing_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.rushing_yards ?? r?.rushingYards), 0);
-const receiving_yards_fallback = playerStats.reduce((acc, r) => acc + n(r?.receiving_yards ?? r?.receivingYards), 0);
+function yardsFromPlayerStat(r, kind /* "pass"|"rush"|"rec" */) {
+  // direct common keys
+  const direct =
+    kind === "pass"
+      ? [r?.passing_yards, r?.passingYards, r?.pass_yards, r?.passYds]
+      : kind === "rush"
+        ? [r?.rushing_yards, r?.rushingYards, r?.rush_yards, r?.rushYds]
+        : [r?.receiving_yards, r?.receivingYards, r?.rec_yards, r?.recYds];
 
-// Some feeds double-count offense if you sum passing + receiving; keep “total offense” as pass + rush
-const total_offensive_yards_fallback = passing_yards_fallback + rushing_yards_fallback;
-
-const passing_yards_per_game_fallback =
-  games_played_fallback > 0 ? passing_yards_fallback / games_played_fallback : null;
-const rushing_yards_per_game_fallback =
-  games_played_fallback > 0 ? rushing_yards_fallback / games_played_fallback : null;
-const total_offensive_yards_per_game_fallback =
-  games_played_fallback > 0 ? total_offensive_yards_fallback / games_played_fallback : null;
-
-// ------------------------------
-// 4) Turnovers (best-effort)
-// ------------------------------
-// Team-level fields if present:
-function pickAny(obj, keys) {
-  for (const k of keys) {
-    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+  for (const c of direct) {
+    const x = Number(c);
+    if (Number.isFinite(x)) return x;
   }
-  return null;
+
+  // deep sniff for keys containing "passing yards" etc, within a safe season range
+  const regexes =
+    kind === "pass"
+      ? [/(pass|passing).*(yd|yard)/i]
+      : kind === "rush"
+        ? [/(rush|rushing).*(yd|yard)/i]
+        : [/(rec|receiv).*(yd|yard)/i];
+
+  const hits = findNumbersByKey(r, regexes, { min: 0, max: 9000 });
+  return hits.length ? hits[0] : 0;
 }
 
-const takeaways_from_found =
-  sFound
-    ? pickAny(sFound, ["misc_total_takeaways", "takeaways", "total_takeaways", "def_takeaways"])
-    : null;
+const passing_yards_calc = playerStats.reduce((acc, r) => acc + n(yardsFromPlayerStat(r, "pass")), 0);
+const rushing_yards_calc = playerStats.reduce((acc, r) => acc + n(yardsFromPlayerStat(r, "rush")), 0);
+const receiving_yards_calc = playerStats.reduce((acc, r) => acc + n(yardsFromPlayerStat(r, "rec")), 0);
 
-const giveaways_from_found =
-  sFound
-    ? pickAny(sFound, ["misc_total_giveaways", "giveaways", "total_giveaways", "off_giveaways"])
-    : null;
+const total_offensive_yards_calc = passing_yards_calc + rushing_yards_calc;
 
-const margin_from_found =
-  sFound
-    ? pickAny(sFound, ["misc_turnover_margin", "turnover_margin", "turnoverMargin"])
-    : null;
+// games played fallback:
+// Prefer sFound.games_played, else use scored games count, else use max player games_played if present.
+const games_played_from_found = sFound ? pickAny(sFound, ["games_played", "gamesPlayed"]) : null;
+const games_played_from_players = (() => {
+  const vals = playerStats
+    .map((r) => Number(pickAny(r, ["games_played", "gamesPlayed", "gp"])))
+    .filter((x) => Number.isFinite(x));
+  return vals.length ? Math.max(...vals) : null;
+})();
 
-// Player-derived takeaways: interceptions + fumble recoveries if available
-const ints_thrown = playerStats.reduce((acc, r) => acc + n(r?.passing_interceptions ?? r?.interceptions), 0);
-const fumbles_lost = playerStats.reduce((acc, r) => acc + n(r?.fumbles_lost ?? r?.fumblesLost), 0);
+const games_played =
+  (isNum(games_played_from_found) ? Number(games_played_from_found) : null) ??
+  (games_played_from_scores > 0 ? games_played_from_scores : null) ??
+  (isNum(games_played_from_players) ? Number(games_played_from_players) : null);
 
-// We can’t reliably compute takeaways from player stats without defensive stats,
-// so only compute giveaways from player stats.
-const giveaways_fallback = (ints_thrown || fumbles_lost) ? (ints_thrown + fumbles_lost) : null;
+// per-game derived only if we have games_played
+const pass_per_game = games_played ? passing_yards_calc / games_played : null;
+const rush_per_game = games_played ? rushing_yards_calc / games_played : null;
+const off_per_game = games_played ? total_offensive_yards_calc / games_played : null;
 
 // ------------------------------
-// 5) Final stats object to render
+// 4) Build computed + merge with found
 // ------------------------------
-// Prefer real stats; else computed.
-const s =
-  sFound ??
-  (games_played_fallback > 0 || passing_yards_fallback > 0 || rushing_yards_fallback > 0 || total_points_fallback > 0
-    ? {
-        __computed: true,
-        games_played: games_played_fallback,
+const computed = {
+  __computed: true,
+  games_played: games_played ?? null,
 
-        total_points: total_points_fallback || null,
-        total_points_per_game: fixed1(total_points_per_game_fallback),
+  total_points: total_points_from_scores > 0 ? total_points_from_scores : null,
+  total_points_per_game: fixed1(total_points_per_game_from_scores),
 
-        // extra (not displayed unless you add it)
-        points_against: points_against_fallback || null,
+  passing_yards: passing_yards_calc > 0 ? passing_yards_calc : null,
+  passing_yards_per_game: fixed1(pass_per_game),
 
-        passing_yards: passing_yards_fallback || null,
-        passing_yards_per_game: fixed1(passing_yards_per_game_fallback),
+  rushing_yards: rushing_yards_calc > 0 ? rushing_yards_calc : null,
+  rushing_yards_per_game: fixed1(rush_per_game),
 
-        rushing_yards: rushing_yards_fallback || null,
-        rushing_yards_per_game: fixed1(rushing_yards_per_game_fallback),
+  receiving_yards: receiving_yards_calc > 0 ? receiving_yards_calc : null,
 
-        receiving_yards: receiving_yards_fallback || null,
+  total_offensive_yards: total_offensive_yards_calc > 0 ? total_offensive_yards_calc : null,
+  total_offensive_yards_per_game: fixed1(off_per_game),
+};
 
-        total_offensive_yards: total_offensive_yards_fallback || null,
-        total_offensive_yards_per_game: fixed1(total_offensive_yards_per_game_fallback),
+// Merge rule: if found has a real value, keep it; otherwise fill from computed.
+function mergeStats(found, calc) {
+  if (!found && !calc) return null;
+  const out = { ...(found || {}) };
 
-        misc_total_takeaways: takeaways_from_found ?? null,
-        misc_total_giveaways: giveaways_from_found ?? giveaways_fallback,
-        misc_turnover_margin:
-          isNum(margin_from_found) ? Number(margin_from_found)
-          : (isNum(takeaways_from_found) && isNum(giveaways_from_found))
-            ? Number(takeaways_from_found) - Number(giveaways_from_found)
-            : null,
-      }
-    : null);
+  for (const [k, val] of Object.entries(calc || {})) {
+    const existing = out[k];
+    const hasExisting =
+      existing !== null && existing !== undefined && existing !== "" && !(typeof existing === "number" && !Number.isFinite(existing));
 
-// optional: if real stats exist, still normalize key variants for rendering
+    if (!hasExisting && val !== null && val !== undefined && val !== "") {
+      out[k] = val;
+    }
+  }
+
+  // Only mark __computed if we actually used calc values
+  out.__computed = Boolean(calc && Object.keys(calc).some((k) => k !== "__computed" && (out[k] === calc[k]) && calc[k] != null));
+  return out;
+}
+
+const s = mergeStats(sFound, computed);
+
+// Normalize read variants for rendering
 function read(obj, variants) {
   for (const k of variants) {
     if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
@@ -268,10 +323,6 @@ const rushYds = read(s, ["rushing_yards", "rush_yards", "rushingYards"]);
 const rushYdsPerGame = read(s, ["rushing_yards_per_game", "rush_yards_per_game", "rushingYardsPerGame"]);
 
 const recYds = read(s, ["receiving_yards", "receivingYards"]);
-
-const takeaways = read(s, ["misc_total_takeaways", "takeaways", "total_takeaways"]);
-const giveaways = read(s, ["misc_total_giveaways", "giveaways", "total_giveaways"]);
-const margin = read(s, ["misc_turnover_margin", "turnover_margin", "turnoverMargin"]);
 ---
 
 <SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team">
@@ -296,9 +347,7 @@ const margin = read(s, ["misc_turnover_margin", "turnover_margin", "turnoverMarg
   {!s ? (
     <div class="sfz-empty">
       <strong>No team season stats found.</strong>
-      <div class="sfz-empty-sub">
-        Your JSON doesn’t have team aggregates, and there weren’t enough values to compute them.
-      </div>
+      <div class="sfz-empty-sub">Not enough values in your JSON to compute totals.</div>
     </div>
   ) : (
     <div class="sfz-cards">
@@ -306,7 +355,7 @@ const margin = read(s, ["misc_turnover_margin", "turnover_margin", "turnoverMarg
         <div class="sfz-computed">
           <strong>Computed totals</strong>
           <div class="sfz-computed-sub">
-            Some totals were computed from your games + playerSeasonStats because the feed didn’t include a teamSeasonStats block.
+            Filled missing fields using games + playerSeasonStats (because your feed keys don’t match the simple ones).
           </div>
         </div>
       )}
@@ -350,39 +399,16 @@ const margin = read(s, ["misc_turnover_margin", "turnover_margin", "turnoverMarg
           </div>
         </div>
       </section>
-
-      <section class="sfz-card">
-        <div class="sfz-card-title">Turnovers</div>
-        <div class="sfz-stat-grid">
-          <div class="sfz-stat">
-            <div class="sfz-k">Takeaways</div>
-            <div class="sfz-v">{v(takeaways)}</div>
-          </div>
-          <div class="sfz-stat">
-            <div class="sfz-k">Giveaways</div>
-            <div class="sfz-v">{v(giveaways)}</div>
-          </div>
-          <div class="sfz-stat">
-            <div class="sfz-k">Turnover margin</div>
-            <div class="sfz-v">{typeof margin === "number" ? margin : "-"}</div>
-          </div>
-        </div>
-      </section>
     </div>
   )}
 
   <style>
-    /* overflow protection */
     .sfz-team-header,
     .sfz-team-text,
     .sfz-cards,
     .sfz-card,
     .sfz-stat-grid,
-    .sfz-stat {
-      min-width: 0;
-      max-width: 100%;
-      box-sizing: border-box;
-    }
+    .sfz-stat { min-width:0; max-width:100%; box-sizing:border-box; }
 
     .sfz-team-name,
     .sfz-team-meta,
@@ -394,160 +420,72 @@ const margin = read(s, ["misc_turnover_margin", "turnover_margin", "turnoverMarg
     .sfz-empty,
     .sfz-empty-sub,
     .sfz-computed,
-    .sfz-computed-sub {
-      overflow-wrap: anywhere;
-      word-break: break-word;
+    .sfz-computed-sub { overflow-wrap:anywhere; word-break:break-word; }
+
+    .sfz-team-header{
+      display:flex; gap:1rem; align-items:center;
+      margin-bottom:1.1rem; padding-bottom:1rem;
+      border-bottom:1px solid rgba(0,34,68,0.12);
     }
 
-    .sfz-team-header {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-      margin-bottom: 1.1rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid rgba(0, 34, 68, 0.12);
+    .sfz-team-logo{ width:64px; height:64px; object-fit:contain; flex:0 0 auto; }
+    .sfz-team-logo-fallback{
+      display:grid; place-items:center; border-radius:14px;
+      background:rgba(0,34,68,0.06); border:1px solid rgba(0,34,68,0.10);
+      color:rgba(0,34,68,0.85); font-weight:900; letter-spacing:0.4px;
+      width:64px; height:64px;
     }
 
-    .sfz-team-logo {
-      width: 64px;
-      height: 64px;
-      object-fit: contain;
-      flex: 0 0 auto;
+    .sfz-team-name{ margin:0; color:var(--navy); font-size:1.45rem; font-weight:900; line-height:1.2; }
+    .sfz-team-meta{
+      margin-top:.25rem; color:rgba(15,23,32,0.65);
+      font-weight:800; font-size:.95rem; display:flex; gap:.35rem; align-items:center; flex-wrap:wrap;
+    }
+    .sfz-dot{ opacity:.7; }
+    .sfz-updated{ margin-top:.35rem; color:rgba(15,23,32,0.6); font-weight:700; font-size:.92rem; }
+
+    .sfz-cards{ display:grid; grid-template-columns:1fr; gap:.9rem; }
+
+    .sfz-computed{
+      border-radius:16px; border:1px solid rgba(0,34,68,0.14);
+      background:rgba(165,172,175,0.18);
+      padding:.85rem .95rem; color:rgba(15,23,32,0.85);
+    }
+    .sfz-computed-sub{ margin-top:.35rem; color:rgba(15,23,32,0.7); font-weight:700; font-size:.95rem; }
+
+    .sfz-card{
+      border-radius:16px; border:1px solid rgba(0,34,68,0.14);
+      background:#fff; padding:1rem;
+      box-shadow:0 10px 24px rgba(0,0,0,0.06);
+      overflow:hidden;
     }
 
-    .sfz-team-logo-fallback {
-      display: grid;
-      place-items: center;
-      border-radius: 14px;
-      background: rgba(0, 34, 68, 0.06);
-      border: 1px solid rgba(0, 34, 68, 0.10);
-      color: rgba(0, 34, 68, 0.85);
-      font-weight: 900;
-      letter-spacing: 0.4px;
+    .sfz-card-title{ font-weight:900; color:var(--navy); margin-bottom:.75rem; font-size:1.05rem; }
+
+    .sfz-stat-grid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:.85rem; }
+    .sfz-stat{
+      border-radius:14px; border:1px solid rgba(0,34,68,0.12);
+      background:rgba(0,34,68,0.03);
+      padding:.75rem .85rem;
     }
+    .sfz-k{ color:rgba(0,34,68,0.7); font-weight:900; font-size:.9rem; }
+    .sfz-v{ margin-top:.25rem; color:var(--navy); font-weight:900; font-size:1.25rem; letter-spacing:.2px; }
+    .sfz-note{ margin-top:.2rem; color:rgba(15,23,32,0.6); font-weight:700; font-size:.9rem; }
 
-    .sfz-team-text { min-width: 0; }
-
-    .sfz-team-name {
-      margin: 0;
-      color: var(--navy);
-      font-size: 1.45rem;
-      font-weight: 900;
-      line-height: 1.2;
+    .sfz-empty{
+      border-radius:16px; border:1px solid rgba(0,34,68,0.14);
+      background:rgba(165,172,175,0.18);
+      padding:.95rem; color:rgba(15,23,32,0.85);
     }
+    .sfz-empty-sub{ margin-top:.35rem; color:rgba(15,23,32,0.7); font-weight:700; font-size:.95rem; }
 
-    .sfz-team-meta {
-      margin-top: 0.25rem;
-      color: rgba(15, 23, 32, 0.65);
-      font-weight: 800;
-      font-size: 0.95rem;
-      display: flex;
-      gap: 0.35rem;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .sfz-dot { opacity: 0.7; }
-
-    .sfz-updated {
-      margin-top: 0.35rem;
-      color: rgba(15, 23, 32, 0.6);
-      font-weight: 700;
-      font-size: 0.92rem;
-    }
-
-    .sfz-cards {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 0.9rem;
-    }
-
-    .sfz-computed {
-      border-radius: 16px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: rgba(165, 172, 175, 0.18);
-      padding: 0.85rem 0.95rem;
-      color: rgba(15, 23, 32, 0.85);
-    }
-
-    .sfz-computed-sub {
-      margin-top: 0.35rem;
-      color: rgba(15, 23, 32, 0.7);
-      font-weight: 700;
-      font-size: 0.95rem;
-    }
-
-    .sfz-card {
-      border-radius: 16px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: #ffffff;
-      padding: 1rem;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
-      overflow: hidden;
-    }
-
-    .sfz-card-title {
-      font-weight: 900;
-      color: var(--navy);
-      margin-bottom: 0.75rem;
-      font-size: 1.05rem;
-    }
-
-    .sfz-stat-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.85rem;
-    }
-
-    .sfz-stat {
-      border-radius: 14px;
-      border: 1px solid rgba(0, 34, 68, 0.12);
-      background: rgba(0, 34, 68, 0.03);
-      padding: 0.75rem 0.85rem;
-    }
-
-    .sfz-k {
-      color: rgba(0, 34, 68, 0.7);
-      font-weight: 900;
-      font-size: 0.9rem;
-    }
-
-    .sfz-v {
-      margin-top: 0.25rem;
-      color: var(--navy);
-      font-weight: 900;
-      font-size: 1.25rem;
-      letter-spacing: 0.2px;
-    }
-
-    .sfz-note {
-      margin-top: 0.2rem;
-      color: rgba(15, 23, 32, 0.6);
-      font-weight: 700;
-      font-size: 0.9rem;
-    }
-
-    .sfz-empty {
-      border-radius: 16px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: rgba(165, 172, 175, 0.18);
-      padding: 0.95rem;
-      color: rgba(15, 23, 32, 0.85);
-    }
-
-    .sfz-empty-sub {
-      margin-top: 0.35rem;
-      color: rgba(15, 23, 32, 0.7);
-      font-weight: 700;
-      font-size: 0.95rem;
-    }
-
-    @media (max-width: 980px) {
-      .sfz-stat-grid { grid-template-columns: 1fr; }
-      .sfz-team-logo { width: 56px; height: 56px; }
+    @media (max-width:980px){
+      .sfz-stat-grid{ grid-template-columns:1fr; }
+      .sfz-team-logo, .sfz-team-logo-fallback{ width:56px; height:56px; }
     }
   </style>
 </SeahawksLayout>
+
 
 
 
