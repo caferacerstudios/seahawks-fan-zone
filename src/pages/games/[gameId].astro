@@ -155,8 +155,7 @@ const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
 const opp = game ? oppAbbr(game) : "";
 
 const win = game ? isSeahawksWin(game) : null;
-const cardClass =
-  win === true ? "card card--win" : win === false ? "card card--loss" : "card";
+const cardClass = win === true ? "card card--win" : win === false ? "card card--loss" : "card";
 
 const pageTitle = game
   ? `${isPlayoffGame(game) ? "Playoffs" : (Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game")} — SEA vs ${opp}`
@@ -164,28 +163,90 @@ const pageTitle = game
 
 const recap = gameRecaps?.recaps?.[String(gameId)] || null;
 
+/* =======================
+   Player link gating (ONLY link if page exists)
+   ======================= */
+
+// Right now: you have no player pages yet, so this stays false.
+// When player pages exist, set to true AND populate EXISTING_PLAYER_IDS.
+const ENABLE_PLAYER_LINKS = false;
+
+// Later: fill this from your generated player pages (ids you actually built).
+// Example: new Set(["123", "456"])
+const EXISTING_PLAYER_IDS = new Set();
+
 function playerHref(id) {
   return `/players/${encodeURIComponent(String(id))}`;
 }
 
-// Legacy bullet parser: "{t:'player', v:'Name', id:424140, name:'Name'} returned ..."
-// => { id: "424140", name: "Name", rest: "returned ..." }
-function parseLegacyPlayerBullet(str) {
-  const s = String(str ?? "");
-  const blobMatch = s.match(/\{[^}]*t:\s*['"]player['"][^}]*\}/);
-  if (!blobMatch) return null;
-
-  const blob = blobMatch[0];
-  const idMatch = blob.match(/id:\s*([0-9]+)/);
-  const nameMatch = blob.match(/name:\s*['"]([^'"]+)['"]/);
-  const vMatch = blob.match(/v:\s*['"]([^'"]+)['"]/);
-
-  const id = idMatch ? idMatch[1] : null;
-  const name = (nameMatch?.[1] || vMatch?.[1] || "Player").trim();
-  const rest = s.replace(blob, "").trim();
-
-  return { id, name, rest };
+function canLinkPlayer(id) {
+  if (!ENABLE_PLAYER_LINKS) return false;
+  const key = String(id ?? "").trim();
+  if (!key) return false;
+  return EXISTING_PLAYER_IDS.has(key);
 }
+
+/* =======================
+   Safe HTML rendering for recap
+   ======================= */
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderRecapHtml(recapObj) {
+  const segs = Array.isArray(recapObj?.segments) ? recapObj.segments : [];
+  let html = "";
+
+  for (const s of segs) {
+    const t = String(s?.t || "text");
+    const display = s?.name || s?.v || "";
+    if (t === "player") {
+      const id = s?.id;
+      if (canLinkPlayer(id)) {
+        html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${escapeHtml(display)}</a>`;
+      } else {
+        html += `<strong class="player-plain">${escapeHtml(display)}</strong>`;
+      }
+    } else {
+      html += escapeHtml(s?.v || "");
+    }
+  }
+
+  return html;
+}
+
+// Your bullets are strings, but the model sometimes outputs a prefixed object literal.
+// Convert that prefix into a link (only if player page exists) or bold text.
+function renderBulletHtml(b) {
+  const raw = String(b ?? "");
+  // Matches: {t:'player', v:'Name', id:123, name:'Name'} ...
+  const m = raw.match(
+    /^\s*\{[^}]*\bt\s*:\s*['"]player['"][^}]*\bid\s*:\s*([0-9]+)[^}]*\b(?:name|v)\s*:\s*['"]([^'"]+)['"][^}]*\}\s*/
+  );
+
+  if (m) {
+    const id = m[1];
+    const name = m[2];
+    const rest = raw.slice(m[0].length);
+
+    const head = canLinkPlayer(id)
+      ? `<a class="player-link" href="${escapeHtml(playerHref(id))}">${escapeHtml(name)}</a>`
+      : `<strong class="player-plain">${escapeHtml(name)}</strong>`;
+
+    return `${head}${escapeHtml(rest)}`;
+  }
+
+  return escapeHtml(raw);
+}
+
+const recapHtml = recap ? renderRecapHtml(recap) : "";
+const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
 ---
 
 <SeahawksLayout title={pageTitle} description="Single game page." activePath="">
@@ -252,50 +313,11 @@ function parseLegacyPlayerBullet(str) {
           <div class="empty">Recap coming soon.</div>
         ) : (
           <>
-            <p class="recap-text">
-              {Array.isArray(recap?.segments)
-                ? recap.segments.map((s) =>
-                    String(s?.t) === "player" ? (
-                      <a class="player-link" href={playerHref(s?.id ?? "")}>{s?.name || s?.v}</a>
-                    ) : (
-                      <span>{s?.v}</span>
-                    )
-                  )
-                : null}
-            </p>
+            <p class="recap-text" set:html={recapHtml} />
 
             {Array.isArray(recap?.bullets) && recap.bullets.length > 0 && (
               <ul class="recap-bullets">
-                {recap.bullets.map((b) => {
-                  // New shape (future-proof): bullet object with segments
-                  if (b && typeof b === "object" && Array.isArray(b?.segments)) {
-                    return (
-                      <li>
-                        {b.segments.map((s) =>
-                          String(s?.t) === "player" ? (
-                            <a class="player-link" href={playerHref(s?.id ?? "")}>{s?.name || s?.v}</a>
-                          ) : (
-                            <span>{s?.v}</span>
-                          )
-                        )}
-                      </li>
-                    );
-                  }
-
-                  // Legacy string shape: "{t:'player'...} rest..."
-                  const parsed = parseLegacyPlayerBullet(String(b ?? ""));
-                  if (parsed?.id) {
-                    return (
-                      <li>
-                        <a class="player-link" href={playerHref(parsed.id)}>{parsed.name}</a>
-                        {parsed.rest ? <span> {parsed.rest}</span> : null}
-                      </li>
-                    );
-                  }
-
-                  // Plain string
-                  return <li>{String(b ?? "")}</li>;
-                })}
+                {bulletHtml.map((h) => <li set:html={h} />)}
               </ul>
             )}
           </>
@@ -452,8 +474,13 @@ function parseLegacyPlayerBullet(str) {
     .recap-text { line-height: 1.55; font-weight: 700; color: rgba(0,34,68,.92); }
     .recap-bullets { margin: .6rem 0 0; padding-left: 1.1rem; }
     .recap-bullets li { margin: .35rem 0; }
+
+    /* Links only if pages exist (currently none) */
     .player-link { font-weight: 900; text-decoration: underline; }
     .player-link:hover { opacity: .85; }
+
+    /* Non-linked player mentions */
+    .player-plain { font-weight: 900; }
   </style>
 </SeahawksLayout>
 
