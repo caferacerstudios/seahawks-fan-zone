@@ -1,31 +1,108 @@
 ---
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import rosterData from "../../data/nfl/players.json";
-import seahawksData from "../../data/nfl/seahawks.json";
-import playerProfiles from "../../data/nfl/playerProfiles.json";
+import seasonData from "../../data/nfl/seahawks.json";
+import playerProfilesData from "../../data/nfl/playerProfiles.json";
 import injuriesData from "../../data/nfl/injuries.json";
 
 /* =======================
-   Helpers
+   getStaticPaths (SELF-CONTAINED)
    ======================= */
-function getRosterLocal(playersJson) {
-  if (Array.isArray(playersJson?.data)) return playersJson.data;
-  if (Array.isArray(playersJson?.players)) return playersJson.players;
-  if (Array.isArray(playersJson)) return playersJson;
+export function getStaticPaths() {
+  function getRosterLocal(playersData) {
+    if (Array.isArray(playersData?.data)) return playersData.data;
+    if (Array.isArray(playersData?.players)) return playersData.players;
+    if (Array.isArray(playersData)) return playersData;
+    return [];
+  }
+
+  function pidLocal(p) {
+    return p?.id ?? p?.player_id ?? p?.player?.id ?? null;
+  }
+
+  // build pages for:
+  // - all roster players
+  // - any players that exist in season stats (in case roster is missing some ids)
+  const roster = getRosterLocal(rosterData);
+  const seen = new Set();
+  const out = [];
+
+  for (const p of roster) {
+    const id = pidLocal(p);
+    if (id === null || id === undefined) continue;
+    const key = String(id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ params: { playerId: key } });
+  }
+
+  const statRows = Array.isArray(seasonData?.playerSeasonStats) ? seasonData.playerSeasonStats : [];
+  for (const r of statRows) {
+    const id = r?.player?.id ?? r?.player_id ?? null;
+    if (id === null || id === undefined) continue;
+    const key = String(id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ params: { playerId: key } });
+  }
+
+  return out;
+}
+
+/* =======================
+   Helpers (page render)
+   ======================= */
+const { playerId } = Astro.params;
+
+function getRoster(playersData) {
+  if (Array.isArray(playersData?.data)) return playersData.data;
+  if (Array.isArray(playersData?.players)) return playersData.players;
+  if (Array.isArray(playersData)) return playersData;
   return [];
 }
 
-function pidFromRoster(p) {
-  return p?.id ?? p?.player_id ?? null;
+function pid(p) {
+  return p?.id ?? p?.player_id ?? p?.player?.id ?? null;
 }
 
-function fullNameFromRoster(p) {
-  const full = `${p?.first_name || ""} ${p?.last_name || ""}`.trim();
-  return full || p?.full_name || "Unknown";
+function playerNameFromAny(obj) {
+  const p = obj?.player ?? obj;
+  if (!p) return "Unknown";
+  const full =
+    p?.full_name ||
+    `${p?.first_name || ""} ${p?.last_name || ""}`.trim();
+  return full || "Unknown";
 }
 
-function posFromRoster(p) {
-  return String(p?.position_abbreviation || p?.position || "").toUpperCase() || "-";
+function findRosterPlayer(id) {
+  const roster = getRoster(rosterData);
+  const key = String(id);
+  return roster.find((p) => String(pid(p)) === key) || null;
+}
+
+function bestStatRowForPlayer(id) {
+  const rows = Array.isArray(seasonData?.playerSeasonStats) ? seasonData.playerSeasonStats : [];
+  const key = String(id);
+
+  function n(v) {
+    return typeof v === "number" ? v : 0;
+  }
+  function totalYards(r) {
+    return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
+  }
+
+  let best = null;
+  for (const r of rows) {
+    const rid = r?.player?.id ?? r?.player_id ?? null;
+    if (rid === null || rid === undefined) continue;
+    if (String(rid) !== key) continue;
+    if (!best || totalYards(r) > totalYards(best)) best = r;
+  }
+  return best;
+}
+
+function dash(v) {
+  return typeof v === "number" ? v : "—";
 }
 
 function fmtUpdatedPT(iso) {
@@ -37,209 +114,173 @@ function fmtUpdatedPT(iso) {
   }).format(new Date(iso));
 }
 
-function n(v) {
-  return typeof v === "number" ? v : 0;
-}
-function dashIfNull(v) {
-  return typeof v === "number" ? v : "-";
-}
-function tdTriplet(r) {
-  return `${n(r.passing_touchdowns)}/${n(r.rushing_touchdowns)}/${n(r.receiving_touchdowns)}`;
-}
-function totalYards(r) {
-  return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
-}
-
-function normalizeStatus(s) {
-  const t = String(s || "").toLowerCase();
-  if (!t) return "";
-  if (t.includes("out")) return "Out";
-  if (t.includes("doubt")) return "Doubtful";
-  if (t.includes("question")) return "Questionable";
-  if (t.includes("prob")) return "Probable";
-  return String(s);
+function normalizeInjRow(x) {
+  if (!x || typeof x !== "object") return null;
+  const p = x?.player ?? null;
+  const id = x?.player_id ?? p?.id ?? null;
+  const name = playerNameFromAny(p);
+  const status = x?.status ?? x?.game_status ?? x?.injury_status ?? x?.practice_status ?? null;
+  const description = x?.description ?? x?.injury ?? x?.injury_description ?? x?.notes ?? null;
+  const date = x?.date ?? x?.report_date ?? x?.updated_at ?? x?.created_at ?? null;
+  return {
+    id,
+    name,
+    status,
+    description,
+    date
+  };
 }
 
-function safeStr(v) {
-  return v === null || v === undefined ? "" : String(v);
-}
+const rosterPlayer = findRosterPlayer(playerId);
+const statRow = bestStatRowForPlayer(playerId);
 
-/* =======================
-   getStaticPaths (SELF-CONTAINED)
-   ======================= */
-export function getStaticPaths() {
-  // NOTE: this must be self-contained (no outer helpers referenced)
-  function getRoster(playersJson) {
-    if (Array.isArray(playersJson?.data)) return playersJson.data;
-    if (Array.isArray(playersJson?.players)) return playersJson.players;
-    if (Array.isArray(playersJson)) return playersJson;
-    return [];
-  }
-  function pid(p) {
-    return p?.id ?? p?.player_id ?? null;
-  }
+const profileMap = playerProfilesData?.profiles || {};
+const profile = profileMap?.[String(playerId)] || null;
 
-  const roster = getRoster(rosterData);
-  const profileMap = playerProfiles?.profiles || {};
+const injuries = Array.isArray(injuriesData?.injuries) ? injuriesData.injuries : [];
+const injuryMatches = injuries
+  .map(normalizeInjRow)
+  .filter(Boolean)
+  .filter((r) => String(r.id ?? "") === String(playerId));
 
-  // Only build pages for players that have a generated profile (prevents 404s)
-  const seen = new Set();
-  const paths = [];
+// basic display fields (safe across shapes)
+const displayName =
+  playerNameFromAny(rosterPlayer) !== "Unknown"
+    ? playerNameFromAny(rosterPlayer)
+    : (playerNameFromAny(statRow?.player) !== "Unknown"
+        ? playerNameFromAny(statRow?.player)
+        : (profile?.name || "Player"));
 
-  for (const p of roster) {
-    const id = pid(p);
-    if (id === null || id === undefined) continue;
-    const key = String(id);
-    if (seen.has(key)) continue;
-    seen.add(key);
+const position =
+  (rosterPlayer?.position_abbreviation || rosterPlayer?.position || statRow?.player?.position_abbreviation || "—");
 
-    if (!profileMap[key]) continue;
-    paths.push({ params: { playerId: key } });
-  }
+const jersey =
+  rosterPlayer?.jersey_number ?? rosterPlayer?.jersey ?? rosterPlayer?.number ?? "—";
 
-  return paths;
-}
+const height =
+  rosterPlayer?.height ?? rosterPlayer?.height_feet_inches ?? "—";
 
-/* =======================
-   Page logic
-   ======================= */
-const { playerId } = Astro.params;
+const weight =
+  rosterPlayer?.weight ?? rosterPlayer?.weight_lbs ?? "—";
 
-const roster = getRosterLocal(rosterData);
-const player = roster.find((p) => String(pidFromRoster(p)) === String(playerId)) || null;
+const experience =
+  rosterPlayer?.experience ?? rosterPlayer?.years_pro ?? "—";
 
-const profileMap = playerProfiles?.profiles || {};
-const profile = profileMap[String(playerId)] || null;
-
-const seasonStatsRows = Array.isArray(seahawksData?.playerSeasonStats) ? seahawksData.playerSeasonStats : [];
-const statRowCandidates = seasonStatsRows.filter((r) => String(r?.player?.id ?? r?.player_id ?? "") === String(playerId));
-const statRow =
-  statRowCandidates.length > 0
-    ? statRowCandidates.slice().sort((a, b) => totalYards(b) - totalYards(a))[0]
-    : null;
-
-const allInjuries = Array.isArray(injuriesData?.injuries) ? injuriesData.injuries : [];
-const playerInjuries = allInjuries.filter((row) => {
-  const rid = row?.player_id ?? row?.player?.id ?? null;
-  if (rid !== null && rid !== undefined) return String(rid) === String(playerId);
-
-  // fallback: name match if API didn’t include ids
-  const nm = safeStr(row?.player_name || row?.player?.full_name || "");
-  const target = player ? fullNameFromRoster(player) : "";
-  return nm && target && nm.toLowerCase() === target.toLowerCase();
-});
-
-const pageName = player ? fullNameFromRoster(player) : (profile?.name || "Player");
-const pagePos = player ? posFromRoster(player) : (profile?.position || "-");
-const pageTitle = `${pageName} — ${pagePos}`;
-
-const updatedLine = seahawksData?.updatedAt ? fmtUpdatedPT(seahawksData.updatedAt) + " PT" : "—";
+const pageTitle = `${displayName} — Player Profile`;
 ---
 
-<SeahawksLayout title={pageTitle} description="Seahawks player profile." activePath="">
+<SeahawksLayout title={pageTitle} description="Player profile page." activePath="/players">
   <div class="meta-line">
     <span><strong>Back:</strong> <a href="/players">Players</a></span>
     <span class="dot">•</span>
     <span><strong>Also:</strong> <a href="/schedule">Schedule</a></span>
-    <span class="dot">•</span>
-    <span><strong>Updated:</strong> {updatedLine}</span>
   </div>
 
-  {!player && !profile ? (
-    <div class="empty">Couldn’t find that player.</div>
-  ) : (
-    <>
-      <article class="card">
-        <div class="card-top">
-          <div class="who">
-            <div class="name">{pageName}</div>
-            <div class="sub">{pagePos}</div>
-          </div>
-          <div class="right">
-            {statRow ? (
-              <div class="pill">GP: {dashIfNull(statRow.games_played)}</div>
-            ) : (
-              <div class="pill pill--ghost">No season stats</div>
-            )}
-          </div>
-        </div>
+  <article class="card">
+    <div class="card-top">
+      <div class="name">{displayName}</div>
+      <div class="sub">
+        <span><strong>Pos:</strong> {String(position).toUpperCase()}</span>
+        <span class="dot">•</span>
+        <span><strong>Jersey:</strong> {String(jersey)}</span>
+        <span class="dot">•</span>
+        <span><strong>Updated:</strong> {fmtUpdatedPT(playerProfilesData?.updatedAt)} PT</span>
+      </div>
+    </div>
 
+    <div class="grid">
+      <div class="panel">
+        <div class="panel-title">Bio</div>
         {profile?.bio ? (
-          <div class="bio">
-            <h3 class="h3">Bio</h3>
-            <p class="p">{profile.bio}</p>
-          </div>
+          <p class="body">{profile.bio}</p>
         ) : (
-          <div class="empty" style="margin-top:.75rem;">Bio coming soon.</div>
+          <div class="empty">Bio coming soon.</div>
+        )}
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Season snapshot</div>
+
+        {!statRow ? (
+          <div class="empty">No season stats found for this player in the current file.</div>
+        ) : (
+          <div class="stats">
+            <div class="stat"><span class="k">GP</span><span class="v">{dash(statRow?.games_played)}</span></div>
+            <div class="stat"><span class="k">Pass Yds</span><span class="v">{dash(statRow?.passing_yards)}</span></div>
+            <div class="stat"><span class="k">Rush Yds</span><span class="v">{dash(statRow?.rushing_yards)}</span></div>
+            <div class="stat"><span class="k">Rec Yds</span><span class="v">{dash(statRow?.receiving_yards)}</span></div>
+            <div class="stat"><span class="k">Pass TD</span><span class="v">{dash(statRow?.passing_touchdowns)}</span></div>
+            <div class="stat"><span class="k">Rush TD</span><span class="v">{dash(statRow?.rushing_touchdowns)}</span></div>
+            <div class="stat"><span class="k">Rec TD</span><span class="v">{dash(statRow?.receiving_touchdowns)}</span></div>
+          </div>
         )}
 
-        {profile?.recap?.paragraph ? (
-          <div class="recap">
-            <h3 class="h3">Gameplay recap</h3>
-            <p class="p">{profile.recap.paragraph}</p>
-
-            {Array.isArray(profile?.recap?.bullets) && profile.recap.bullets.length > 0 && (
-              <ul class="bullets">
-                {profile.recap.bullets.map((b) => <li>{b}</li>)}
-              </ul>
-            )}
-          </div>
-        ) : (
-          <div class="empty" style="margin-top:.75rem;">Gameplay recap coming soon.</div>
-        )}
-      </article>
-
-      <section class="two-col">
-        <div class="panel">
-          <h3 class="h3">Season stats</h3>
-          {!statRow ? (
-            <div class="empty">No season stat line found for this player.</div>
-          ) : (
-            <div class="stats-grid">
-              <div class="k">Pass Yds</div><div class="v">{dashIfNull(statRow.passing_yards)}</div>
-              <div class="k">Rush Yds</div><div class="v">{dashIfNull(statRow.rushing_yards)}</div>
-              <div class="k">Rec Yds</div><div class="v">{dashIfNull(statRow.receiving_yards)}</div>
-              <div class="k">TD P/R/Rec</div><div class="v">{tdTriplet(statRow)}</div>
-            </div>
-          )}
+        <div class="mini">
+          <div class="mini-row"><span class="k">Height</span><span class="v">{String(height)}</span></div>
+          <div class="mini-row"><span class="k">Weight</span><span class="v">{String(weight)}</span></div>
+          <div class="mini-row"><span class="k">Experience</span><span class="v">{String(experience)}</span></div>
         </div>
+      </div>
+    </div>
 
-        <div class="panel">
-          <h3 class="h3">Injury report</h3>
-
-          {playerInjuries.length === 0 ? (
-            <div class="empty">No injury entries found for this player.</div>
-          ) : (
-            <div class="inj-list">
-              {playerInjuries.slice(0, 8).map((inj) => (
-                <div class="inj">
-                  <div class="inj-top">
-                    <div class="inj-status">{normalizeStatus(inj?.status || inj?.injury_status || "") || "Status"}</div>
-                    <div class="inj-date">{safeStr(inj?.date || inj?.report_date || inj?.updated_at || "")}</div>
-                  </div>
-                  <div class="inj-body">
-                    {safeStr(inj?.description || inj?.injury || inj?.note || inj?.details || "") || "—"}
-                  </div>
-                </div>
-              ))}
-            </div>
+    <div class="panel" style="margin-top:.85rem;">
+      <div class="panel-title">Gameplay recap</div>
+      {profile?.recap?.paragraph ? (
+        <>
+          <p class="body">{profile.recap.paragraph}</p>
+          {Array.isArray(profile?.recap?.bullets) && profile.recap.bullets.length > 0 && (
+            <ul class="bullets">
+              {profile.recap.bullets.map((b) => <li>{b}</li>)}
+            </ul>
           )}
+        </>
+      ) : (
+        <div class="empty">Recap coming soon.</div>
+      )}
+    </div>
+
+    <div class="panel" style="margin-top:.85rem;">
+      <div class="panel-title">Injury report</div>
+      {injuryMatches.length === 0 ? (
+        <div class="empty">No injury entries found for this player.</div>
+      ) : (
+        <div class="inj-list">
+          {injuryMatches.slice(0, 25).map((it) => (
+            <div class="inj">
+              <div class="inj-top">
+                <div class="inj-status">{it.status ? String(it.status) : "Injury"}</div>
+                <div class="inj-date">{it.date ? fmtUpdatedPT(it.date) + " PT" : ""}</div>
+              </div>
+              {it.description ? <div class="inj-desc">{String(it.description)}</div> : null}
+            </div>
+          ))}
         </div>
-      </section>
-    </>
-  )}
+      )}
+    </div>
+  </article>
 
   <style>
     .meta-line,
     .card,
     .card-top,
-    .two-col,
+    .grid,
     .panel,
-    .stats-grid,
+    .stats,
+    .mini,
     .inj-list {
       min-width: 0;
       max-width: 100%;
       box-sizing: border-box;
+    }
+
+    .meta-line,
+    .name,
+    .sub,
+    .body,
+    .bullets,
+    .inj-desc {
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .meta-line {
@@ -250,110 +291,149 @@ const updatedLine = seahawksData?.updatedAt ? fmtUpdatedPT(seahawksData.updatedA
       margin: .35rem 0 1rem;
       flex-wrap: wrap;
     }
-    .dot { opacity: .5; }
 
-    .empty {
-      padding: .9rem 1rem;
-      border-radius: 14px;
-      border: 1px solid rgba(0,34,68,0.14);
-      background: rgba(165,172,175,0.18);
-      color: rgba(15,23,32,0.85);
-      font-weight: 800;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
+    .dot { opacity: .5; }
 
     .card {
       border-radius: 14px;
       border: 1px solid rgba(0,34,68,0.16);
       background: #fff;
-      padding: .85rem .9rem;
+      padding: .95rem 1rem;
       box-shadow: 0 10px 22px rgba(0,0,0,.08);
       overflow: hidden;
     }
 
     .card-top {
-      display: flex;
-      justify-content: space-between;
-      gap: .75rem;
-      padding-bottom: .55rem;
+      padding-bottom: .75rem;
       border-bottom: 1px solid rgba(0,34,68,.10);
-      margin-bottom: .75rem;
-      align-items: flex-start;
+      margin-bottom: .85rem;
     }
 
-    .who { min-width: 0; }
-    .name { font-weight: 1000; color: var(--navy); font-size: 1.35rem; line-height: 1.15; }
-    .sub { color: rgba(15,23,32,.65); font-weight: 900; margin-top: .15rem; }
-
-    .right { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      padding:.38rem .6rem;
-      border-radius: 999px;
-      border: 1px solid rgba(0,34,68,.16);
-      background: rgba(0,34,68,.04);
-      color: rgba(0,34,68,.86);
-      font-weight: 900;
-      white-space: nowrap;
+    .name {
+      font-size: 1.35rem;
+      font-weight: 1000;
+      color: var(--navy);
+      line-height: 1.15;
     }
-    .pill--ghost{ background: transparent; }
 
-    .h3 { margin: .2rem 0 .45rem; color: var(--navy); }
-    .p { line-height: 1.55; font-weight: 750; color: rgba(0,34,68,.92); overflow-wrap:anywhere; }
+    .sub {
+      margin-top: .35rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      color: rgba(15,23,32,.65);
+      font-weight: 800;
+      font-size: .95rem;
+      align-items: center;
+    }
 
-    .bio { margin-top: .35rem; }
-    .recap { margin-top: .9rem; }
-    .bullets { margin: .55rem 0 0; padding-left: 1.1rem; }
-    .bullets li { margin: .35rem 0; }
-
-    .two-col {
+    .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: .85rem;
-      margin-top: .85rem;
+      align-items: start;
     }
+
     @media (max-width: 820px) {
-      .two-col { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
     }
 
     .panel {
       border-radius: 14px;
       border: 1px solid rgba(0,34,68,0.14);
-      background: #fff;
-      padding: .85rem .9rem;
-      box-shadow: 0 10px 22px rgba(0,0,0,.06);
-      overflow: hidden;
+      background: rgba(0,34,68,0.03);
+      padding: .75rem .85rem;
     }
 
-    .stats-grid {
+    .panel-title {
+      font-weight: 1000;
+      color: rgba(0,34,68,.92);
+      margin: 0 0 .45rem;
+    }
+
+    .body {
+      margin: 0;
+      line-height: 1.55;
+      font-weight: 750;
+      color: rgba(0,34,68,.92);
+    }
+
+    .empty {
+      padding: .7rem .8rem;
+      border-radius: 12px;
+      border: 1px solid rgba(0,34,68,0.14);
+      background: rgba(165,172,175,0.18);
+      color: rgba(15,23,32,0.85);
+      font-weight: 850;
+    }
+
+    .stats {
       display: grid;
-      grid-template-columns: 1fr auto;
-      gap: .45rem .75rem;
-      margin-top: .25rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .5rem .75rem;
+      margin-top: .2rem;
     }
-    .k { color: rgba(15,23,32,.65); font-weight: 900; }
-    .v { color: rgba(0,34,68,.92); font-weight: 1000; text-align: right; }
 
-    .inj-list { display: grid; gap: .6rem; margin-top: .25rem; }
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      gap: .5rem;
+      padding: .4rem .5rem;
+      border-radius: 12px;
+      background: rgba(255,255,255,.7);
+      border: 1px solid rgba(0,34,68,.10);
+    }
+
+    .k { font-weight: 900; color: rgba(0,34,68,.70); }
+    .v { font-weight: 950; color: rgba(0,34,68,.92); font-variant-numeric: tabular-nums; }
+
+    .mini {
+      margin-top: .65rem;
+      display: grid;
+      gap: .35rem;
+    }
+
+    .mini-row {
+      display: flex;
+      justify-content: space-between;
+      gap: .5rem;
+      color: rgba(0,34,68,.85);
+      font-weight: 850;
+    }
+
+    .bullets { margin: .6rem 0 0; padding-left: 1.1rem; }
+    .bullets li { margin: .35rem 0; font-weight: 750; color: rgba(0,34,68,.92); }
+
+    .inj-list { display: grid; gap: .55rem; margin-top: .35rem; }
     .inj {
       border-radius: 12px;
-      border: 1px solid rgba(0,34,68,0.12);
-      background: rgba(0,34,68,0.03);
-      padding: .65rem .7rem;
-      overflow: hidden;
+      border: 1px solid rgba(0,34,68,.12);
+      background: rgba(255,255,255,.72);
+      padding: .6rem .65rem;
     }
     .inj-top {
       display: flex;
       justify-content: space-between;
-      gap: .6rem;
       align-items: baseline;
-      margin-bottom: .35rem;
+      gap: .75rem;
     }
-    .inj-status { font-weight: 1000; color: rgba(0,34,68,.90); }
-    .inj-date { color: rgba(15,23,32,.55); font-weight: 900; overflow-wrap:anywhere; }
-    .inj-body { color: rgba(0,34,68,.90); font-weight: 750; line-height: 1.45; overflow-wrap:anywhere; }
+    .inj-status {
+      font-weight: 1000;
+      color: rgba(0,34,68,.92);
+    }
+    .inj-date {
+      color: rgba(15,23,32,.60);
+      font-weight: 800;
+      font-size: .92rem;
+      text-align: right;
+    }
+    .inj-desc {
+      margin-top: .35rem;
+      color: rgba(0,34,68,.88);
+      font-weight: 750;
+      line-height: 1.45;
+    }
   </style>
 </SeahawksLayout>
+
 
