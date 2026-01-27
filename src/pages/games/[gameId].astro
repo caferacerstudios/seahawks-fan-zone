@@ -2,23 +2,9 @@
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import scheduleData from "../../data/nfl/seahawks.json";
 
-// ---- shared helpers (must be above getStaticPaths) ----
-
-function getRawGames() {
-  return Array.isArray(scheduleData?.games)
-    ? scheduleData.games
-    : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
-      ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
-      : [];
-}
-
-function isPlayoffGame(g) {
-  const st = String(g?.seasonType ?? g?.season_type ?? "").toLowerCase();
-  if (st.includes("post") || st.includes("playoff")) return true;
-  if (g?.postseason === true) return true;
-  if (g?.is_postseason === true) return true;
-  return false;
-}
+/* =======================
+   Helpers for page render
+   ======================= */
 
 function teamAbbr(teamObj, fallback = "") {
   return String(teamObj?.abbreviation || fallback).toUpperCase();
@@ -36,6 +22,14 @@ function oppAbbr(game) {
   const home = teamAbbr(game?.home_team);
   const away = teamAbbr(game?.visitor_team);
   return home === "SEA" ? away : home;
+}
+
+function isPlayoffGame(g) {
+  const st = String(g?.seasonType ?? g?.season_type ?? "").toLowerCase();
+  if (st.includes("post") || st.includes("playoff")) return true;
+  if (g?.postseason === true) return true;
+  if (g?.is_postseason === true) return true;
+  return false;
 }
 
 function fmtPT(dateStr) {
@@ -106,26 +100,51 @@ function sortByDate(a, b) {
   return 0;
 }
 
-function orderedGames() {
-  return getRawGames().slice().sort(sortByDate);
+function getRawGamesLocal() {
+  return Array.isArray(scheduleData?.games)
+    ? scheduleData.games
+    : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
+      ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
+      : [];
 }
 
 function gameKey(g, idx) {
   return String(g?.id ?? g?.game_id ?? idx);
 }
 
-// ---- getStaticPaths ----
+/* =======================
+   getStaticPaths (SELF-CONTAINED)
+   ======================= */
 export function getStaticPaths() {
-  const ordered = orderedGames();
+  const rawGames = Array.isArray(scheduleData?.games)
+    ? scheduleData.games
+    : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
+      ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
+      : [];
+
+  function sortByDateLocal(a, b) {
+    const ad = a?.date ? new Date(a.date).getTime() : 0;
+    const bd = b?.date ? new Date(b.date).getTime() : 0;
+    if (ad !== bd) return ad - bd;
+    const aw = Number(a?.week);
+    const bw = Number(b?.week);
+    if (Number.isFinite(aw) && Number.isFinite(bw)) return aw - bw;
+    return 0;
+  }
+
+  const ordered = rawGames.slice().sort(sortByDateLocal);
+
   return ordered.map((g, idx) => ({
-    params: { gameId: gameKey(g, idx) },
+    params: { gameId: String(g?.id ?? g?.game_id ?? idx) },
   }));
 }
 
-// ---- page logic ----
+/* =======================
+   Page logic
+   ======================= */
 const { gameId } = Astro.params;
 
-const ordered = orderedGames();
+const ordered = getRawGamesLocal().slice().sort(sortByDate);
 const idx = ordered.findIndex((g, i) => gameKey(g, i) === String(gameId));
 const game = idx >= 0 ? ordered[idx] : null;
 
@@ -143,11 +162,7 @@ const pageTitle = game
   : "Game not found";
 ---
 
-<SeahawksLayout
-  title={pageTitle}
-  description="Single game page (details + hooks for generated content)."
-  activePath=""
->
+<SeahawksLayout title={pageTitle} description="Single game page." activePath="">
   <div class="meta-line">
     <span><strong>Back:</strong> <a href="/weekly-recap">Weekly Recap</a></span>
     <span class="dot">•</span>
@@ -157,59 +172,51 @@ const pageTitle = game
   {!game ? (
     <div class="empty">Couldn’t find that game.</div>
   ) : (
-    <>
-      <article class={cardClass}>
-        <div class="card-top">
-          <div class="week">
-            {isPlayoffGame(game)
-              ? (Number.isFinite(Number(game?.week)) ? `Playoffs Week ${game.week}` : "Playoffs")
-              : (Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game")}
-          </div>
-          <div class="date">{fmtPT(game?.date)}</div>
+    <article class={cardClass}>
+      <div class="card-top">
+        <div class="week">
+          {isPlayoffGame(game)
+            ? (Number.isFinite(Number(game?.week)) ? `Playoffs Week ${game.week}` : "Playoffs")
+            : (Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game")}
         </div>
-
-        <div class="matchup">
-          <div class="team">
-            <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
-            <div class="abbr">SEA</div>
-            <div class="ha">{seaIsHome(game) ? "H" : "A"}</div>
-          </div>
-
-          <div class="at">@</div>
-
-          <div class="team">
-            <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
-            <div class="abbr">{opp}</div>
-            <div class="ha">{seaIsHome(game) ? "A" : "H"}</div>
-          </div>
-        </div>
-
-        <div class="card-bottom">
-          <div class="status">{statusText(game)}</div>
-          <div class="score">{scoreText(game)}</div>
-        </div>
-
-        <div class="links-row">
-          {prev ? (
-            <a class="pill pill--ghost" href={`/games/${encodeURIComponent(gameKey(prev, idx - 1))}`}>← Prev</a>
-          ) : (
-            <span class="pill pill--ghost pill--disabled">← Prev</span>
-          )}
-
-          {next ? (
-            <a class="pill pill--ghost" href={`/games/${encodeURIComponent(gameKey(next, idx + 1))}`}>Next →</a>
-          ) : (
-            <span class="pill pill--ghost pill--disabled">Next →</span>
-          )}
-        </div>
-      </article>
-
-      <h3 class="section-title" style="margin-top: 1.25rem;">Recap (generated later)</h3>
-      <div class="empty">
-        Hook: write <code>src/data/nfl/game-pages/{gameId}.json</code> in your fetch script (recap text, key stats, highlights),
-        then render it here.
+        <div class="date">{fmtPT(game?.date)}</div>
       </div>
-    </>
+
+      <div class="matchup">
+        <div class="team">
+          <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
+          <div class="abbr">SEA</div>
+          <div class="ha">{seaIsHome(game) ? "H" : "A"}</div>
+        </div>
+
+        <div class="at">@</div>
+
+        <div class="team">
+          <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
+          <div class="abbr">{opp}</div>
+          <div class="ha">{seaIsHome(game) ? "A" : "H"}</div>
+        </div>
+      </div>
+
+      <div class="card-bottom">
+        <div class="status">{statusText(game)}</div>
+        <div class="score">{scoreText(game)}</div>
+      </div>
+
+      <div class="links-row">
+        {prev ? (
+          <a class="pill pill--ghost" href={`/games/${encodeURIComponent(gameKey(prev, idx - 1))}`}>← Prev</a>
+        ) : (
+          <span class="pill pill--ghost pill--disabled">← Prev</span>
+        )}
+
+        {next ? (
+          <a class="pill pill--ghost" href={`/games/${encodeURIComponent(gameKey(next, idx + 1))}`}>Next →</a>
+        ) : (
+          <span class="pill pill--ghost pill--disabled">Next →</span>
+        )}
+      </div>
+    </article>
   )}
 
   <style>
@@ -234,8 +241,7 @@ const pageTitle = game
     .date,
     .status,
     .score,
-    .empty,
-    .section-title {
+    .empty {
       overflow-wrap: anywhere;
       word-break: break-word;
     }
@@ -250,11 +256,6 @@ const pageTitle = game
     }
 
     .dot { opacity: .5; }
-
-    .section-title {
-      color: var(--navy);
-      margin: 0.75rem 0 0.7rem;
-    }
 
     .empty {
       padding: .9rem 1rem;
@@ -356,3 +357,4 @@ const pageTitle = game
     }
   </style>
 </SeahawksLayout>
+
