@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 /**
- * Build-time recap generator (safe for BDL All-Star):
+ * Build-time recap generator:
  * - reads src/data/nfl/seahawks.json
  * - fetches BDL per-game stats
- * - (optionally) fetches play-by-play IF your tier allows it
- * - calls OpenAI server-side to produce structured recap segments
+ * - (optionally) fetches play-by-play IF your tier allows it (401-safe)
+ * - calls OpenAI (Responses API) to produce structured recap segments
  * - writes src/data/nfl/gameRecaps.json
  *
  * ENV:
  * - BALLDONTLIE_API_KEY
  * - OPENAI_API_KEY
+ *
+ * Output:
+ * - src/data/nfl/gameRecaps.json  { season, updatedAt, recaps: { [gameId]: {segments, bullets, ...} } }
  */
 
 import fs from "node:fs";
@@ -42,8 +45,12 @@ function writeJson(p, obj) {
   fs.writeFileSync(p, JSON.stringify(obj, null, 2) + "\n");
 }
 function authHeaderValue(apiKey) {
-  if (String(apiKey).toLowerCase().startsWith("bearer ")) return apiKey;
-  return apiKey;
+  const s = String(apiKey || "");
+  if (s.toLowerCase().startsWith("bearer ")) return s;
+  return s;
+}
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 async function bdlGet(endpoint, params = {}) {
@@ -70,6 +77,7 @@ async function bdlGet(endpoint, params = {}) {
 async function bdlPaged(endpoint, baseParams = {}) {
   const all = [];
   let cursor = null;
+
   for (;;) {
     const params = { ...baseParams };
     if (cursor) params.cursor = cursor;
@@ -81,7 +89,11 @@ async function bdlPaged(endpoint, baseParams = {}) {
     const next = json?.meta?.next_cursor || null;
     if (!next) break;
     cursor = next;
+
+    // small politeness delay
+    await sleep(120);
   }
+
   return all;
 }
 
@@ -98,20 +110,28 @@ async function bdlTryPlays(gameId) {
   }
 }
 
+/* =======================
+   Domain helpers
+   ======================= */
+
 function isFinal(game) {
   return String(game?.status || "").toLowerCase().includes("final");
 }
+
 function gameKey(g, idx) {
   return String(g?.id ?? g?.game_id ?? idx);
 }
+
 function teamAbbr(teamObj, fallback = "") {
   return String(teamObj?.abbreviation || fallback).toUpperCase();
 }
+
 function oppAbbr(game) {
   const home = teamAbbr(game?.home_team);
   const away = teamAbbr(game?.visitor_team);
   return home === "SEA" ? away : home;
 }
+
 function seaIsHome(game) {
   return teamAbbr(game?.home_team) === "SEA";
 }
@@ -120,6 +140,7 @@ function pickKeyPlays(plays, limit = 10) {
   if (!Array.isArray(plays) || plays.length === 0) return [];
   const scoring = plays.filter((p) => p?.scoring_play === true);
   const picked = scoring.slice(0, limit);
+
   if (picked.length < limit) {
     for (const p of plays) {
       if (picked.length >= limit) break;
@@ -129,53 +150,55 @@ function pickKeyPlays(plays, limit = 10) {
   return picked;
 }
 
+/* =======================
+   OpenAI (Responses API)
+   ======================= */
+
 async function openaiStructuredRecap(input) {
+  // Strict JSON schema: "required" must include every key in properties.
+  // We *require* id/name, but allow nulls for non-player segments.
   const schema = {
-    name: "GameRecap",
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        segments: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              t: { type: "string", enum: ["text", "player"] },
-              v: { type: "string" },
-              // Required, but allowed to be null for normal text segments.
-              // For player segments, we will instruct the model to provide a real id.
-              id: { type: ["integer", "string", "null"] }
-            },
-            required: ["t", "v", "id"]
-          }
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      segments: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            t: { type: "string", enum: ["text", "player"] },
+            v: { type: "string" },
+            id: { type: ["integer", "string", "null"] },
+            name: { type: ["string", "null"] },
+          },
+          required: ["t", "v", "id", "name"],
         },
-        bullets: { type: "array", items: { type: "string" } }
       },
-      required: ["segments", "bullets"]
+      bullets: { type: "array", items: { type: "string" } },
     },
-    strict: true
+    required: ["segments", "bullets"],
   };
 
   const res = await fetch(`${OPENAI_BASE}/responses`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_KEY}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-5.2-mini",
+      // Use a widely-available model that supports json_schema Structured Outputs well
+      model: "gpt-4o-mini",
       input,
       text: {
         format: {
           type: "json_schema",
-          name: schema.name,
-          schema: schema.schema,
+          name: "game_recap",
           strict: true,
+          schema,
         },
       },
-    })
+    }),
   });
 
   if (!res.ok) {
@@ -184,7 +207,10 @@ async function openaiStructuredRecap(input) {
   }
 
   const json = await res.json();
+
+  // Responses API usually provides `output_text`; keep fallback for older shapes.
   const outText =
+    json?.output_text ||
     json?.output?.[0]?.content?.find?.((c) => c?.type === "output_text")?.text;
 
   if (!outText) throw new Error("OpenAI response missing output_text");
@@ -194,15 +220,17 @@ async function openaiStructuredRecap(input) {
 function buildPrompt({ game, stats, plays }) {
   const opp = oppAbbr(game);
   const seaHome = seaIsHome(game);
+
   const topPlays = pickKeyPlays(plays, 12).map((p) => ({
-    clock: p?.clock_display,
-    period: p?.period,
-    text: p?.text || p?.short_text,
-    scoring: !!p?.scoring_play
+    clock: p?.clock_display ?? null,
+    period: p?.period ?? null,
+    text: p?.text || p?.short_text || null,
+    scoring: !!p?.scoring_play,
   }));
 
   const statRows = Array.isArray(stats) ? stats : [];
 
+  // Build candidate players ONLY from stats rows (so we don't invent names).
   const candidatePlayers = [];
   for (const row of statRows) {
     const pl = row?.player;
@@ -212,9 +240,11 @@ function buildPrompt({ game, stats, plays }) {
       [pl?.first_name, pl?.last_name].filter(Boolean).join(" ") ||
       row?.player_name ||
       null;
+
     if (id != null && name) candidatePlayers.push({ id, name });
   }
 
+  // de-dupe
   const seen = new Set();
   const candidatesDedup = [];
   for (const p of candidatePlayers) {
@@ -229,72 +259,93 @@ function buildPrompt({ game, stats, plays }) {
   return [
     {
       role: "system",
-      content:
-        hasPlays
-          ? "You write factual NFL game recaps using ONLY the provided stats and play-by-play snippets. Do not invent plays or players. Output MUST follow the provided JSON schema."
-          : "You write factual NFL game recaps using ONLY the provided stats. Do not invent specific plays. If uncertain, be vague rather than guessing. Output MUST follow the provided JSON schema."
+      content: hasPlays
+        ? [
+            "You write factual NFL game recaps using ONLY the provided stats and play-by-play snippets.",
+            "Do not invent plays, players, injuries, or coaching decisions.",
+            "If uncertain, be vague rather than guessing.",
+            "Output MUST follow the provided JSON schema.",
+          ].join(" ")
+        : [
+            "You write factual NFL game recaps using ONLY the provided stats.",
+            "Do NOT invent specific plays (no 'late TD', no 'game-sealing pick', etc.) unless it appears in the provided key_plays list.",
+            "If uncertain, be vague rather than guessing.",
+            "Output MUST follow the provided JSON schema.",
+          ].join(" "),
     },
     {
       role: "user",
       content: JSON.stringify(
         {
           game: {
-            id: game?.id,
-            week: game?.week,
-            date: game?.date,
-            status: game?.status,
+            id: game?.id ?? null,
+            week: game?.week ?? null,
+            date: game?.date ?? null,
+            status: game?.status ?? null,
             home: teamAbbr(game?.home_team),
             away: teamAbbr(game?.visitor_team),
             sea_is_home: seaHome,
-            score_home: game?.home_team_score,
-            score_away: game?.visitor_team_score,
-            opponent: opp
+            score_home: game?.home_team_score ?? null,
+            score_away: game?.visitor_team_score ?? null,
+            opponent: opp,
           },
           key_plays: hasPlays ? topPlays : [],
-          stat_rows_sample: statRows.slice(0, 160),
-          candidate_players: candidatesDedup.slice(0, 80),
+          stat_rows_sample: statRows.slice(0, 180),
+          candidate_players: candidatesDedup.slice(0, 90),
           instructions: {
             style: "1 short paragraph + 3 bullet highlights",
-            link_rule:
-              "Whenever you mention a player from candidate_players, emit a {t:'player', v:'Name', id:<id>} segment for the name. Otherwise use {t:'text', v:'...'} segments."
-          }
+            segments_rule:
+              "Write the paragraph as an array of segments. Use {t:'text', v:'...', id:null, name:null} for normal text. " +
+              "Whenever you mention a player from candidate_players, emit that name as {t:'player', v:'<display name>', id:<id>, name:'<same name>'}. " +
+              "Only link players that appear in candidate_players; otherwise keep it as normal text.",
+          },
         },
         null,
         2
-      )
-    }
+      ),
+    },
   ];
 }
 
+/* =======================
+   Main
+   ======================= */
+
 async function main() {
   const seahawks = readJson(seahawksPath);
-  const season = seahawks?.season ?? process.env.NFL_SEASON;
+  const season = seahawks?.season ?? null;
 
-  const rawGames = Array.isArray(seahawks?.gamesRegular) || Array.isArray(seahawks?.gamesPostseason)
-    ? [...(seahawks.gamesRegular || []), ...(seahawks.gamesPostseason || [])]
-    : Array.isArray(seahawks?.games)
-      ? seahawks.games
-      : [];
+  const rawGames =
+    Array.isArray(seahawks?.gamesRegular) || Array.isArray(seahawks?.gamesPostseason)
+      ? [...(seahawks.gamesRegular || []), ...(seahawks.gamesPostseason || [])]
+      : Array.isArray(seahawks?.games)
+        ? seahawks.games
+        : [];
 
   const existing = fs.existsSync(outPath)
     ? readJson(outPath)
     : { season, updatedAt: null, recaps: {} };
 
-  const recaps = existing?.recaps || {};
+  const recaps = existing?.recaps && typeof existing.recaps === "object" ? existing.recaps : {};
   let wrote = 0;
 
   for (let i = 0; i < rawGames.length; i++) {
     const g = rawGames[i];
     const id = gameKey(g, i);
 
+    // Only generate for Final games
     if (!isFinal(g)) continue;
-    if (recaps[id]?.segments?.length) continue;
+
+    // Skip if already exists
+    if (recaps[id]?.segments?.length && recaps[id]?.bullets?.length) continue;
 
     console.log(`Generating recap for game ${id} (week ${g?.week})...`);
 
+    // Stats (game_ids[] is supported)
     const statsResp = await bdlGet("/stats", { "game_ids[]": [Number(g?.id)] });
     const stats = Array.isArray(statsResp?.data) ? statsResp.data : [];
 
+    // Plays (optional; 401-safe)
     const plays = await bdlTryPlays(g?.id);
 
     const prompt = buildPrompt({ game: g, stats, plays });
@@ -303,16 +354,19 @@ async function main() {
     recaps[id] = {
       gameId: id,
       createdAt: new Date().toISOString(),
-      ...recap
+      ...recap,
     };
 
     wrote++;
+
+    // tiny delay so we don't slam OpenAI if you generate a bunch
+    await sleep(250);
   }
 
   const out = {
     season,
     updatedAt: new Date().toISOString(),
-    recaps
+    recaps,
   };
 
   writeJson(outPath, out);
@@ -323,3 +377,4 @@ main().catch((err) => {
   console.error(err?.stack || String(err));
   process.exit(1);
 });
+
