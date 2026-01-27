@@ -167,11 +167,11 @@ const recap = gameRecaps?.recaps?.[String(gameId)] || null;
    Player link gating (ONLY link if page exists)
    ======================= */
 
-// Right now: you have no player pages yet, so this stays false.
+// Right now: you have no player pages yet, so keep this false.
 // When player pages exist, set to true AND populate EXISTING_PLAYER_IDS.
 const ENABLE_PLAYER_LINKS = false;
 
-// Later: fill this from your generated player pages (ids you actually built).
+// Later: fill this with ids you actually built pages for.
 // Example: new Set(["123", "456"])
 const EXISTING_PLAYER_IDS = new Set();
 
@@ -221,8 +221,8 @@ function renderRecapHtml(recapObj) {
   return html;
 }
 
-// Your bullets are strings, but the model sometimes outputs a prefixed object literal.
-// Convert that prefix into a link (only if player page exists) or bold text.
+// Model sometimes outputs bullets starting with an object-literal looking prefix.
+// Convert that prefix into a link (only if page exists) or bold text.
 function renderBulletHtml(b) {
   const raw = String(b ?? "");
   // Matches: {t:'player', v:'Name', id:123, name:'Name'} ...
@@ -307,12 +307,12 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
       </article>
 
       <section class="recap">
-        <h3 class="recap-title">Game recap</h3>
+        <h3 class="section-title">Game recap</h3>
 
         {!recap ? (
           <div class="empty">Recap coming soon.</div>
         ) : (
-          <>
+          <article class="recap-card">
             <p class="recap-text" set:html={recapHtml} />
 
             {Array.isArray(recap?.bullets) && recap.bullets.length > 0 && (
@@ -320,13 +320,14 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
                 {bulletHtml.map((h) => <li set:html={h} />)}
               </ul>
             )}
-          </>
+          </article>
         )}
       </section>
     </>
   )}
 
   <style>
+    /* ✅ prevent grid/flex overflow */
     .meta-line,
     .card,
     .card-top,
@@ -339,6 +340,7 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
     .score,
     .links-row,
     .recap,
+    .recap-card,
     .recap-text,
     .recap-bullets {
       min-width: 0;
@@ -346,16 +348,19 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
       box-sizing: border-box;
     }
 
+    /* ✅ wrap text safely (NOT "anywhere" to avoid weird mid-word wraps) */
     .meta-line,
     .week,
     .date,
     .status,
     .score,
     .empty,
+    .section-title,
     .recap-text,
     .recap-bullets {
-      overflow-wrap: anywhere;
-      word-break: break-word;
+      overflow-wrap: break-word;
+      word-break: normal;
+      hyphens: auto;
     }
 
     .meta-line {
@@ -368,6 +373,11 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
     }
 
     .dot { opacity: .5; }
+
+    .section-title {
+      color: var(--navy);
+      margin: 1.1rem 0 .7rem;
+    }
 
     .empty {
       padding: .9rem 1rem;
@@ -470,17 +480,44 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
 
     /* ===== Recap ===== */
     .recap { margin-top: 1.1rem; }
-    .recap-title { margin: 0 0 .5rem; color: var(--navy); }
-    .recap-text { line-height: 1.55; font-weight: 700; color: rgba(0,34,68,.92); }
-    .recap-bullets { margin: .6rem 0 0; padding-left: 1.1rem; }
-    .recap-bullets li { margin: .35rem 0; }
+
+    .recap-card{
+      border-radius: 14px;
+      border: 1px solid rgba(0,34,68,0.12);
+      background: rgba(165,172,175,0.10);
+      padding: .9rem 1rem;
+      overflow: hidden;
+    }
+
+    .recap-text{
+      margin: 0;
+      line-height: 1.6;
+      font-weight: 700;
+      color: rgba(0,34,68,.92);
+    }
+
+    .recap-bullets{
+      margin: .75rem 0 0;
+      padding-left: 1.1rem;
+    }
+    .recap-bullets li{
+      margin: .35rem 0;
+      line-height: 1.45;
+    }
 
     /* Links only if pages exist (currently none) */
-    .player-link { font-weight: 900; text-decoration: underline; }
-    .player-link:hover { opacity: .85; }
+    .player-link{
+      font-weight: 900;
+      text-decoration: underline;
+      white-space: nowrap;
+    }
+    .player-link:hover{ opacity: .85; }
 
     /* Non-linked player mentions */
-    .player-plain { font-weight: 900; }
+    .player-plain{
+      font-weight: 900;
+      white-space: nowrap;
+    }
   </style>
 </SeahawksLayout>
 
