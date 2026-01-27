@@ -1,0 +1,194 @@
+---
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import data from "../data/nfl/seahawks.json";
+
+const title = "Weekly Recap | Seahawks Fan Zone";
+const description = "Weekly Seahawks recap: results, upcoming games, and quick context.";
+const activePath = "/weekly-recap";
+
+const team = data?.team ?? {};
+const season = data?.season ?? "";
+const updatedAt = data?.updatedAt ?? "";
+const gamesAll = [
+  ...(Array.isArray(data?.gamesRegular) ? data.gamesRegular : []),
+  ...(Array.isArray(data?.gamesPostseason) ? data.gamesPostseason : []),
+];
+
+function teamAbbr(t) {
+  return String(t?.abbreviation || t?.abbr || "").toUpperCase();
+}
+function teamName(t) {
+  return t?.full_name || t?.fullName || t?.name || teamAbbr(t) || "Team";
+}
+function isFinal(g) {
+  const s = String(g?.status || "").toLowerCase();
+  // common patterns: "final", "finished", etc.
+  return s.includes("final") || s.includes("finished") || g?.completed === true;
+}
+function scoreNum(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+function matchupLabel(g) {
+  const home = teamAbbr(g?.home_team);
+  const away = teamAbbr(g?.visitor_team);
+  return `${away || "AWAY"} @ ${home || "HOME"}`;
+}
+function isoToPT(iso) {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
+function gameWeek(g, idx) {
+  // Prefer week if present; otherwise fall back to index+1
+  const w = Number(g?.week);
+  return Number.isFinite(w) && w > 0 ? w : idx + 1;
+}
+function gameId(g, idx) {
+  return String(g?.id ?? g?.game_id ?? `w${gameWeek(g, idx)}`);
+}
+function isSeahawksGame(g) {
+  const sea = String(team?.abbreviation || "SEA").toUpperCase();
+  return teamAbbr(g?.home_team) === sea || teamAbbr(g?.visitor_team) === sea;
+}
+function seahawksSide(g) {
+  const sea = String(team?.abbreviation || "SEA").toUpperCase();
+  if (teamAbbr(g?.home_team) === sea) return "home";
+  if (teamAbbr(g?.visitor_team) === sea) return "away";
+  return null;
+}
+function seahawksPointsForAgainst(g) {
+  const side = seahawksSide(g);
+  const hs = scoreNum(g?.home_team_score);
+  const as = scoreNum(g?.visitor_team_score);
+  if (!side || hs === null || as === null) return null;
+  const pf = side === "home" ? hs : as;
+  const pa = side === "home" ? as : hs;
+  return { pf, pa };
+}
+function seahawksResult(g) {
+  const p = seahawksPointsForAgainst(g);
+  if (!p) return null;
+  if (p.pf > p.pa) return "W";
+  if (p.pf < p.pa) return "L";
+  return "T";
+}
+
+// Sort chronologically
+const gamesSorted = gamesAll
+  .slice()
+  .sort((a, b) => new Date(a?.date).getTime() - new Date(b?.date).getTime());
+
+// Only Seahawks games (should already be, but just in case)
+const seaGames = gamesSorted.filter(isSeahawksGame);
+
+const completed = seaGames.filter(isFinal);
+const upcoming = seaGames.filter((g) => !isFinal(g));
+
+const record = completed.reduce(
+  (acc, g) => {
+    const r = seahawksResult(g);
+    if (r === "W") acc.w++;
+    else if (r === "L") acc.l++;
+    else if (r === "T") acc.t++;
+    return acc;
+  },
+  { w: 0, l: 0, t: 0 }
+);
+
+const lastGame = completed.length ? completed[completed.length - 1] : null;
+
+function gameScoreLine(g) {
+  const hs = scoreNum(g?.home_team_score);
+  const as = scoreNum(g?.visitor_team_score);
+  const home = teamAbbr(g?.home_team);
+  const away = teamAbbr(g?.visitor_team);
+  if (hs === null || as === null) return "";
+  return `${away} ${as} — ${home} ${hs}`;
+}
+---
+
+<SeahawksLayout {title} {description} {activePath} pageTitle="Weekly Recap" pageTagline="Results, upcoming games, and quick context.">
+  <div class="card">
+    <h3>{team?.full_name || "Seahawks"} — {season} recap</h3>
+    <p>
+      <strong>Record (final games):</strong> {record.w}-{record.l}{record.t ? `-${record.t}` : ""}
+      <br />
+      <span class="muted">Updated: {updatedAt ? isoToPT(updatedAt) : "unknown"}</span>
+    </p>
+  </div>
+
+  {lastGame ? (
+    <div class="card">
+      <h3>Last game</h3>
+      <p>
+        <strong>{matchupLabel(lastGame)}</strong><br />
+        {lastGame?.date ? isoToPT(lastGame.date) : ""}
+      </p>
+      <p>
+        {gameScoreLine(lastGame) ? (
+          <>
+            <strong>Final:</strong> {gameScoreLine(lastGame)}
+          </>
+        ) : (
+          <span class="muted">Score not available yet.</span>
+        )}
+      </p>
+      <p>
+        <a href={`/games/${encodeURIComponent(String(lastGame?.id ?? lastGame?.game_id))}`}>
+          View game page →
+        </a>
+      </p>
+    </div>
+  ) : null}
+
+  <div class="card">
+    <h3>Upcoming</h3>
+    {upcoming.length ? (
+      <ul>
+        {upcoming.slice(0, 6).map((g, idx) => (
+          <li>
+            <strong>{matchupLabel(g)}</strong>
+            {" — "}
+            {g?.date ? isoToPT(g.date) : "TBD"}
+            {" — "}
+            <a href={`/games/${encodeURIComponent(String(g?.id ?? g?.game_id ?? gameId(g, idx)))}`}>details</a>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="muted">No upcoming games found.</p>
+    )}
+  </div>
+
+  <div class="card">
+    <h3>All weeks</h3>
+    <ul>
+      {seaGames.map((g, idx) => {
+        const w = gameWeek(g, idx);
+        const gid = String(g?.id ?? g?.game_id ?? gameId(g, idx));
+        const final = isFinal(g);
+        const res = final ? seahawksResult(g) : null;
+        const scoreLine = final ? gameScoreLine(g) : "";
+        return (
+          <li>
+            <strong>Week {w}:</strong>{" "}
+            <a href={`/games/${encodeURIComponent(gid)}`}>{matchupLabel(g)}</a>
+            {final ? (
+              <>
+                {" — "}
+                <strong>{res}</strong>
+                {scoreLine ? ` (${scoreLine})` : ""}
+              </>
+            ) : (
+              <span class="muted"> — upcoming</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  </div>
+</SeahawksLayout>
