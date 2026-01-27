@@ -38,16 +38,13 @@ const featured = [
   { title: "Player Stats", desc: "Season stats by player (QB/RB/WR/TE and more).", href: "/players" },
 ];
 
-// Keep these as placeholders until you build position pages.
-// (Or remove the section entirely if you don’t want dead links.)
+// ✅ Basic position filters only (no placeholders, no ST/DEF for now)
 const quickLinks = [
   { href: "/players", label: "All Players" },
-  { href: "/players?q=qb", label: "QB (soon)" },
-  { href: "/players?q=rb", label: "RB (soon)" },
-  { href: "/players?q=wr", label: "WR (soon)" },
-  { href: "/players?q=te", label: "TE (soon)" },
-  { href: "/players?q=def", label: "Defense (soon)" },
-  { href: "/players?q=st", label: "Special Teams (soon)" },
+  { href: "/players?pos=QB", label: "QB" },
+  { href: "/players?pos=RB", label: "RB" },
+  { href: "/players?pos=WR", label: "WR" },
+  { href: "/players?pos=TE", label: "TE" },
 ];
 
 const introText = `Welcome, 12s — you made it.
@@ -162,7 +159,7 @@ Go Hawks!`;
 
           <!-- Footer note -->
           <div class="note-box">
-            <strong>Next milestone:</strong> add position filters + a simple “last game / next game” card on the homepage.
+            <strong>Next milestone:</strong> add a simple “last game / next game” card on the homepage.
           </div>
         </div>
       </article>
@@ -181,18 +178,13 @@ Go Hawks!`;
         <h3 class="lr-panel-title">Popular</h3>
         <ul class="lr-nav">
           <li><a href="/schedule">Schedule</a></li>
-          <li><a href="/players">Player leaders</a></li>
+          <li><a href="/players">Player stats</a></li>
           <li><a href="/team">Team totals</a></li>
         </ul>
       </section>
 
-      <section class="lr-panel">
-        <h3 class="lr-panel-title">Build next</h3>
-        <ul class="lr-nav">
-          <li><a href="/roadmap">Roadmap</a></li>
-          <li><a href="/sources">Sources</a></li>
-        </ul>
-      </section>
+      <!-- ✅ Removed “Build next” section (avoid dead links during ad review) -->
     </aside>
   </div>
 </BaseLayout>
+
