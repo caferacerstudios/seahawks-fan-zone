@@ -1,8 +1,9 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
-import data from "../data/nfl/seahawks.json";
+import teamData from "../data/nfl/seahawks.json";
+import playersData from "../data/nfl/players.json";
 
-const pageTitle = `Player Stats (${data.season})`;
+const pageTitle = `Players (${teamData.season})`;
 
 const fmtUpdatedPT = (iso) =>
   new Intl.DateTimeFormat("en-US", {
@@ -20,63 +21,105 @@ function dashIfNull(v) {
 function tdTriplet(r) {
   return `${n(r.passing_touchdowns)}/${n(r.rushing_touchdowns)}/${n(r.receiving_touchdowns)}`;
 }
-
 function totalYards(r) {
   return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
 }
 
-// Deduplicate rows by player id, keeping the “best” stat line (most total yards)
-const byPlayer = new Map();
-
-for (const r of (data.playerSeasonStats || [])) {
-  const pid = r?.player?.id ?? r?.player_id ?? null;
-  if (!pid) continue;
-
-  const existing = byPlayer.get(pid);
-  if (!existing) {
-    byPlayer.set(pid, r);
-    continue;
-  }
-
-  if (totalYards(r) > totalYards(existing)) byPlayer.set(pid, r);
+function playerNameFromPlayerObj(p) {
+  if (!p) return "Unknown";
+  const first = p.first_name || "";
+  const last = p.last_name || "";
+  const full = `${first} ${last}`.trim();
+  return full || p.full_name || "Unknown";
 }
 
-const deduped = Array.from(byPlayer.values());
+// players.json shape can vary: {data: [...]}, {players: [...]}, or [...]
+const roster = Array.isArray(playersData?.data)
+  ? playersData.data
+  : Array.isArray(playersData?.players)
+    ? playersData.players
+    : Array.isArray(playersData)
+      ? playersData
+      : [];
+
+// Treat roster file as “active Seahawks players”
+const activeIds = new Set(
+  roster.map((p) => String(p?.id)).filter((x) => x && x !== "undefined" && x !== "null")
+);
+
+const statRows = Array.isArray(teamData?.playerSeasonStats) ? teamData.playerSeasonStats : [];
+
+// Best stat line per player id (most total yards)
+const bestStatById = new Map();
+for (const r of statRows) {
+  const pid = r?.player?.id ?? r?.player_id ?? null;
+  if (!pid) continue;
+  const key = String(pid);
+  if (activeIds.size > 0 && !activeIds.has(key)) continue;
+
+  const existing = bestStatById.get(key);
+  if (!existing || totalYards(r) > totalYards(existing)) bestStatById.set(key, r);
+}
+
+// Build rows from roster (so active players with no stats still show up)
+const rows = roster.map((p) => {
+  const id = String(p?.id ?? "");
+  const stat = bestStatById.get(id) || {};
+  const mergedPlayer = stat?.player || p || {};
+  return {
+    id,
+    player: mergedPlayer,
+    // prefer stats if present
+    games_played: stat?.games_played,
+    passing_yards: stat?.passing_yards,
+    rushing_yards: stat?.rushing_yards,
+    receiving_yards: stat?.receiving_yards,
+    passing_touchdowns: stat?.passing_touchdowns,
+    rushing_touchdowns: stat?.rushing_touchdowns,
+    receiving_touchdowns: stat?.receiving_touchdowns,
+    _sortYards: totalYards(stat),
+  };
+});
 
 // Positions for dropdown
 const positions = Array.from(
   new Set(
-    deduped
+    rows
       .map((r) => (r?.player?.position_abbreviation || "").toUpperCase())
       .filter(Boolean)
   )
 ).sort();
 
-// ✅ Always render ALL rows (static build). Filter happens in browser.
-const rows = deduped.slice().sort((a, b) => totalYards(b) - totalYards(a));
+// Sort: most production first, then name
+rows.sort((a, b) => {
+  const yd = (b?._sortYards || 0) - (a?._sortYards || 0);
+  if (yd !== 0) return yd;
+  const an = playerNameFromPlayerObj(a?.player).toLowerCase();
+  const bn = playerNameFromPlayerObj(b?.player).toLowerCase();
+  return an.localeCompare(bn);
+});
 
-function playerName(r) {
-  const p = r?.player;
-  if (!p) return "Unknown";
-  const first = p.first_name || "";
-  const last = p.last_name || "";
-  const full = `${first} ${last}`.trim();
-  return full || "Unknown";
+const updatedAt = teamData?.updatedAt || playersData?.updatedAt || "";
+const fmtUpdatedLine = updatedAt ? `${fmtUpdatedPT(updatedAt)} PT` : "—";
+
+function playerHref(id) {
+  const sid = String(id || "");
+  // Only link if the player page will exist (i.e., in active roster)
+  return activeIds.has(sid) ? `/players/${encodeURIComponent(sid)}` : null;
 }
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
+<SeahawksLayout pageTitle={pageTitle} pageTagline="Active roster + sortable season stats" activePath="/players">
   <div class="sfz-topbar">
     <div class="sfz-meta">
       <div class="sfz-sub">
-        Season: {data.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(data.updatedAt)} PT
+        Season: {teamData.season} &nbsp; • &nbsp; Updated: {fmtUpdatedLine}
       </div>
     </div>
 
     <div class="sfz-controls">
       <label class="sfz-label" for="pos">Position</label>
 
-      <!-- ✅ value is just the code; JS updates URL + filters -->
       <select id="pos" class="sfz-select">
         <option value="ALL">All</option>
         {positions.map((p) => (
@@ -88,7 +131,7 @@ function playerName(r) {
     </div>
   </div>
 
-  <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
+  <div class="sfz-table-wrap" role="region" aria-label="Players table">
     <table class="sfz-table">
       <thead>
         <tr>
@@ -105,9 +148,14 @@ function playerName(r) {
       <tbody id="playersBody">
         {rows.map((r) => {
           const pos = (r?.player?.position_abbreviation || "").toUpperCase();
+          const name = playerNameFromPlayerObj(r?.player);
+          const href = playerHref(r?.id);
+
           return (
             <tr data-pos={pos}>
-              <td class="name">{playerName(r)}</td>
+              <td class="name">
+                {href ? <a class="name-link" href={href}>{name}</a> : <span>{name}</span>}
+              </td>
               <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
               <td class="num">{dashIfNull(r.games_played)}</td>
               <td class="num">{dashIfNull(r.passing_yards)}</td>
@@ -121,7 +169,6 @@ function playerName(r) {
     </table>
   </div>
 
-  <!-- ✅ Client-side filter for static Astro -->
   <script is:inline>
     (() => {
       const select = document.getElementById("pos");
@@ -154,12 +201,10 @@ function playerName(r) {
         countEl.textContent = String(shown);
       }
 
-      // Init from URL
       const initialPos = getPosFromUrl();
       select.value = initialPos;
       applyFilter(initialPos);
 
-      // On change: filter + update URL (no reload)
       select.addEventListener("change", () => {
         const pos = (select.value || "ALL").toUpperCase();
         setUrlPos(pos);
@@ -184,6 +229,8 @@ function playerName(r) {
       color: rgba(15, 23, 32, 0.65);
       font-weight: 800;
       font-size: 0.95rem;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .sfz-controls {
@@ -258,7 +305,17 @@ function playerName(r) {
     .name {
       font-weight: 900;
       color: var(--navy);
+      max-width: 360px;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
+
+    .name-link {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .name-link:hover { opacity: .85; }
 
     .pos {
       color: rgba(15, 23, 32, 0.7);
@@ -271,16 +328,8 @@ function playerName(r) {
       font-weight: 800;
       color: rgba(15, 23, 32, 0.75);
     }
-
-    .sfz-note {
-      margin-top: 1rem;
-      padding: 0.85rem 0.95rem;
-      border-radius: 14px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: rgba(165, 172, 175, 0.18);
-      color: rgba(15, 23, 32, 0.85);
-    }
   </style>
 </SeahawksLayout>
+
 
 
