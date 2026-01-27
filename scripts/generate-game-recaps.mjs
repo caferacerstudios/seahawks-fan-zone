@@ -1,430 +1,322 @@
----
-import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
-import scheduleData from "../../data/nfl/seahawks.json";
-import gameRecaps from "../../data/nfl/gameRecaps.json";
+#!/usr/bin/env node
+/**
+ * Build-time recap generator (safe for BDL All-Star):
+ * - reads src/data/nfl/seahawks.json
+ * - fetches BDL per-game stats
+ * - (optionally) fetches play-by-play IF your tier allows it
+ * - calls OpenAI server-side to produce structured recap segments
+ * - writes src/data/nfl/gameRecaps.json
+ *
+ * ENV:
+ * - BALLDONTLIE_API_KEY
+ * - OPENAI_API_KEY
+ */
 
-/* =======================
-   Helpers for page render
-   ======================= */
+import fs from "node:fs";
+import path from "node:path";
 
+const BDL_BASE = "https://api.balldontlie.io/nfl/v1";
+const OPENAI_BASE = "https://api.openai.com/v1";
+
+const BDL_KEY = process.env.BALLDONTLIE_API_KEY;
+if (!BDL_KEY) {
+  console.error("Missing BALLDONTLIE_API_KEY env var.");
+  process.exit(1);
+}
+
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_KEY) {
+  console.error("Missing OPENAI_API_KEY env var.");
+  process.exit(1);
+}
+
+const projectRoot = process.cwd();
+const seahawksPath = path.join(projectRoot, "src", "data", "nfl", "seahawks.json");
+const outPath = path.join(projectRoot, "src", "data", "nfl", "gameRecaps.json");
+
+function readJson(p) {
+  return JSON.parse(fs.readFileSync(p, "utf8"));
+}
+function writeJson(p, obj) {
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(obj, null, 2) + "\n");
+}
+function authHeaderValue(apiKey) {
+  if (String(apiKey).toLowerCase().startsWith("bearer ")) return apiKey;
+  return apiKey;
+}
+
+async function bdlGet(endpoint, params = {}) {
+  const url = new URL(BDL_BASE + endpoint);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null) continue;
+    if (Array.isArray(v)) for (const item of v) url.searchParams.append(k, String(item));
+    else url.searchParams.set(k, String(v));
+  }
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: authHeaderValue(BDL_KEY) },
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    const err = new Error(`BDL HTTP ${res.status} ${res.statusText} for ${url}\n${body}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+async function bdlPaged(endpoint, baseParams = {}) {
+  const all = [];
+  let cursor = null;
+  for (;;) {
+    const params = { ...baseParams };
+    if (cursor) params.cursor = cursor;
+
+    const json = await bdlGet(endpoint, { ...params, per_page: 100 });
+    const data = Array.isArray(json?.data) ? json.data : [];
+    all.push(...data);
+
+    const next = json?.meta?.next_cursor || null;
+    if (!next) break;
+    cursor = next;
+  }
+  return all;
+}
+
+async function bdlTryPlays(gameId) {
+  try {
+    return await bdlPaged("/plays", { game_id: Number(gameId) });
+  } catch (e) {
+    const msg = String(e?.message || "");
+    if (e?.status === 401 || msg.includes("401 Unauthorized")) {
+      console.warn(`BDL plays not available for game ${gameId} (401). Falling back to stats-only recap.`);
+      return [];
+    }
+    throw e;
+  }
+}
+
+function isFinal(game) {
+  return String(game?.status || "").toLowerCase().includes("final");
+}
+function gameKey(g, idx) {
+  return String(g?.id ?? g?.game_id ?? idx);
+}
 function teamAbbr(teamObj, fallback = "") {
   return String(teamObj?.abbreviation || fallback).toUpperCase();
 }
-
-function teamLogo(abbr) {
-  return `/images/nfl/teams/${abbr}.png`;
-}
-
-function seaIsHome(game) {
-  return teamAbbr(game?.home_team) === "SEA";
-}
-
 function oppAbbr(game) {
   const home = teamAbbr(game?.home_team);
   const away = teamAbbr(game?.visitor_team);
   return home === "SEA" ? away : home;
 }
-
-function isPlayoffGame(g) {
-  const st = String(g?.seasonType ?? g?.season_type ?? "").toLowerCase();
-  if (st.includes("post") || st.includes("playoff")) return true;
-  if (g?.postseason === true) return true;
-  if (g?.is_postseason === true) return true;
-  return false;
+function seaIsHome(game) {
+  return teamAbbr(game?.home_team) === "SEA";
 }
 
-function fmtPT(dateStr) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  try {
-    return d.toLocaleString("en-US", {
-      timeZone: "America/Los_Angeles",
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return d.toISOString();
+function pickKeyPlays(plays, limit = 10) {
+  if (!Array.isArray(plays) || plays.length === 0) return [];
+  const scoring = plays.filter((p) => p?.scoring_play === true);
+  const picked = scoring.slice(0, limit);
+  if (picked.length < limit) {
+    for (const p of plays) {
+      if (picked.length >= limit) break;
+      if (!picked.some((x) => x?.id === p?.id)) picked.push(p);
+    }
   }
+  return picked;
 }
 
-function statusText(game) {
-  const s = String(game?.status || "").toLowerCase();
-  if (s.includes("final")) return "Final";
-  if (s.includes("in progress")) return "Live";
-  if (s.includes("scheduled")) return "Scheduled";
-  return game?.status || "";
-}
+async function openaiStructuredRecap(input) {
+  const schema = {
+    name: "GameRecap",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        segments: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              t: { type: "string", enum: ["text", "player"] },
+              v: { type: "string" },
+              id: { type: ["integer", "string", "null"] }
+            },
+            required: ["t", "v"]
+          }
+        },
+        bullets: { type: "array", items: { type: "string" } }
+      },
+      required: ["segments", "bullets"]
+    },
+    strict: true
+  };
 
-function scoreText(game) {
-  const hs = game?.home_team_score;
-  const as = game?.visitor_team_score;
-
-  if (hs === null || hs === undefined || as === null || as === undefined) return "TBD";
-
-  const home = teamAbbr(game?.home_team);
-  const away = teamAbbr(game?.visitor_team);
-
-  if (home === "SEA") return `${hs} : ${as}`;
-  if (away === "SEA") return `${as} : ${hs}`;
-  return `${as} : ${hs}`;
-}
-
-function isSeahawksWin(game) {
-  const home = teamAbbr(game?.home_team);
-  const away = teamAbbr(game?.visitor_team);
-  const hs = Number(game?.home_team_score);
-  const as = Number(game?.visitor_team_score);
-
-  if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
-
-  const seaIsHome_ = home === "SEA";
-  const seaIsAway = away === "SEA";
-  if (!seaIsHome_ && !seaIsAway) return null;
-
-  const seaScore = seaIsHome_ ? hs : as;
-  const oppScore = seaIsHome_ ? as : hs;
-
-  if (seaScore === oppScore) return null;
-  return seaScore > oppScore;
-}
-
-function sortByDate(a, b) {
-  const ad = a?.date ? new Date(a.date).getTime() : 0;
-  const bd = b?.date ? new Date(b.date).getTime() : 0;
-  if (ad !== bd) return ad - bd;
-  const aw = Number(a?.week);
-  const bw = Number(b?.week);
-  if (Number.isFinite(aw) && Number.isFinite(bw)) return aw - bw;
-  return 0;
-}
-
-function getRawGamesLocal() {
-  return Array.isArray(scheduleData?.games)
-    ? scheduleData.games
-    : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
-      ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
-      : [];
-}
-
-function gameKey(g, idx) {
-  return String(g?.id ?? g?.game_id ?? idx);
-}
-
-/* =======================
-   getStaticPaths
-   ======================= */
-export function getStaticPaths() {
-  const rawGames = Array.isArray(scheduleData?.games)
-    ? scheduleData.games
-    : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
-      ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
-      : [];
-
-  const ordered = rawGames.slice().sort((a, b) => {
-    const ad = a?.date ? new Date(a.date).getTime() : 0;
-    const bd = b?.date ? new Date(b.date).getTime() : 0;
-    if (ad !== bd) return ad - bd;
-    const aw = Number(a?.week);
-    const bw = Number(b?.week);
-    if (Number.isFinite(aw) && Number.isFinite(bw)) return aw - bw;
-    return 0;
+  const res = await fetch(`${OPENAI_BASE}/responses`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENAI_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "gpt-5.2-mini",
+      input,
+      text: {
+        format: { type: "json_schema", json_schema: schema }
+      }
+    })
   });
 
-  return ordered.map((g, idx) => ({
-    params: { gameId: String(g?.id ?? g?.game_id ?? idx) },
-  }));
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`OpenAI HTTP ${res.status} ${res.statusText}\n${body}`);
+  }
+
+  const json = await res.json();
+  const outText =
+    json?.output?.[0]?.content?.find?.((c) => c?.type === "output_text")?.text;
+
+  if (!outText) throw new Error("OpenAI response missing output_text");
+  return JSON.parse(outText);
 }
 
-/* =======================
-   Page logic
-   ======================= */
-const { gameId } = Astro.params;
+function buildPrompt({ game, stats, plays }) {
+  const opp = oppAbbr(game);
+  const seaHome = seaIsHome(game);
+  const topPlays = pickKeyPlays(plays, 12).map((p) => ({
+    clock: p?.clock_display,
+    period: p?.period,
+    text: p?.text || p?.short_text,
+    scoring: !!p?.scoring_play
+  }));
 
-const ordered = getRawGamesLocal().slice().sort(sortByDate);
-const idx = ordered.findIndex((g, i) => gameKey(g, i) === String(gameId));
-const game = idx >= 0 ? ordered[idx] : null;
+  const statRows = Array.isArray(stats) ? stats : [];
 
-const prev = idx > 0 ? ordered[idx - 1] : null;
-const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
+  const candidatePlayers = [];
+  for (const row of statRows) {
+    const pl = row?.player;
+    const id = row?.player_id ?? pl?.id ?? null;
+    const name =
+      pl?.full_name ||
+      [pl?.first_name, pl?.last_name].filter(Boolean).join(" ") ||
+      row?.player_name ||
+      null;
+    if (id != null && name) candidatePlayers.push({ id, name });
+  }
 
-const opp = game ? oppAbbr(game) : "";
+  const seen = new Set();
+  const candidatesDedup = [];
+  for (const p of candidatePlayers) {
+    const k = `${p.id}:${p.name}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    candidatesDedup.push(p);
+  }
 
-const win = game ? isSeahawksWin(game) : null;
-const cardClass =
-  win === true ? "card card--win" : win === false ? "card card--loss" : "card";
+  const hasPlays = topPlays.length > 0;
 
-const pageTitle = game
-  ? `${isPlayoffGame(game) ? "Playoffs" : (Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game")} — SEA vs ${opp}`
-  : "Game not found";
-
-// Recap lookup
-const recapKey = game ? gameKey(game, idx) : null;
-const recap = recapKey ? (gameRecaps?.recaps?.[recapKey] ?? null) : null;
-const segments = Array.isArray(recap?.segments) ? recap.segments : [];
-const bullets = Array.isArray(recap?.bullets) ? recap.bullets : [];
----
-
-<SeahawksLayout title={pageTitle} description="Single game page." activePath="">
-  <div class="meta-line">
-    <span><strong>Back:</strong> <a href="/weekly-recap">Weekly Recap</a></span>
-    <span class="dot">•</span>
-    <span><strong>Also:</strong> <a href="/schedule">Schedule</a></span>
-  </div>
-
-  {!game ? (
-    <div class="empty">Couldn’t find that game.</div>
-  ) : (
-    <>
-      <article class={cardClass}>
-        <div class="card-top">
-          <div class="week">
-            {isPlayoffGame(game)
-              ? (Number.isFinite(Number(game?.week)) ? `Playoffs Week ${game.week}` : "Playoffs")
-              : (Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game")}
-          </div>
-          <div class="date">{fmtPT(game?.date)}</div>
-        </div>
-
-        <div class="matchup">
-          <div class="team">
-            <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
-            <div class="abbr">SEA</div>
-            <div class="ha">{seaIsHome(game) ? "H" : "A"}</div>
-          </div>
-
-          <div class="at">@</div>
-
-          <div class="team">
-            <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
-            <div class="abbr">{opp}</div>
-            <div class="ha">{seaIsHome(game) ? "A" : "H"}</div>
-          </div>
-        </div>
-
-        <div class="card-bottom">
-          <div class="status">{statusText(game)}</div>
-          <div class="score">{scoreText(game)}</div>
-        </div>
-
-        <div class="links-row">
-          {prev ? (
-            <a class="pill pill--ghost" href={`/games/${encodeURIComponent(gameKey(prev, idx - 1))}`}>← Prev</a>
-          ) : (
-            <span class="pill pill--ghost pill--disabled">← Prev</span>
-          )}
-
-          {next ? (
-            <a class="pill pill--ghost" href={`/games/${encodeURIComponent(gameKey(next, idx + 1))}`}>Next →</a>
-          ) : (
-            <span class="pill pill--ghost pill--disabled">Next →</span>
-          )}
-        </div>
-      </article>
-
-      <section class="recap-panel">
-        <h3 class="recap-title">Game recap</h3>
-
-        {segments.length === 0 ? (
-          <div class="recap-empty">Recap coming soon.</div>
-        ) : (
-          <>
-            <p class="recap-text">
-              {segments.map((seg) =>
-                seg?.t === "player"
-                  ? <a class="player-link" href={`/players/${encodeURIComponent(String(seg?.id ?? seg?.v))}`}>{seg?.v}</a>
-                  : seg?.v
-              )}
-            </p>
-
-            {bullets.length > 0 && (
-              <ul class="recap-bullets">
-                {bullets.map((b) => <li>{b}</li>)}
-              </ul>
-            )}
-          </>
-        )}
-      </section>
-    </>
-  )}
-
-  <style>
-    .meta-line,
-    .card,
-    .card-top,
-    .matchup,
-    .team,
-    .card-bottom,
-    .week,
-    .date,
-    .status,
-    .score,
-    .links-row,
-    .recap-panel {
-      min-width: 0;
-      max-width: 100%;
-      box-sizing: border-box;
+  return [
+    {
+      role: "system",
+      content:
+        hasPlays
+          ? "You write factual NFL game recaps using ONLY the provided stats and play-by-play snippets. Do not invent plays or players. Output MUST follow the provided JSON schema."
+          : "You write factual NFL game recaps using ONLY the provided stats. Do not invent specific plays. If uncertain, be vague rather than guessing. Output MUST follow the provided JSON schema."
+    },
+    {
+      role: "user",
+      content: JSON.stringify(
+        {
+          game: {
+            id: game?.id,
+            week: game?.week,
+            date: game?.date,
+            status: game?.status,
+            home: teamAbbr(game?.home_team),
+            away: teamAbbr(game?.visitor_team),
+            sea_is_home: seaHome,
+            score_home: game?.home_team_score,
+            score_away: game?.visitor_team_score,
+            opponent: opp
+          },
+          key_plays: hasPlays ? topPlays : [],
+          stat_rows_sample: statRows.slice(0, 160),
+          candidate_players: candidatesDedup.slice(0, 80),
+          instructions: {
+            style: "1 short paragraph + 3 bullet highlights",
+            link_rule:
+              "Whenever you mention a player from candidate_players, emit a {t:'player', v:'Name', id:<id>} segment for the name. Otherwise use {t:'text', v:'...'} segments."
+          }
+        },
+        null,
+        2
+      )
     }
+  ];
+}
 
-    .meta-line,
-    .week,
-    .date,
-    .status,
-    .score,
-    .empty,
-    .recap-empty,
-    .recap-text {
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
+async function main() {
+  const seahawks = readJson(seahawksPath);
+  const season = seahawks?.season ?? process.env.NFL_SEASON;
 
-    .meta-line {
-      display: flex;
-      align-items: center;
-      gap: .5rem;
-      color: rgba(15,23,32,.65);
-      margin: .35rem 0 1rem;
-      flex-wrap: wrap;
-    }
+  const rawGames = Array.isArray(seahawks?.gamesRegular) || Array.isArray(seahawks?.gamesPostseason)
+    ? [...(seahawks.gamesRegular || []), ...(seahawks.gamesPostseason || [])]
+    : Array.isArray(seahawks?.games)
+      ? seahawks.games
+      : [];
 
-    .dot { opacity: .5; }
+  const existing = fs.existsSync(outPath)
+    ? readJson(outPath)
+    : { season, updatedAt: null, recaps: {} };
 
-    .empty {
-      padding: .9rem 1rem;
-      border-radius: 14px;
-      border: 1px solid rgba(0,34,68,0.14);
-      background: rgba(165,172,175,0.18);
-      color: rgba(15,23,32,0.85);
-      font-weight: 800;
-    }
+  const recaps = existing?.recaps || {};
+  let wrote = 0;
 
-    .card {
-      border-radius: 14px;
-      border: 1px solid rgba(0,34,68,0.16);
-      background: #fff;
-      padding: .85rem .9rem;
-      box-shadow: 0 10px 22px rgba(0,0,0,.08);
-      overflow: hidden;
-    }
+  for (let i = 0; i < rawGames.length; i++) {
+    const g = rawGames[i];
+    const id = gameKey(g, i);
 
-    .card--win { border-color: rgba(105,190,40,.65); box-shadow: 0 10px 22px rgba(105,190,40,.12); }
-    .card--loss { border-color: rgba(220,38,38,.45); box-shadow: 0 10px 22px rgba(220,38,38,.10); }
+    if (!isFinal(g)) continue;
+    if (recaps[id]?.segments?.length) continue;
 
-    .card-top {
-      display: flex;
-      justify-content: space-between;
-      gap: .75rem;
-      padding-bottom: .55rem;
-      border-bottom: 1px solid rgba(0,34,68,.10);
-      margin-bottom: .6rem;
-    }
+    console.log(`Generating recap for game ${id} (week ${g?.week})...`);
 
-    .week { font-weight: 900; color: var(--navy); }
-    .date { color: rgba(15,23,32,.65); font-weight: 700; }
+    const statsResp = await bdlGet("/stats", { "game_ids[]": [Number(g?.id)] });
+    const stats = Array.isArray(statsResp?.data) ? statsResp.data : [];
 
-    .matchup {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: .55rem;
-      padding: .2rem 0 .65rem;
-    }
+    const plays = await bdlTryPlays(g?.id);
 
-    .team {
-      display: flex;
-      align-items: center;
-      gap: .55rem;
-      justify-content: center;
-    }
+    const prompt = buildPrompt({ game: g, stats, plays });
+    const recap = await openaiStructuredRecap(prompt);
 
-    .logo {
-      width: 28px;
-      height: 28px;
-      object-fit: contain;
-      display: block;
-      flex: 0 0 auto;
-    }
+    recaps[id] = {
+      gameId: id,
+      createdAt: new Date().toISOString(),
+      ...recap
+    };
 
-    .abbr { font-weight: 900; color: var(--navy); }
-    .ha { font-size: .78rem; color: rgba(15,23,32,.55); font-weight: 800; }
-    .at { font-weight: 900; color: rgba(0,34,68,.55); text-align: center; }
+    wrote++;
+  }
 
-    .card-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: .75rem;
-      margin-top: .25rem;
-    }
+  const out = {
+    season,
+    updatedAt: new Date().toISOString(),
+    recaps
+  };
 
-    .status { font-weight: 900; color: rgba(0,34,68,.80); }
-    .score { font-weight: 900; color: rgba(0,34,68,.90); }
+  writeJson(outPath, out);
+  console.log(`wrote ${path.relative(process.cwd(), outPath)} (new recaps: ${wrote})`);
+}
 
-    .links-row{
-      display:flex;
-      gap:.5rem;
-      margin-top:.65rem;
-      justify-content: space-between;
-      flex-wrap: wrap;
-    }
+main().catch((err) => {
+  console.error(err?.stack || String(err));
+  process.exit(1);
+});
+JS
+chmod +x scripts/generate-game-recaps.mjs
 
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap:.35rem;
-      padding:.38rem .6rem;
-      border-radius: 999px;
-      border: 1px solid rgba(0,34,68,.16);
-      background: rgba(0,34,68,.04);
-      color: rgba(0,34,68,.86);
-      font-weight: 900;
-      text-decoration: none;
-      user-select: none;
-    }
-    .pill:hover{ background: rgba(0,34,68,.07); }
-    .pill--ghost{ background: transparent; }
-    .pill--disabled{
-      opacity: .5;
-      pointer-events: none;
-    }
-
-    .recap-panel{
-      margin-top: 1rem;
-      border-radius: 14px;
-      border: 1px solid rgba(0,34,68,.12);
-      background: rgba(0,34,68,.03);
-      padding: .85rem .9rem;
-    }
-    .recap-title{
-      margin: 0 0 .5rem;
-      color: var(--navy);
-      font-weight: 1000;
-    }
-    .recap-empty{
-      font-weight: 900;
-      color: rgba(0,34,68,.7);
-    }
-    .recap-text{
-      margin: 0 0 .6rem;
-      line-height: 1.55;
-      font-weight: 700;
-      color: rgba(15,23,32,.88);
-    }
-    .recap-bullets{
-      margin: 0;
-      padding-left: 1.1rem;
-      color: rgba(15,23,32,.86);
-      font-weight: 700;
-    }
-    .player-link{
-      color: rgba(0,34,68,.92);
-      text-decoration: underline;
-      font-weight: 900;
-      margin: 0 .08rem;
-      white-space: nowrap;
-    }
-  </style>
-</SeahawksLayout>
 
