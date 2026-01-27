@@ -167,6 +167,79 @@ const recap = gameRecaps?.recaps?.[String(gameId)] || null;
 function playerHref(id) {
   return `/players/${encodeURIComponent(String(id))}`;
 }
+
+function renderSegments(segments) {
+  const segs = Array.isArray(segments) ? segments : [];
+  return segs.map((s, i) => {
+    const t = String(s?.t || "text");
+    const v = String(s?.v ?? "");
+    const id = s?.id ?? null;
+    const name = s?.name ?? null;
+
+    if (t === "player" && id !== null && id !== undefined && String(id).length) {
+      return (
+        <a class="player-link" href={playerHref(id)} key={`p-${id}-${i}`}>
+          {name || v}
+        </a>
+      );
+    }
+
+    return <span key={`t-${i}`}>{v}</span>;
+  });
+}
+
+// Legacy bullet parser: "{t:'player', v:'Name', id:424140, name:'Name'} returned ..."
+// Turns it into: <a>NAME</a> returned ...
+function renderLegacyBulletString(b) {
+  const str = String(b ?? "");
+
+  // Find first {...} blob that contains t:'player'
+  const blobMatch = str.match(/\{[^}]*t:\s*['"]player['"][^}]*\}/);
+  if (!blobMatch) return <span>{str}</span>;
+
+  const blob = blobMatch[0];
+
+  const idMatch = blob.match(/id:\s*([0-9]+)/);
+  const nameMatch = blob.match(/name:\s*['"]([^'"]+)['"]/);
+  const vMatch = blob.match(/v:\s*['"]([^'"]+)['"]/);
+
+  const id = idMatch ? idMatch[1] : null;
+  const name = nameMatch?.[1] || vMatch?.[1] || "Player";
+
+  // Remove the blob from the string; keep rest
+  const rest = str.replace(blob, "").trim();
+
+  if (id) {
+    return (
+      <>
+        <a class="player-link" href={playerHref(id)}>{name}</a>
+        {rest ? <span> {rest}</span> : null}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <strong>{name}</strong>
+      {rest ? <span> {rest}</span> : null}
+    </>
+  );
+}
+
+function renderBulletItem(b, i) {
+  // New bullet shape: { segments: [...] }
+  if (b && typeof b === "object" && Array.isArray(b?.segments)) {
+    return <li key={`b-${i}`}>{renderSegments(b.segments)}</li>;
+  }
+
+  // Old bullet shape: string
+  const s = String(b ?? "");
+  if (s.includes("t:'player'") || s.includes('t:"player"') || s.includes("t: 'player'")) {
+    return <li key={`b-${i}`}>{renderLegacyBulletString(s)}</li>;
+  }
+
+  return <li key={`b-${i}`}>{s}</li>;
+}
 ---
 
 <SeahawksLayout title={pageTitle} description="Single game page." activePath="">
@@ -234,18 +307,12 @@ function playerHref(id) {
         ) : (
           <>
             <p class="recap-text">
-              {Array.isArray(recap?.segments) ? recap.segments.map((s) => (
-                s?.t === "player" ? (
-                  <a class="player-link" href={playerHref(s?.id ?? "")}>{s?.v}</a>
-                ) : (
-                  <span>{s?.v}</span>
-                )
-              )) : null}
+              {Array.isArray(recap?.segments) ? renderSegments(recap.segments) : null}
             </p>
 
             {Array.isArray(recap?.bullets) && recap.bullets.length > 0 && (
               <ul class="recap-bullets">
-                {recap.bullets.map((b) => <li>{b}</li>)}
+                {recap.bullets.map((b, i) => renderBulletItem(b, i))}
               </ul>
             )}
           </>
