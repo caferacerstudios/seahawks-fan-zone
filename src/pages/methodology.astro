@@ -1,0 +1,55 @@
+---
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+
+const title = "Methodology | Seahawks Fan Zone";
+const description =
+  "How Seahawks Fan Zone sources and updates schedule, team stats, and player stats.";
+---
+
+<SeahawksLayout {title} {description}>
+  <h1>Methodology</h1>
+
+  <div class="card">
+    <h2>What You’ll Find Here</h2>
+    <p>
+      Seahawks Fan Zone is a stats-and-highlights hub. Pages are generated from
+      structured NFL data and updated when new results or season totals change.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Data Sources</h2>
+    <ul>
+      <li>Game schedule and final scores</li>
+      <li>Team season totals</li>
+      <li>Player season stats</li>
+    </ul>
+    <p>
+      When available, I link to official or widely used public data sources and
+      update the site as new games are played.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Update Timing</h2>
+    <p>
+      Updates typically run after games complete and may take a little time to
+      propagate depending on caching and deployment.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Notes & Corrections</h2>
+    <p>
+      If you spot an error, email me at <a href="mailto:laura@caferacerstudios.com">laura@caferacerstudios.com</a>.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Disclaimer</h2>
+    <p>
+      Seahawks Fan Zone is an independent fan site and is not affiliated with
+      the NFL or the Seattle Seahawks.
+    </p>
+  </div>
+</SeahawksLayout>
