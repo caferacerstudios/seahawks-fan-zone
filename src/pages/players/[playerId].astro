@@ -1,15 +1,41 @@
 ---
-import SeahawksLayout from "../layouts/SeahawksLayout.astro";
-import data from "../data/nfl/seahawks.json";
+import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
+import rosterData from "../../data/nfl/players.json";
+import seahawksData from "../../data/nfl/seahawks.json";
+import playerProfiles from "../../data/nfl/playerProfiles.json";
+import injuriesData from "../../data/nfl/injuries.json";
 
-const pageTitle = `Player Stats (${data.season})`;
+/* =======================
+   Helpers
+   ======================= */
+function getRosterLocal(playersJson) {
+  if (Array.isArray(playersJson?.data)) return playersJson.data;
+  if (Array.isArray(playersJson?.players)) return playersJson.players;
+  if (Array.isArray(playersJson)) return playersJson;
+  return [];
+}
 
-const fmtUpdatedPT = (iso) =>
-  new Intl.DateTimeFormat("en-US", {
+function pidFromRoster(p) {
+  return p?.id ?? p?.player_id ?? null;
+}
+
+function fullNameFromRoster(p) {
+  const full = `${p?.first_name || ""} ${p?.last_name || ""}`.trim();
+  return full || p?.full_name || "Unknown";
+}
+
+function posFromRoster(p) {
+  return String(p?.position_abbreviation || p?.position || "").toUpperCase() || "-";
+}
+
+function fmtUpdatedPT(iso) {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     dateStyle: "short",
     timeStyle: "medium",
   }).format(new Date(iso));
+}
 
 function n(v) {
   return typeof v === "number" ? v : 0;
@@ -20,265 +46,314 @@ function dashIfNull(v) {
 function tdTriplet(r) {
   return `${n(r.passing_touchdowns)}/${n(r.rushing_touchdowns)}/${n(r.receiving_touchdowns)}`;
 }
-
 function totalYards(r) {
   return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
 }
 
-// Deduplicate rows by player id, keeping the “best” stat line (most total yards)
-const byPlayer = new Map();
+function normalizeStatus(s) {
+  const t = String(s || "").toLowerCase();
+  if (!t) return "";
+  if (t.includes("out")) return "Out";
+  if (t.includes("doubt")) return "Doubtful";
+  if (t.includes("question")) return "Questionable";
+  if (t.includes("prob")) return "Probable";
+  return String(s);
+}
 
-for (const r of (data.playerSeasonStats || [])) {
-  const pid = r?.player?.id ?? r?.player_id ?? null;
-  if (!pid) continue;
+function safeStr(v) {
+  return v === null || v === undefined ? "" : String(v);
+}
 
-  const existing = byPlayer.get(pid);
-  if (!existing) {
-    byPlayer.set(pid, r);
-    continue;
+/* =======================
+   getStaticPaths (SELF-CONTAINED)
+   ======================= */
+export function getStaticPaths() {
+  // NOTE: this must be self-contained (no outer helpers referenced)
+  function getRoster(playersJson) {
+    if (Array.isArray(playersJson?.data)) return playersJson.data;
+    if (Array.isArray(playersJson?.players)) return playersJson.players;
+    if (Array.isArray(playersJson)) return playersJson;
+    return [];
+  }
+  function pid(p) {
+    return p?.id ?? p?.player_id ?? null;
   }
 
-  if (totalYards(r) > totalYards(existing)) byPlayer.set(pid, r);
+  const roster = getRoster(rosterData);
+  const profileMap = playerProfiles?.profiles || {};
+
+  // Only build pages for players that have a generated profile (prevents 404s)
+  const seen = new Set();
+  const paths = [];
+
+  for (const p of roster) {
+    const id = pid(p);
+    if (id === null || id === undefined) continue;
+    const key = String(id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (!profileMap[key]) continue;
+    paths.push({ params: { playerId: key } });
+  }
+
+  return paths;
 }
 
-const deduped = Array.from(byPlayer.values());
+/* =======================
+   Page logic
+   ======================= */
+const { playerId } = Astro.params;
 
-// Positions for dropdown
-const positions = Array.from(
-  new Set(
-    deduped
-      .map((r) => (r?.player?.position_abbreviation || "").toUpperCase())
-      .filter(Boolean)
-  )
-).sort();
+const roster = getRosterLocal(rosterData);
+const player = roster.find((p) => String(pidFromRoster(p)) === String(playerId)) || null;
 
-// ✅ Always render ALL rows (static build). Filter happens in browser.
-const rows = deduped.slice().sort((a, b) => totalYards(b) - totalYards(a));
+const profileMap = playerProfiles?.profiles || {};
+const profile = profileMap[String(playerId)] || null;
 
-function playerName(r) {
-  const p = r?.player;
-  if (!p) return "Unknown";
-  const first = p.first_name || "";
-  const last = p.last_name || "";
-  const full = `${first} ${last}`.trim();
-  return full || "Unknown";
-}
+const seasonStatsRows = Array.isArray(seahawksData?.playerSeasonStats) ? seahawksData.playerSeasonStats : [];
+const statRowCandidates = seasonStatsRows.filter((r) => String(r?.player?.id ?? r?.player_id ?? "") === String(playerId));
+const statRow =
+  statRowCandidates.length > 0
+    ? statRowCandidates.slice().sort((a, b) => totalYards(b) - totalYards(a))[0]
+    : null;
+
+const allInjuries = Array.isArray(injuriesData?.injuries) ? injuriesData.injuries : [];
+const playerInjuries = allInjuries.filter((row) => {
+  const rid = row?.player_id ?? row?.player?.id ?? null;
+  if (rid !== null && rid !== undefined) return String(rid) === String(playerId);
+
+  // fallback: name match if API didn’t include ids
+  const nm = safeStr(row?.player_name || row?.player?.full_name || "");
+  const target = player ? fullNameFromRoster(player) : "";
+  return nm && target && nm.toLowerCase() === target.toLowerCase();
+});
+
+const pageName = player ? fullNameFromRoster(player) : (profile?.name || "Player");
+const pagePos = player ? posFromRoster(player) : (profile?.position || "-");
+const pageTitle = `${pageName} — ${pagePos}`;
+
+const updatedLine = seahawksData?.updatedAt ? fmtUpdatedPT(seahawksData.updatedAt) + " PT" : "—";
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
-  <div class="sfz-topbar">
-    <div class="sfz-meta">
-      <div class="sfz-sub">
-        Season: {data.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(data.updatedAt)} PT
-      </div>
-    </div>
-
-    <div class="sfz-controls">
-      <label class="sfz-label" for="pos">Position</label>
-
-      <!-- ✅ value is just the code; JS updates URL + filters -->
-      <select id="pos" class="sfz-select">
-        <option value="ALL">All</option>
-        {positions.map((p) => (
-          <option value={p}>{p}</option>
-        ))}
-      </select>
-
-      <div class="sfz-count"><span id="playerCount">{rows.length}</span> players</div>
-    </div>
+<SeahawksLayout title={pageTitle} description="Seahawks player profile." activePath="">
+  <div class="meta-line">
+    <span><strong>Back:</strong> <a href="/players">Players</a></span>
+    <span class="dot">•</span>
+    <span><strong>Also:</strong> <a href="/schedule">Schedule</a></span>
+    <span class="dot">•</span>
+    <span><strong>Updated:</strong> {updatedLine}</span>
   </div>
 
-  <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
-    <table class="sfz-table">
-      <thead>
-        <tr>
-          <th class="sticky">Player</th>
-          <th class="sticky">Pos</th>
-          <th class="sticky num">GP</th>
-          <th class="sticky num">Pass Yds</th>
-          <th class="sticky num">Rush Yds</th>
-          <th class="sticky num">Rec Yds</th>
-          <th class="sticky num">TD P/R/Rec</th>
-        </tr>
-      </thead>
+  {!player && !profile ? (
+    <div class="empty">Couldn’t find that player.</div>
+  ) : (
+    <>
+      <article class="card">
+        <div class="card-top">
+          <div class="who">
+            <div class="name">{pageName}</div>
+            <div class="sub">{pagePos}</div>
+          </div>
+          <div class="right">
+            {statRow ? (
+              <div class="pill">GP: {dashIfNull(statRow.games_played)}</div>
+            ) : (
+              <div class="pill pill--ghost">No season stats</div>
+            )}
+          </div>
+        </div>
 
-      <tbody id="playersBody">
-        {rows.map((r) => {
-          const pos = (r?.player?.position_abbreviation || "").toUpperCase();
-          return (
-            <tr data-pos={pos}>
-              <td class="name">{playerName(r)}</td>
-              <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
-              <td class="num">{dashIfNull(r.games_played)}</td>
-              <td class="num">{dashIfNull(r.passing_yards)}</td>
-              <td class="num">{dashIfNull(r.rushing_yards)}</td>
-              <td class="num">{dashIfNull(r.receiving_yards)}</td>
-              <td class="num">{tdTriplet(r)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
+        {profile?.bio ? (
+          <div class="bio">
+            <h3 class="h3">Bio</h3>
+            <p class="p">{profile.bio}</p>
+          </div>
+        ) : (
+          <div class="empty" style="margin-top:.75rem;">Bio coming soon.</div>
+        )}
 
-  <!-- ✅ Client-side filter for static Astro -->
-  <script is:inline>
-    (() => {
-      const select = document.getElementById("pos");
-      const body = document.getElementById("playersBody");
-      const countEl = document.getElementById("playerCount");
+        {profile?.recap?.paragraph ? (
+          <div class="recap">
+            <h3 class="h3">Gameplay recap</h3>
+            <p class="p">{profile.recap.paragraph}</p>
 
-      function getPosFromUrl() {
-        const params = new URLSearchParams(window.location.search);
-        return (params.get("pos") || "ALL").toUpperCase();
-      }
+            {Array.isArray(profile?.recap?.bullets) && profile.recap.bullets.length > 0 && (
+              <ul class="bullets">
+                {profile.recap.bullets.map((b) => <li>{b}</li>)}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <div class="empty" style="margin-top:.75rem;">Gameplay recap coming soon.</div>
+        )}
+      </article>
 
-      function setUrlPos(pos) {
-        const url = new URL(window.location.href);
-        if (!pos || pos === "ALL") url.searchParams.delete("pos");
-        else url.searchParams.set("pos", pos);
-        window.history.replaceState({}, "", url);
-      }
+      <section class="two-col">
+        <div class="panel">
+          <h3 class="h3">Season stats</h3>
+          {!statRow ? (
+            <div class="empty">No season stat line found for this player.</div>
+          ) : (
+            <div class="stats-grid">
+              <div class="k">Pass Yds</div><div class="v">{dashIfNull(statRow.passing_yards)}</div>
+              <div class="k">Rush Yds</div><div class="v">{dashIfNull(statRow.rushing_yards)}</div>
+              <div class="k">Rec Yds</div><div class="v">{dashIfNull(statRow.receiving_yards)}</div>
+              <div class="k">TD P/R/Rec</div><div class="v">{tdTriplet(statRow)}</div>
+            </div>
+          )}
+        </div>
 
-      function applyFilter(pos) {
-        const rows = body.querySelectorAll("tr[data-pos]");
-        let shown = 0;
+        <div class="panel">
+          <h3 class="h3">Injury report</h3>
 
-        rows.forEach((tr) => {
-          const rpos = (tr.getAttribute("data-pos") || "").toUpperCase();
-          const visible = (pos === "ALL") || (rpos === pos);
-          tr.style.display = visible ? "" : "none";
-          if (visible) shown++;
-        });
-
-        countEl.textContent = String(shown);
-      }
-
-      // Init from URL
-      const initialPos = getPosFromUrl();
-      select.value = initialPos;
-      applyFilter(initialPos);
-
-      // On change: filter + update URL (no reload)
-      select.addEventListener("change", () => {
-        const pos = (select.value || "ALL").toUpperCase();
-        setUrlPos(pos);
-        applyFilter(pos);
-      });
-    })();
-  </script>
+          {playerInjuries.length === 0 ? (
+            <div class="empty">No injury entries found for this player.</div>
+          ) : (
+            <div class="inj-list">
+              {playerInjuries.slice(0, 8).map((inj) => (
+                <div class="inj">
+                  <div class="inj-top">
+                    <div class="inj-status">{normalizeStatus(inj?.status || inj?.injury_status || "") || "Status"}</div>
+                    <div class="inj-date">{safeStr(inj?.date || inj?.report_date || inj?.updated_at || "")}</div>
+                  </div>
+                  <div class="inj-body">
+                    {safeStr(inj?.description || inj?.injury || inj?.note || inj?.details || "") || "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  )}
 
   <style>
-    .sfz-topbar {
+    .meta-line,
+    .card,
+    .card-top,
+    .two-col,
+    .panel,
+    .stats-grid,
+    .inj-list {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .meta-line {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      color: rgba(15,23,32,.65);
+      margin: .35rem 0 1rem;
+      flex-wrap: wrap;
+    }
+    .dot { opacity: .5; }
+
+    .empty {
+      padding: .9rem 1rem;
+      border-radius: 14px;
+      border: 1px solid rgba(0,34,68,0.14);
+      background: rgba(165,172,175,0.18);
+      color: rgba(15,23,32,0.85);
+      font-weight: 800;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .card {
+      border-radius: 14px;
+      border: 1px solid rgba(0,34,68,0.16);
+      background: #fff;
+      padding: .85rem .9rem;
+      box-shadow: 0 10px 22px rgba(0,0,0,.08);
+      overflow: hidden;
+    }
+
+    .card-top {
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
-      gap: 1rem;
-      flex-wrap: wrap;
-      margin-bottom: 0.85rem;
-      padding-bottom: 0.75rem;
-      border-bottom: 1px solid rgba(0, 34, 68, 0.12);
+      gap: .75rem;
+      padding-bottom: .55rem;
+      border-bottom: 1px solid rgba(0,34,68,.10);
+      margin-bottom: .75rem;
+      align-items: flex-start;
     }
 
-    .sfz-sub {
-      color: rgba(15, 23, 32, 0.65);
-      font-weight: 800;
-      font-size: 0.95rem;
-    }
+    .who { min-width: 0; }
+    .name { font-weight: 1000; color: var(--navy); font-size: 1.35rem; line-height: 1.15; }
+    .sub { color: rgba(15,23,32,.65); font-weight: 900; margin-top: .15rem; }
 
-    .sfz-controls {
-      display: inline-flex;
-      gap: 0.75rem;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .sfz-label {
+    .right { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      padding:.38rem .6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0,34,68,.16);
+      background: rgba(0,34,68,.04);
+      color: rgba(0,34,68,.86);
       font-weight: 900;
-      color: rgba(0, 34, 68, 0.72);
-      font-size: 0.9rem;
-    }
-
-    .sfz-select {
-      border-radius: 10px;
-      padding: 0.5rem 0.65rem;
-      border: 1px solid rgba(0, 34, 68, 0.18);
-      font-weight: 900;
-      background: #fff;
-      color: rgba(0, 34, 68, 0.9);
-      min-width: 160px;
-    }
-
-    .sfz-count {
-      color: rgba(0, 34, 68, 0.85);
-      font-weight: 900;
-      font-size: 0.95rem;
-    }
-
-    .sfz-table-wrap {
-      border-radius: 16px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: #ffffff;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
-      overflow: auto;
-      max-height: 70vh;
-    }
-
-    .sfz-table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 760px;
-      font-size: 0.95rem;
-    }
-
-    .sfz-table th,
-    .sfz-table td {
-      padding: 0.65rem 0.7rem;
-      border-bottom: 1px solid rgba(0, 34, 68, 0.10);
       white-space: nowrap;
     }
+    .pill--ghost{ background: transparent; }
 
-    .sfz-table thead th {
-      background: rgba(0, 34, 68, 0.04);
-      color: rgba(0, 34, 68, 0.88);
-      font-weight: 900;
-      letter-spacing: 0.2px;
+    .h3 { margin: .2rem 0 .45rem; color: var(--navy); }
+    .p { line-height: 1.55; font-weight: 750; color: rgba(0,34,68,.92); overflow-wrap:anywhere; }
+
+    .bio { margin-top: .35rem; }
+    .recap { margin-top: .9rem; }
+    .bullets { margin: .55rem 0 0; padding-left: 1.1rem; }
+    .bullets li { margin: .35rem 0; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .85rem;
+      margin-top: .85rem;
+    }
+    @media (max-width: 820px) {
+      .two-col { grid-template-columns: 1fr; }
     }
 
-    .sticky {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-    }
-
-    .sfz-table tbody tr:hover td {
-      background: rgba(105, 190, 40, 0.10);
-    }
-
-    .name {
-      font-weight: 900;
-      color: var(--navy);
-    }
-
-    .pos {
-      color: rgba(15, 23, 32, 0.7);
-      font-weight: 800;
-    }
-
-    .num {
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-      font-weight: 800;
-      color: rgba(15, 23, 32, 0.75);
-    }
-
-    .sfz-note {
-      margin-top: 1rem;
-      padding: 0.85rem 0.95rem;
+    .panel {
       border-radius: 14px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: rgba(165, 172, 175, 0.18);
-      color: rgba(15, 23, 32, 0.85);
+      border: 1px solid rgba(0,34,68,0.14);
+      background: #fff;
+      padding: .85rem .9rem;
+      box-shadow: 0 10px 22px rgba(0,0,0,.06);
+      overflow: hidden;
     }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: .45rem .75rem;
+      margin-top: .25rem;
+    }
+    .k { color: rgba(15,23,32,.65); font-weight: 900; }
+    .v { color: rgba(0,34,68,.92); font-weight: 1000; text-align: right; }
+
+    .inj-list { display: grid; gap: .6rem; margin-top: .25rem; }
+    .inj {
+      border-radius: 12px;
+      border: 1px solid rgba(0,34,68,0.12);
+      background: rgba(0,34,68,0.03);
+      padding: .65rem .7rem;
+      overflow: hidden;
+    }
+    .inj-top {
+      display: flex;
+      justify-content: space-between;
+      gap: .6rem;
+      align-items: baseline;
+      margin-bottom: .35rem;
+    }
+    .inj-status { font-weight: 1000; color: rgba(0,34,68,.90); }
+    .inj-date { color: rgba(15,23,32,.55); font-weight: 900; overflow-wrap:anywhere; }
+    .inj-body { color: rgba(0,34,68,.90); font-weight: 750; line-height: 1.45; overflow-wrap:anywhere; }
   </style>
 </SeahawksLayout>
+
