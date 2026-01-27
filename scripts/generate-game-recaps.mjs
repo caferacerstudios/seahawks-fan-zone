@@ -144,9 +144,11 @@ async function openaiStructuredRecap(input) {
             properties: {
               t: { type: "string", enum: ["text", "player"] },
               v: { type: "string" },
+              // Required, but allowed to be null for normal text segments.
+              // For player segments, we will instruct the model to provide a real id.
               id: { type: ["integer", "string", "null"] }
             },
-            required: ["t", "v"]
+            required: ["t", "v", "id"]
           }
         },
         bullets: { type: "array", items: { type: "string" } }
