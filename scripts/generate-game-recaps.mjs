@@ -316,7 +316,3 @@ main().catch((err) => {
   console.error(err?.stack || String(err));
   process.exit(1);
 });
-JS
-chmod +x scripts/generate-game-recaps.mjs
-
-
