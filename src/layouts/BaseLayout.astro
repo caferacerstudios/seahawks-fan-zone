@@ -1,5 +1,23 @@
 ---
-const { title = "Seahawks Fan Zone", description = "" } = Astro.props;
+const {
+  title = "Seahawks Fan Zone",
+  description = "",
+  pageTitle = title,
+  pageTagline = description,
+  activePath = "",
+  // allow overrides, but provide defaults
+  navPages = [
+    { href: "/", label: "Home" },
+    { href: "/schedule", label: "Schedule" },
+    { href: "/weekly-recap", label: "Weekly Recap" },
+    { href: "/standings", label: "Standings" },
+    { href: "/team", label: "Team Stats" },
+    { href: "/players", label: "Players" },
+    { href: "/about", label: "About" },
+  ],
+  quickLinks = [],
+  rightLinks = [],
+} = Astro.props;
 ---
 
 <!DOCTYPE html>
@@ -28,9 +46,99 @@ const { title = "Seahawks Fan Zone", description = "" } = Astro.props;
   </head>
 
   <body>
-    <main class="site-main">
-      <slot />
-    </main>
+    <header class="lr-header seahawks-header">
+      <div class="lr-header-bg seahawks-header-bg" aria-hidden="true"></div>
+
+      <div class="lr-header-inner">
+        <h1 class="lr-site-title">Seahawks Fan Zone</h1>
+        <p class="lr-site-tagline">{pageTagline}</p>
+
+        <nav class="top-nav" aria-label="Primary">
+          {navPages.map((p) => (
+            <a
+              class="top-nav-link"
+              href={p.href}
+              aria-current={activePath === p.href ? "page" : undefined}
+            >
+              {p.label}
+            </a>
+          ))}
+        </nav>
+      </div>
+    </header>
+
+    <div class="lr-middle">
+      <aside class="lr-sidebar lr-sidebar-left">
+        <section class="lr-panel">
+          <h3 class="lr-panel-title">Quick links</h3>
+          <ul class="lr-nav lr-subnav">
+            {(quickLinks.length
+              ? quickLinks
+              : [
+                  { href: "/schedule", label: "Schedule" },
+                  { href: "/team", label: "Team Stats" },
+                  { href: "/players", label: "Player Stats" },
+                  { href: "/methodology", label: "Methodology" },
+                ]
+            ).map((x) => (
+              <li><a href={x.href}>{x.label}</a></li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="lr-panel">
+          <h3 class="lr-panel-title">Site</h3>
+          <ul class="lr-nav">
+            <li><a href="/privacy-policy">Privacy Policy</a></li>
+            <li><a href="/methodology">Methodology</a></li>
+            <li><a href="/disclosure">Disclosure</a></li>
+          </ul>
+        </section>
+      </aside>
+
+      <main class="lr-main">
+        <article class="lr-paper seahawks-paper">
+          <header class="lr-post-header">
+            <h2 class="lr-post-title">{pageTitle}</h2>
+          </header>
+
+          <div class="lr-post-content">
+            <slot />
+          </div>
+        </article>
+
+        <footer class="lr-footer">
+          <a href="/about">About</a> · <a href="/privacy-policy">Privacy Policy</a> ·{" "}
+          <a href="/methodology">Methodology</a> · <a href="/disclosure">Disclosure</a>
+
+          <div class="lr-footer-note">
+            Seahawks Fan Zone is an independent fan site and is not affiliated with the NFL or the Seattle Seahawks.
+          </div>
+
+          <div class="lr-copyright">
+            &copy; {new Date().getFullYear()} seahawksfanzone
+          </div>
+        </footer>
+      </main>
+
+      <aside class="lr-sidebar lr-sidebar-right">
+        <section class="lr-panel">
+          <h3 class="lr-panel-title">Popular</h3>
+          <ul class="lr-nav">
+            {(rightLinks.length
+              ? rightLinks
+              : [
+                  { href: "/schedule", label: "Schedule" },
+                  { href: "/players", label: "Player leaders (soon)" },
+                  { href: "/team", label: "Team totals" },
+                ]
+            ).map((x) => (
+              <li><a href={x.href}>{x.label}</a></li>
+            ))}
+          </ul>
+        </section>
+      </aside>
+    </div>
 
     <!-- Cloudflare Insights beacon -->
     <script
