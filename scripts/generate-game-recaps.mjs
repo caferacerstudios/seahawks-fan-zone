@@ -166,8 +166,13 @@ async function openaiStructuredRecap(input) {
       model: "gpt-5.2-mini",
       input,
       text: {
-        format: { type: "json_schema", json_schema: schema }
-      }
+        format: {
+          type: "json_schema",
+          name: schema.name,
+          schema: schema.schema,
+          strict: true,
+        },
+      },
     })
   });
 
