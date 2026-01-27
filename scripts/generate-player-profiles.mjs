@@ -350,10 +350,11 @@ function buildPrompt({ player, statRow, injury }) {
         }
       : null,
     rules: {
-      bio: "2–4 sentences max. Use ONLY provided fields. If unknown, omit rather than guessing.",
-      recap: "1 short paragraph + exactly 3 bullets. Use ONLY provided season_stat_line. If season_stat_line missing, keep recap generic without invented stats.",
-      injuries: "If injury provided, mention status briefly. Do NOT invent injury details.",
-      tone: "neutral, factual, not hypey.",
+      voice: "Write like a Seahawks fan writing for Seahawks Fan Zone. Use 'our' and 'we' naturally (e.g., 'our QB', 'we saw').",
+      bio: "2–4 sentences max. Avoid generic phrasing like 'is a player for the Seattle Seahawks'. Instead: 'Our QB, <Name>, ...'. Use ONLY provided fields. If unknown, omit rather than guessing.",
+      recap: "1 short paragraph + exactly 3 bullets. Fan voice is ok, but keep it factual. Use ONLY provided season_stat_line. If season_stat_line missing, keep recap generic without invented stats.",
+      injuries: "If injury provided, mention status briefly in a fan-voice way (e.g., 'We’re watching his status…'). Do NOT invent injury details.",
+      do_not_do: "Do not invent awards, prior teams, game moments, nicknames, or personality traits. Do not claim he is 'starting' unless the input says so.",
     },
   };
 
@@ -361,7 +362,7 @@ function buildPrompt({ player, statRow, injury }) {
     {
       role: "system",
       content:
-        "You generate factual NFL player blurbs for a Seahawks fan site using ONLY the JSON input. Do not invent awards, teams, career history, or specific plays. If a field is missing, omit it. Output must match the JSON schema exactly.",
+      "You write Seahawks Fan Zone player blurbs in a Seahawks-fan voice. Use 'our/we' phrasing, but stay strictly factual and use ONLY the JSON input. Do not invent career history, awards, prior teams, or specific plays. If a field is missing, omit it. Output must match the JSON schema exactly.",
     },
     { role: "user", content: JSON.stringify(profileInput, null, 2) },
   ];
