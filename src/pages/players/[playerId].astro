@@ -1,303 +1,284 @@
 ---
-import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
-import playersData from "../../data/nfl/players.json";
-import profilesData from "../../data/nfl/playerProfiles.json";
-import injuriesData from "../../data/nfl/injuries.json";
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import data from "../data/nfl/seahawks.json";
 
-/* =========================================
-   getStaticPaths (SELF-CONTAINED)
-   - Do NOT reference helpers outside this fn
-   ========================================= */
-export function getStaticPaths() {
-  function getRosterLocal(playersJson) {
-    if (Array.isArray(playersJson?.data)) return playersJson.data;
-    if (Array.isArray(playersJson?.players)) return playersJson.players;
-    if (Array.isArray(playersJson)) return playersJson;
-    return [];
-  }
+const pageTitle = `Player Stats (${data.season})`;
 
-  function playerIdOfLocal(p) {
-    return p?.id ?? p?.player_id ?? null;
-  }
+const fmtUpdatedPT = (iso) =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(new Date(iso));
 
-  const roster = getRosterLocal(playersData);
-
-  const ids = roster
-    .map((p) => playerIdOfLocal(p))
-    .filter((id) => id !== null && id !== undefined)
-    .map((id) => String(id));
-
-  const seen = new Set();
-  const unique = [];
-  for (const id of ids) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    unique.push(id);
-  }
-
-  return unique.map((id) => ({
-    params: { playerId: id },
-  }));
+function n(v) {
+  return typeof v === "number" ? v : 0;
+}
+function dashIfNull(v) {
+  return typeof v === "number" ? v : "-";
+}
+function tdTriplet(r) {
+  return `${n(r.passing_touchdowns)}/${n(r.rushing_touchdowns)}/${n(r.receiving_touchdowns)}`;
 }
 
-/* =======================
-   Helpers (page render)
-   ======================= */
-function getRoster(playersJson) {
-  if (Array.isArray(playersJson?.data)) return playersJson.data;
-  if (Array.isArray(playersJson?.players)) return playersJson.players;
-  if (Array.isArray(playersJson)) return playersJson;
-  return [];
+function totalYards(r) {
+  return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
 }
 
-function playerIdOf(p) {
-  return p?.id ?? p?.player_id ?? null;
+// Deduplicate rows by player id, keeping the “best” stat line (most total yards)
+const byPlayer = new Map();
+
+for (const r of (data.playerSeasonStats || [])) {
+  const pid = r?.player?.id ?? r?.player_id ?? null;
+  if (!pid) continue;
+
+  const existing = byPlayer.get(pid);
+  if (!existing) {
+    byPlayer.set(pid, r);
+    continue;
+  }
+
+  if (totalYards(r) > totalYards(existing)) byPlayer.set(pid, r);
 }
 
-function playerName(p) {
+const deduped = Array.from(byPlayer.values());
+
+// Positions for dropdown
+const positions = Array.from(
+  new Set(
+    deduped
+      .map((r) => (r?.player?.position_abbreviation || "").toUpperCase())
+      .filter(Boolean)
+  )
+).sort();
+
+// ✅ Always render ALL rows (static build). Filter happens in browser.
+const rows = deduped.slice().sort((a, b) => totalYards(b) - totalYards(a));
+
+function playerName(r) {
+  const p = r?.player;
   if (!p) return "Unknown";
-  const full = `${p.first_name || ""} ${p.last_name || ""}`.trim();
-  return full || p.full_name || "Unknown";
+  const first = p.first_name || "";
+  const last = p.last_name || "";
+  const full = `${first} ${last}`.trim();
+  return full || "Unknown";
 }
-
-function pos(p) {
-  return String(p?.position_abbreviation || p?.position || "").toUpperCase() || "-";
-}
-
-function fmtPT(dateStr) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  try {
-    return d.toLocaleString("en-US", {
-      timeZone: "America/Los_Angeles",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch {
-    return d.toISOString();
-  }
-}
-
-/* =======================
-   Page logic
-   ======================= */
-const { playerId } = Astro.params;
-
-const roster = getRoster(playersData);
-const player = roster.find((p) => String(playerIdOf(p)) === String(playerId)) || null;
-
-const profiles =
-  profilesData?.profiles && typeof profilesData.profiles === "object"
-    ? profilesData.profiles
-    : {};
-
-const profile = profiles?.[String(playerId)] || null;
-
-const injuriesArr = Array.isArray(injuriesData?.injuries) ? injuriesData.injuries : [];
-const injury = injuriesArr.find((x) => String(x?.playerId) === String(playerId)) || null;
-
-const title = player ? `${playerName(player)} — Player` : "Player not found";
 ---
 
-<SeahawksLayout title={title} description="Player page." activePath="/players">
-  <div class="meta-line">
-    <span><strong>Back:</strong> <a href="/players">Players</a></span>
+<SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
+  <div class="sfz-topbar">
+    <div class="sfz-meta">
+      <div class="sfz-sub">
+        Season: {data.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(data.updatedAt)} PT
+      </div>
+    </div>
+
+    <div class="sfz-controls">
+      <label class="sfz-label" for="pos">Position</label>
+
+      <!-- ✅ value is just the code; JS updates URL + filters -->
+      <select id="pos" class="sfz-select">
+        <option value="ALL">All</option>
+        {positions.map((p) => (
+          <option value={p}>{p}</option>
+        ))}
+      </select>
+
+      <div class="sfz-count"><span id="playerCount">{rows.length}</span> players</div>
+    </div>
   </div>
 
-  {player ? (
-    <>
-      <article class="card">
-        <div class="card-top">
-          <div class="week">{playerName(player)}</div>
-          <div class="date">Pos: {pos(player)}</div>
-        </div>
+  <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
+    <table class="sfz-table">
+      <thead>
+        <tr>
+          <th class="sticky">Player</th>
+          <th class="sticky">Pos</th>
+          <th class="sticky num">GP</th>
+          <th class="sticky num">Pass Yds</th>
+          <th class="sticky num">Rush Yds</th>
+          <th class="sticky num">Rec Yds</th>
+          <th class="sticky num">TD P/R/Rec</th>
+        </tr>
+      </thead>
 
-        <div class="player-grid">
-          <div class="kv">
-            <div class="k">Jersey</div>
-            <div class="v">{player?.jersey_number ?? player?.jersey ?? "-"}</div>
-          </div>
-          <div class="kv">
-            <div class="k">Height</div>
-            <div class="v">{player?.height ?? "-"}</div>
-          </div>
-          <div class="kv">
-            <div class="k">Weight</div>
-            <div class="v">{player?.weight ?? "-"}</div>
-          </div>
-          <div class="kv">
-            <div class="k">College</div>
-            <div class="v">{player?.college ?? "-"}</div>
-          </div>
-          <div class="kv">
-            <div class="k">Experience</div>
-            <div class="v">{player?.experience ?? player?.years_pro ?? "-"}</div>
-          </div>
-        </div>
-      </article>
+      <tbody id="playersBody">
+        {rows.map((r) => {
+          const pos = (r?.player?.position_abbreviation || "").toUpperCase();
+          return (
+            <tr data-pos={pos}>
+              <td class="name">{playerName(r)}</td>
+              <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
+              <td class="num">{dashIfNull(r.games_played)}</td>
+              <td class="num">{dashIfNull(r.passing_yards)}</td>
+              <td class="num">{dashIfNull(r.rushing_yards)}</td>
+              <td class="num">{dashIfNull(r.receiving_yards)}</td>
+              <td class="num">{tdTriplet(r)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
 
-      <section class="recap">
-        <h3 class="recap-title">Bio</h3>
-        {!profile?.bio ? <div class="empty">Bio coming soon.</div> : <p class="recap-text">{profile.bio}</p>}
-      </section>
+  <!-- ✅ Client-side filter for static Astro -->
+  <script is:inline>
+    (() => {
+      const select = document.getElementById("pos");
+      const body = document.getElementById("playersBody");
+      const countEl = document.getElementById("playerCount");
 
-      <section class="recap">
-        <h3 class="recap-title">Gameplay recap</h3>
+      function getPosFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        return (params.get("pos") || "ALL").toUpperCase();
+      }
 
-        {!profile?.recap?.paragraph ? (
-          <div class="empty">Recap coming soon.</div>
-        ) : (
-          <>
-            <p class="recap-text">{profile.recap.paragraph}</p>
+      function setUrlPos(pos) {
+        const url = new URL(window.location.href);
+        if (!pos || pos === "ALL") url.searchParams.delete("pos");
+        else url.searchParams.set("pos", pos);
+        window.history.replaceState({}, "", url);
+      }
 
-            {Array.isArray(profile?.recap?.bullets) && profile.recap.bullets.length > 0 ? (
-              <ul class="recap-bullets">
-                {profile.recap.bullets.map((b) => <li>{b}</li>)}
-              </ul>
-            ) : null}
-          </>
-        )}
-      </section>
+      function applyFilter(pos) {
+        const rows = body.querySelectorAll("tr[data-pos]");
+        let shown = 0;
 
-      <section class="recap">
-        <h3 class="recap-title">Injury report</h3>
+        rows.forEach((tr) => {
+          const rpos = (tr.getAttribute("data-pos") || "").toUpperCase();
+          const visible = (pos === "ALL") || (rpos === pos);
+          tr.style.display = visible ? "" : "none";
+          if (visible) shown++;
+        });
 
-        {!injury ? (
-          <div class="empty">No injury listed.</div>
-        ) : (
-          <div class="injury-card">
-            <div class="inj-row">
-              <div class="inj-k">Status</div>
-              <div class="inj-v">{injury?.status ?? "-"}</div>
-            </div>
-            <div class="inj-row">
-              <div class="inj-k">Details</div>
-              <div class="inj-v">{injury?.description ?? "-"}</div>
-            </div>
-            <div class="inj-row">
-              <div class="inj-k">Report date</div>
-              <div class="inj-v">{fmtPT(injury?.reportDate ?? injury?.report_date ?? injury?.date)}</div>
-            </div>
-          </div>
-        )}
-      </section>
-    </>
-  ) : (
-    <div class="empty">Couldn’t find that player.</div>
-  )}
+        countEl.textContent = String(shown);
+      }
+
+      // Init from URL
+      const initialPos = getPosFromUrl();
+      select.value = initialPos;
+      applyFilter(initialPos);
+
+      // On change: filter + update URL (no reload)
+      select.addEventListener("change", () => {
+        const pos = (select.value || "ALL").toUpperCase();
+        setUrlPos(pos);
+        applyFilter(pos);
+      });
+    })();
+  </script>
 
   <style>
-    .meta-line,
-    .card,
-    .card-top,
-    .week,
-    .date,
-    .recap,
-    .recap-text,
-    .recap-bullets,
-    .player-grid,
-    .injury-card {
-      min-width: 0;
-      max-width: 100%;
-      box-sizing: border-box;
-    }
-
-    .meta-line,
-    .week,
-    .date,
-    .empty,
-    .recap-text,
-    .recap-bullets {
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
-
-    .meta-line {
+    .sfz-topbar {
       display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(0, 34, 68, 0.12);
+    }
+
+    .sfz-sub {
+      color: rgba(15, 23, 32, 0.65);
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+
+    .sfz-controls {
+      display: inline-flex;
+      gap: 0.75rem;
       align-items: center;
-      gap: .5rem;
-      color: rgba(15,23,32,.65);
-      margin: .35rem 0 1rem;
       flex-wrap: wrap;
     }
 
-    .empty {
-      padding: .9rem 1rem;
-      border-radius: 14px;
-      border: 1px solid rgba(0,34,68,0.14);
-      background: rgba(165,172,175,0.18);
-      color: rgba(15,23,32,0.85);
+    .sfz-label {
+      font-weight: 900;
+      color: rgba(0, 34, 68, 0.72);
+      font-size: 0.9rem;
+    }
+
+    .sfz-select {
+      border-radius: 10px;
+      padding: 0.5rem 0.65rem;
+      border: 1px solid rgba(0, 34, 68, 0.18);
+      font-weight: 900;
+      background: #fff;
+      color: rgba(0, 34, 68, 0.9);
+      min-width: 160px;
+    }
+
+    .sfz-count {
+      color: rgba(0, 34, 68, 0.85);
+      font-weight: 900;
+      font-size: 0.95rem;
+    }
+
+    .sfz-table-wrap {
+      border-radius: 16px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: #ffffff;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+      overflow: auto;
+      max-height: 70vh;
+    }
+
+    .sfz-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      font-size: 0.95rem;
+    }
+
+    .sfz-table th,
+    .sfz-table td {
+      padding: 0.65rem 0.7rem;
+      border-bottom: 1px solid rgba(0, 34, 68, 0.10);
+      white-space: nowrap;
+    }
+
+    .sfz-table thead th {
+      background: rgba(0, 34, 68, 0.04);
+      color: rgba(0, 34, 68, 0.88);
+      font-weight: 900;
+      letter-spacing: 0.2px;
+    }
+
+    .sticky {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .sfz-table tbody tr:hover td {
+      background: rgba(105, 190, 40, 0.10);
+    }
+
+    .name {
+      font-weight: 900;
+      color: var(--navy);
+    }
+
+    .pos {
+      color: rgba(15, 23, 32, 0.7);
       font-weight: 800;
     }
 
-    .card {
+    .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      color: rgba(15, 23, 32, 0.75);
+    }
+
+    .sfz-note {
+      margin-top: 1rem;
+      padding: 0.85rem 0.95rem;
       border-radius: 14px;
-      border: 1px solid rgba(0,34,68,0.16);
-      background: #fff;
-      padding: .85rem .9rem;
-      box-shadow: 0 10px 22px rgba(0,0,0,.08);
-      overflow: hidden;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: rgba(165, 172, 175, 0.18);
+      color: rgba(15, 23, 32, 0.85);
     }
-
-    .card-top {
-      display: flex;
-      justify-content: space-between;
-      gap: .75rem;
-      padding-bottom: .55rem;
-      border-bottom: 1px solid rgba(0,34,68,.10);
-      margin-bottom: .6rem;
-      align-items: baseline;
-    }
-
-    .week { font-weight: 900; color: var(--navy); font-size: 1.1rem; }
-    .date { color: rgba(15,23,32,.65); font-weight: 800; }
-
-    .player-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: .7rem;
-      margin-top: .25rem;
-    }
-
-    @media (max-width: 700px) {
-      .player-grid { grid-template-columns: 1fr; }
-    }
-
-    .kv {
-      border: 1px solid rgba(0,34,68,.12);
-      border-radius: 12px;
-      padding: .6rem .7rem;
-      background: rgba(0,34,68,.03);
-    }
-
-    .k { font-weight: 900; color: rgba(0,34,68,.72); font-size: .85rem; }
-    .v { font-weight: 900; color: rgba(0,34,68,.92); margin-top: .15rem; }
-
-    .recap { margin-top: 1.05rem; }
-    .recap-title { margin: 0 0 .5rem; color: var(--navy); }
-    .recap-text { line-height: 1.55; font-weight: 700; color: rgba(0,34,68,.92); }
-
-    .recap-bullets { margin: .6rem 0 0; padding-left: 1.1rem; }
-    .recap-bullets li { margin: .35rem 0; }
-
-    .injury-card {
-      border-radius: 14px;
-      border: 1px solid rgba(0,34,68,0.14);
-      background: #fff;
-      box-shadow: 0 10px 22px rgba(0,0,0,.06);
-      padding: .75rem .85rem;
-    }
-
-    .inj-row {
-      display: grid;
-      grid-template-columns: 140px minmax(0, 1fr);
-      gap: .65rem;
-      padding: .45rem 0;
-      border-bottom: 1px solid rgba(0,34,68,.08);
-    }
-    .inj-row:last-child { border-bottom: 0; }
-
-    .inj-k { font-weight: 900; color: rgba(0,34,68,.75); }
-    .inj-v { font-weight: 800; color: rgba(0,34,68,.92); }
   </style>
 </SeahawksLayout>
