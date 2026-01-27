@@ -1,9 +1,9 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
-import teamData from "../data/nfl/seahawks.json";
+import seahawks from "../data/nfl/seahawks.json";
 import playersData from "../data/nfl/players.json";
 
-const pageTitle = `Players (${teamData.season})`;
+const pageTitle = `Player Stats (${seahawks.season})`;
 
 const fmtUpdatedPT = (iso) =>
   new Intl.DateTimeFormat("en-US", {
@@ -25,87 +25,92 @@ function totalYards(r) {
   return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
 }
 
-function playerNameFromPlayerObj(p) {
+function getRoster(playersJson) {
+  if (Array.isArray(playersJson?.data)) return playersJson.data;
+  if (Array.isArray(playersJson?.players)) return playersJson.players;
+  if (Array.isArray(playersJson)) return playersJson;
+  return [];
+}
+
+function playerIdFromPlayer(p) {
+  return p?.id ?? p?.player_id ?? null;
+}
+
+function playerNameFromPlayer(p) {
   if (!p) return "Unknown";
-  const first = p.first_name || "";
-  const last = p.last_name || "";
-  const full = `${first} ${last}`.trim();
+  const full = `${p.first_name || ""} ${p.last_name || ""}`.trim();
   return full || p.full_name || "Unknown";
 }
 
-// players.json shape can vary: {data: [...]}, {players: [...]}, or [...]
-const roster = Array.isArray(playersData?.data)
-  ? playersData.data
-  : Array.isArray(playersData?.players)
-    ? playersData.players
-    : Array.isArray(playersData)
-      ? playersData
-      : [];
+// --------------------
+// Build best stat line per player (if present in seahawks.json)
+// --------------------
+const statRows = Array.isArray(seahawks?.playerSeasonStats) ? seahawks.playerSeasonStats : [];
 
-// Treat roster file as “active Seahawks players”
-const activeIds = new Set(
-  roster.map((p) => String(p?.id)).filter((x) => x && x !== "undefined" && x !== "null")
-);
-
-const statRows = Array.isArray(teamData?.playerSeasonStats) ? teamData.playerSeasonStats : [];
-
-// Best stat line per player id (most total yards)
-const bestStatById = new Map();
+// Deduplicate rows by player id, keeping the “best” stat line (most total yards)
+const bestStatsById = new Map();
 for (const r of statRows) {
   const pid = r?.player?.id ?? r?.player_id ?? null;
   if (!pid) continue;
-  const key = String(pid);
-  if (activeIds.size > 0 && !activeIds.has(key)) continue;
 
-  const existing = bestStatById.get(key);
-  if (!existing || totalYards(r) > totalYards(existing)) bestStatById.set(key, r);
+  const key = String(pid);
+  const existing = bestStatsById.get(key);
+  if (!existing || totalYards(r) > totalYards(existing)) bestStatsById.set(key, r);
 }
 
-// Build rows from roster (so active players with no stats still show up)
-const rows = roster.map((p) => {
-  const id = String(p?.id ?? "");
-  const stat = bestStatById.get(id) || {};
-  const mergedPlayer = stat?.player || p || {};
+// --------------------
+// Build final rows: roster-first, stats if available
+// --------------------
+const roster = getRoster(playersData);
+
+// Dedup roster by id (keep first)
+const seenRoster = new Set();
+const rosterDedup = [];
+for (const p of roster) {
+  const id = playerIdFromPlayer(p);
+  if (id === null || id === undefined) continue;
+  const key = String(id);
+  if (seenRoster.has(key)) continue;
+  seenRoster.add(key);
+  rosterDedup.push(p);
+}
+
+function posFromPlayer(p) {
+  return String(p?.position_abbreviation || p?.position || "").toUpperCase() || "";
+}
+
+// Build combined row objects shaped like your old stat rows,
+// but guaranteed one per roster player.
+const rows = rosterDedup.map((p) => {
+  const pid = String(playerIdFromPlayer(p));
+  const stats = bestStatsById.get(pid) || {};
   return {
-    id,
-    player: mergedPlayer,
-    // prefer stats if present
-    games_played: stat?.games_played,
-    passing_yards: stat?.passing_yards,
-    rushing_yards: stat?.rushing_yards,
-    receiving_yards: stat?.receiving_yards,
-    passing_touchdowns: stat?.passing_touchdowns,
-    rushing_touchdowns: stat?.rushing_touchdowns,
-    receiving_touchdowns: stat?.receiving_touchdowns,
-    _sortYards: totalYards(stat),
+    __playerId: pid,
+    player: {
+      id: Number.isFinite(Number(pid)) ? Number(pid) : pid,
+      first_name: p?.first_name,
+      last_name: p?.last_name,
+      full_name: playerNameFromPlayer(p),
+      position_abbreviation: (p?.position_abbreviation || p?.position || "").toUpperCase() || "-",
+    },
+    games_played: stats?.games_played,
+    passing_yards: stats?.passing_yards,
+    rushing_yards: stats?.rushing_yards,
+    receiving_yards: stats?.receiving_yards,
+    passing_touchdowns: stats?.passing_touchdowns,
+    rushing_touchdowns: stats?.rushing_touchdowns,
+    receiving_touchdowns: stats?.receiving_touchdowns,
   };
 });
 
-// Positions for dropdown
-const positions = Array.from(
-  new Set(
-    rows
-      .map((r) => (r?.player?.position_abbreviation || "").toUpperCase())
-      .filter(Boolean)
-  )
-).sort();
+// Sort by total yards (stats missing => 0)
+rows.sort((a, b) => totalYards(b) - totalYards(a));
 
-// Sort: most production first, then name
-rows.sort((a, b) => {
-  const yd = (b?._sortYards || 0) - (a?._sortYards || 0);
-  if (yd !== 0) return yd;
-  const an = playerNameFromPlayerObj(a?.player).toLowerCase();
-  const bn = playerNameFromPlayerObj(b?.player).toLowerCase();
-  return an.localeCompare(bn);
-});
-
-const updatedAt = teamData?.updatedAt || playersData?.updatedAt || "";
-const fmtUpdatedLine = updatedAt ? `${fmtUpdatedPT(updatedAt)} PT` : "—";
+// Positions dropdown from roster (not stats)
+const positions = Array.from(new Set(rosterDedup.map((p) => posFromPlayer(p)).filter(Boolean))).sort();
 
 function playerHref(id) {
-  const sid = String(id || "");
-  // Only link if the player page will exist (i.e., in active roster)
-  return activeIds.has(sid) ? `/players/${encodeURIComponent(sid)}` : null;
+  return `/players/${encodeURIComponent(String(id))}`;
 }
 ---
 
@@ -113,7 +118,7 @@ function playerHref(id) {
   <div class="sfz-topbar">
     <div class="sfz-meta">
       <div class="sfz-sub">
-        Season: {teamData.season} &nbsp; • &nbsp; Updated: {fmtUpdatedLine}
+        Season: {seahawks.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(seahawks.updatedAt)} PT
       </div>
     </div>
 
@@ -131,7 +136,7 @@ function playerHref(id) {
     </div>
   </div>
 
-  <div class="sfz-table-wrap" role="region" aria-label="Players table">
+  <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
     <table class="sfz-table">
       <thead>
         <tr>
@@ -148,13 +153,11 @@ function playerHref(id) {
       <tbody id="playersBody">
         {rows.map((r) => {
           const pos = (r?.player?.position_abbreviation || "").toUpperCase();
-          const name = playerNameFromPlayerObj(r?.player);
-          const href = playerHref(r?.id);
-
+          const pid = r?.__playerId ?? r?.player?.id ?? "";
           return (
             <tr data-pos={pos}>
               <td class="name">
-                {href ? <a class="name-link" href={href}>{name}</a> : <span>{name}</span>}
+                <a class="player-link" href={playerHref(pid)}>{r?.player?.full_name || "Unknown"}</a>
               </td>
               <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
               <td class="num">{dashIfNull(r.games_played)}</td>
@@ -229,8 +232,6 @@ function playerHref(id) {
       color: rgba(15, 23, 32, 0.65);
       font-weight: 800;
       font-size: 0.95rem;
-      overflow-wrap: anywhere;
-      word-break: break-word;
     }
 
     .sfz-controls {
@@ -305,17 +306,16 @@ function playerHref(id) {
     .name {
       font-weight: 900;
       color: var(--navy);
-      max-width: 360px;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .name-link {
+    .player-link {
       color: inherit;
-      text-decoration: underline;
-      text-underline-offset: 2px;
+      text-decoration: none;
     }
-    .name-link:hover { opacity: .85; }
+    .player-link:hover {
+      text-decoration: underline;
+      opacity: .9;
+    }
 
     .pos {
       color: rgba(15, 23, 32, 0.7);
@@ -330,6 +330,3 @@ function playerHref(id) {
     }
   </style>
 </SeahawksLayout>
-
-
-
