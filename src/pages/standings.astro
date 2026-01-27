@@ -1,0 +1,149 @@
+---
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import data from "../data/nfl/seahawks.json";
+
+const title = "Standings & Playoff Picture | Seahawks Fan Zone";
+const description = "Seahawks record, remaining schedule, and playoff-picture placeholders.";
+const activePath = "/standings";
+
+const team = data?.team ?? {};
+const season = data?.season ?? "";
+const updatedAt = data?.updatedAt ?? "";
+
+const gamesAll = [
+  ...(Array.isArray(data?.gamesRegular) ? data.gamesRegular : []),
+  ...(Array.isArray(data?.gamesPostseason) ? data.gamesPostseason : []),
+];
+
+function teamAbbr(t) {
+  return String(t?.abbreviation || t?.abbr || "").toUpperCase();
+}
+function isoToPT(iso) {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
+function isFinal(g) {
+  const s = String(g?.status || "").toLowerCase();
+  return s.includes("final") || s.includes("finished") || g?.completed === true;
+}
+function scoreNum(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+function isSeahawksGame(g) {
+  const sea = String(team?.abbreviation || "SEA").toUpperCase();
+  return teamAbbr(g?.home_team) === sea || teamAbbr(g?.visitor_team) === sea;
+}
+function seahawksSide(g) {
+  const sea = String(team?.abbreviation || "SEA").toUpperCase();
+  if (teamAbbr(g?.home_team) === sea) return "home";
+  if (teamAbbr(g?.visitor_team) === sea) return "away";
+  return null;
+}
+function seahawksPointsForAgainst(g) {
+  const side = seahawksSide(g);
+  const hs = scoreNum(g?.home_team_score);
+  const as = scoreNum(g?.visitor_team_score);
+  if (!side || hs === null || as === null) return null;
+  const pf = side === "home" ? hs : as;
+  const pa = side === "home" ? as : hs;
+  return { pf, pa };
+}
+function seahawksResult(g) {
+  const p = seahawksPointsForAgainst(g);
+  if (!p) return null;
+  if (p.pf > p.pa) return "W";
+  if (p.pf < p.pa) return "L";
+  return "T";
+}
+function opponentAbbr(g) {
+  const sea = String(team?.abbreviation || "SEA").toUpperCase();
+  const home = teamAbbr(g?.home_team);
+  const away = teamAbbr(g?.visitor_team);
+  if (home === sea) return away;
+  if (away === sea) return home;
+  return away || home || "";
+}
+
+const seaGames = gamesAll.filter(isSeahawksGame).sort((a, b) => new Date(a?.date).getTime() - new Date(b?.date).getTime());
+const completed = seaGames.filter(isFinal);
+const remaining = seaGames.filter((g) => !isFinal(g));
+
+const record = completed.reduce(
+  (acc, g) => {
+    const r = seahawksResult(g);
+    if (r === "W") acc.w++;
+    else if (r === "L") acc.l++;
+    else if (r === "T") acc.t++;
+    return acc;
+  },
+  { w: 0, l: 0, t: 0 }
+);
+
+const points = completed.reduce(
+  (acc, g) => {
+    const p = seahawksPointsForAgainst(g);
+    if (!p) return acc;
+    acc.pf += p.pf;
+    acc.pa += p.pa;
+    return acc;
+  },
+  { pf: 0, pa: 0 }
+);
+
+const pointDiff = points.pf - points.pa;
+
+const division = team?.division || "NFC West";
+const conference = team?.conference || "NFC";
+---
+
+<SeahawksLayout {title} {description} {activePath} pageTitle="Standings & Playoff Picture" pageTagline="Record now, full standings soon.">
+  <div class="card">
+    <h3>{team?.full_name || "Seahawks"} — {season}</h3>
+    <p>
+      <strong>Record:</strong> {record.w}-{record.l}{record.t ? `-${record.t}` : ""}<br />
+      <strong>Point diff:</strong> {pointDiff >= 0 ? "+" : ""}{pointDiff}<br />
+      <strong>Conference / Division:</strong> {conference} / {division}<br />
+      <span class="muted">Updated: {updatedAt ? isoToPT(updatedAt) : "unknown"}</span>
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Remaining schedule</h3>
+    {remaining.length ? (
+      <ul>
+        {remaining.map((g) => {
+          const gid = String(g?.id ?? g?.game_id);
+          return (
+            <li>
+              <strong>vs {opponentAbbr(g)}</strong>{" "}
+              {g?.date ? `— ${isoToPT(g.date)}` : ""}
+              {" — "}
+              <a href={`/games/${encodeURIComponent(gid)}`}>game page</a>
+            </li>
+          );
+        })}
+      </ul>
+    ) : (
+      <p class="muted">No remaining games found.</p>
+    )}
+  </div>
+
+  <div class="card">
+    <h3>Playoff picture (placeholder)</h3>
+    <p class="muted">
+      Right now this page can only compute Seahawks info (record, remaining games) from <code>seahawks.json</code>.
+      To show real NFC / division standings and seeds, we’ll add a script that fetches league standings into a new file,
+      e.g. <code>src/data/nfl/standings.json</code>.
+    </p>
+
+    <ul>
+      <li><strong>Next step:</strong> extend your fetch script to pull league standings (all teams), then render division ranks and seeds here.</li>
+      <li><strong>Then:</strong> add “in the hunt” comparisons: Seahawks record vs current 7-seed, tiebreak notes, and remaining SOS.</li>
+    </ul>
+  </div>
+</SeahawksLayout>
