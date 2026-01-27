@@ -228,39 +228,83 @@ async function openaiPlayerProfile(prompt) {
     required: ["bio", "recap"],
   };
 
-  const res = await fetch(`${OPENAI_BASE}/responses`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      input: prompt,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "player_profile",
-          strict: true,
-          schema,
-        },
-      },
-    }),
-  });
+  const maxAttempts = 6;
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`OpenAI HTTP ${res.status} ${res.statusText}\n${body}`);
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
   }
 
-  const json = await res.json();
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(`${OPENAI_BASE}/responses`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          input: prompt,
+          text: {
+            format: {
+              type: "json_schema",
+              name: "player_profile",
+              strict: true,
+              schema,
+            },
+          },
+        }),
+      });
 
-  const outText =
-    json?.output_text ||
-    json?.output?.[0]?.content?.find?.((c) => c?.type === "output_text")?.text;
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const status = res.status;
 
-  if (!outText) throw new Error("OpenAI response missing output_text");
-  return JSON.parse(outText);
+        const retryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+        if (retryable && attempt < maxAttempts) {
+          const backoffMs = Math.min(20_000, 600 * Math.pow(2, attempt - 1));
+          console.warn(`OpenAI HTTP ${status} (attempt ${attempt}/${maxAttempts}). Retrying in ${backoffMs}ms...`);
+          await sleep(backoffMs);
+          continue;
+        }
+
+        throw new Error(`OpenAI HTTP ${status} ${res.statusText}\n${body}`);
+      }
+
+      const json = await res.json();
+
+      const outText =
+        json?.output_text ||
+        json?.output?.[0]?.content?.find?.((c) => c?.type === "output_text")?.text;
+
+      if (!outText) throw new Error("OpenAI response missing output_text");
+      return JSON.parse(outText);
+    } catch (err) {
+      const msg = String(err?.message || err || "");
+
+      const retryable =
+        msg.includes("fetch failed") ||
+        msg.includes("ECONNRESET") ||
+        msg.includes("ETIMEDOUT") ||
+        msg.includes("ENOTFOUND") ||
+        msg.toLowerCase().includes("socket") ||
+        msg.includes("HTTP 500") ||
+        msg.includes("HTTP 502") ||
+        msg.includes("HTTP 503") ||
+        msg.includes("HTTP 504");
+
+      if (retryable && attempt < maxAttempts) {
+        const backoffMs = Math.min(20_000, 600 * Math.pow(2, attempt - 1));
+        console.warn(`OpenAI error (attempt ${attempt}/${maxAttempts}): ${msg}\nRetrying in ${backoffMs}ms...`);
+        await sleep(backoffMs);
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw new Error("OpenAI request failed after retries");
 }
 
 function buildPrompt({ player, statRow, injury }) {
@@ -366,6 +410,7 @@ async function main() {
   const profiles = existing?.profiles && typeof existing.profiles === "object" ? existing.profiles : {};
 
   let wrote = 0;
+  let skippedDueToErrors = 0;
 
   for (const p of roster) {
     const key = String(p.id);
@@ -381,7 +426,17 @@ async function main() {
     console.log(`Generating profile for ${playerName(p)} (${key})...`);
 
     const prompt = buildPrompt({ player: p, statRow, injury });
-    const out = await openaiPlayerProfile(prompt);
+
+    let out;
+    try {
+      out = await openaiPlayerProfile(prompt);
+    } catch (e) {
+      skippedDueToErrors++;
+      console.warn(
+        `⚠️  OpenAI failed for ${playerName(p)} (${key}). Skipping.\n${String(e?.message || e)}`
+      );
+      continue;
+    }
 
     profiles[key] = {
       playerId: key,
@@ -421,6 +476,9 @@ async function main() {
 
   console.log(`wrote ${path.relative(process.cwd(), outProfilesPath)} (new profiles: ${wrote})`);
   console.log(`wrote ${path.relative(process.cwd(), outInjuriesPath)} (injuries: ${outInjuries.injuries.length})`);
+  if (skippedDueToErrors > 0) {
+    console.warn(`OpenAI failures skipped: ${skippedDueToErrors}`);
+  }
 }
 
 main().catch((err) => {
