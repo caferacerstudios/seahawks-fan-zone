@@ -1,9 +1,9 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
-import seahawks from "../data/nfl/seahawks.json";
-import playersData from "../data/nfl/players.json";
+import data from "../data/nfl/seahawks.json";
+import playerProfiles from "../data/nfl/playerProfiles.json";
 
-const pageTitle = `Player Stats (${seahawks.season})`;
+const pageTitle = `Player Stats (${data.season})`;
 
 const fmtUpdatedPT = (iso) =>
   new Intl.DateTimeFormat("en-US", {
@@ -21,110 +21,77 @@ function dashIfNull(v) {
 function tdTriplet(r) {
   return `${n(r.passing_touchdowns)}/${n(r.rushing_touchdowns)}/${n(r.receiving_touchdowns)}`;
 }
+
 function totalYards(r) {
   return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
 }
 
-function getRoster(playersJson) {
-  if (Array.isArray(playersJson?.data)) return playersJson.data;
-  if (Array.isArray(playersJson?.players)) return playersJson.players;
-  if (Array.isArray(playersJson)) return playersJson;
-  return [];
-}
-
-function playerIdFromPlayer(p) {
-  return p?.id ?? p?.player_id ?? null;
-}
-
-function playerNameFromPlayer(p) {
-  if (!p) return "Unknown";
-  const full = `${p.first_name || ""} ${p.last_name || ""}`.trim();
-  return full || p.full_name || "Unknown";
-}
-
-// --------------------
-// Build best stat line per player (if present in seahawks.json)
-// --------------------
-const statRows = Array.isArray(seahawks?.playerSeasonStats) ? seahawks.playerSeasonStats : [];
-
 // Deduplicate rows by player id, keeping the “best” stat line (most total yards)
-const bestStatsById = new Map();
-for (const r of statRows) {
+const byPlayer = new Map();
+
+for (const r of (data.playerSeasonStats || [])) {
   const pid = r?.player?.id ?? r?.player_id ?? null;
   if (!pid) continue;
 
-  const key = String(pid);
-  const existing = bestStatsById.get(key);
-  if (!existing || totalYards(r) > totalYards(existing)) bestStatsById.set(key, r);
+  const existing = byPlayer.get(pid);
+  if (!existing) {
+    byPlayer.set(pid, r);
+    continue;
+  }
+
+  if (totalYards(r) > totalYards(existing)) byPlayer.set(pid, r);
 }
 
-// --------------------
-// Build final rows: roster-first, stats if available
-// --------------------
-const roster = getRoster(playersData);
+const deduped = Array.from(byPlayer.values());
 
-// Dedup roster by id (keep first)
-const seenRoster = new Set();
-const rosterDedup = [];
-for (const p of roster) {
-  const id = playerIdFromPlayer(p);
-  if (id === null || id === undefined) continue;
-  const key = String(id);
-  if (seenRoster.has(key)) continue;
-  seenRoster.add(key);
-  rosterDedup.push(p);
+// Positions for dropdown
+const positions = Array.from(
+  new Set(
+    deduped
+      .map((r) => (r?.player?.position_abbreviation || "").toUpperCase())
+      .filter(Boolean)
+  )
+).sort();
+
+// ✅ Always render ALL rows (static build). Filter happens in browser.
+const rows = deduped.slice().sort((a, b) => totalYards(b) - totalYards(a));
+
+function playerName(r) {
+  const p = r?.player;
+  if (!p) return "Unknown";
+  const first = p.first_name || "";
+  const last = p.last_name || "";
+  const full = `${first} ${last}`.trim();
+  return full || "Unknown";
 }
 
-function posFromPlayer(p) {
-  return String(p?.position_abbreviation || p?.position || "").toUpperCase() || "";
+function playerIdFromRow(r) {
+  return r?.player?.id ?? r?.player_id ?? null;
 }
 
-// Build combined row objects shaped like your old stat rows,
-// but guaranteed one per roster player.
-const rows = rosterDedup.map((p) => {
-  const pid = String(playerIdFromPlayer(p));
-  const stats = bestStatsById.get(pid) || {};
-  return {
-    __playerId: pid,
-    player: {
-      id: Number.isFinite(Number(pid)) ? Number(pid) : pid,
-      first_name: p?.first_name,
-      last_name: p?.last_name,
-      full_name: playerNameFromPlayer(p),
-      position_abbreviation: (p?.position_abbreviation || p?.position || "").toUpperCase() || "-",
-    },
-    games_played: stats?.games_played,
-    passing_yards: stats?.passing_yards,
-    rushing_yards: stats?.rushing_yards,
-    receiving_yards: stats?.receiving_yards,
-    passing_touchdowns: stats?.passing_touchdowns,
-    rushing_touchdowns: stats?.rushing_touchdowns,
-    receiving_touchdowns: stats?.receiving_touchdowns,
-  };
-});
+const profileMap = playerProfiles?.profiles || {};
+function hasProfile(pid) {
+  if (pid === null || pid === undefined) return false;
+  return !!profileMap[String(pid)];
+}
 
-// Sort by total yards (stats missing => 0)
-rows.sort((a, b) => totalYards(b) - totalYards(a));
-
-// Positions dropdown from roster (not stats)
-const positions = Array.from(new Set(rosterDedup.map((p) => posFromPlayer(p)).filter(Boolean))).sort();
-
-function playerHref(id) {
-  return `/players/${encodeURIComponent(String(id))}`;
+function playerHref(pid) {
+  return `/players/${encodeURIComponent(String(pid))}`;
 }
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Active roster + sortable season stats" activePath="/players">
+<SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
   <div class="sfz-topbar">
     <div class="sfz-meta">
       <div class="sfz-sub">
-        Season: {seahawks.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(seahawks.updatedAt)} PT
+        Season: {data.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(data.updatedAt)} PT
       </div>
     </div>
 
     <div class="sfz-controls">
       <label class="sfz-label" for="pos">Position</label>
 
+      <!-- ✅ value is just the code; JS updates URL + filters -->
       <select id="pos" class="sfz-select">
         <option value="ALL">All</option>
         {positions.map((p) => (
@@ -153,11 +120,17 @@ function playerHref(id) {
       <tbody id="playersBody">
         {rows.map((r) => {
           const pos = (r?.player?.position_abbreviation || "").toUpperCase();
-          const pid = r?.__playerId ?? r?.player?.id ?? "";
+          const pid = playerIdFromRow(r);
+          const canLink = hasProfile(pid);
+
           return (
             <tr data-pos={pos}>
               <td class="name">
-                <a class="player-link" href={playerHref(pid)}>{r?.player?.full_name || "Unknown"}</a>
+                {canLink ? (
+                  <a class="player-link" href={playerHref(pid)}>{playerName(r)}</a>
+                ) : (
+                  <span>{playerName(r)}</span>
+                )}
               </td>
               <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
               <td class="num">{dashIfNull(r.games_played)}</td>
@@ -172,6 +145,7 @@ function playerHref(id) {
     </table>
   </div>
 
+  <!-- ✅ Client-side filter for static Astro -->
   <script is:inline>
     (() => {
       const select = document.getElementById("pos");
@@ -204,10 +178,12 @@ function playerHref(id) {
         countEl.textContent = String(shown);
       }
 
+      // Init from URL
       const initialPos = getPosFromUrl();
       select.value = initialPos;
       applyFilter(initialPos);
 
+      // On change: filter + update URL (no reload)
       select.addEventListener("change", () => {
         const pos = (select.value || "ALL").toUpperCase();
         setUrlPos(pos);
@@ -308,15 +284,6 @@ function playerHref(id) {
       color: var(--navy);
     }
 
-    .player-link {
-      color: inherit;
-      text-decoration: none;
-    }
-    .player-link:hover {
-      text-decoration: underline;
-      opacity: .9;
-    }
-
     .pos {
       color: rgba(15, 23, 32, 0.7);
       font-weight: 800;
@@ -327,6 +294,26 @@ function playerHref(id) {
       font-variant-numeric: tabular-nums;
       font-weight: 800;
       color: rgba(15, 23, 32, 0.75);
+    }
+
+    /* ✅ NEW: link styling for names (only when profile exists) */
+    .player-link {
+      color: inherit;
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 2px;
+    }
+    .player-link:hover {
+      opacity: .88;
+    }
+
+    .sfz-note {
+      margin-top: 1rem;
+      padding: 0.85rem 0.95rem;
+      border-radius: 14px;
+      border: 1px solid rgba(0, 34, 68, 0.14);
+      background: rgba(165, 172, 175, 0.18);
+      color: rgba(15, 23, 32, 0.85);
     }
   </style>
 </SeahawksLayout>
