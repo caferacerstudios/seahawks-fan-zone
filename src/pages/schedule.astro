@@ -102,6 +102,14 @@ function seaIsHome(game) {
   return teamAbbr(game?.home_team) === "SEA";
 }
 
+function gameKey(g, idx) {
+  return String(g?.id ?? g?.game_id ?? idx);
+}
+
+function gameHref(g, idx) {
+  return `/games/${encodeURIComponent(gameKey(g, idx))}`;
+}
+
 // Sort by date, then by week as a fallback
 function sortByDate(a, b) {
   const ad = a?.date ? new Date(a.date).getTime() : 0;
@@ -138,7 +146,7 @@ const fmtUpdatedLine = updatedAt
     <div class="empty">No regular season games found in the current data file.</div>
   ) : (
     <div class="cards-grid">
-      {regular.map((g) => {
+      {regular.map((g, i) => {
         const opp = oppAbbr(g);
         const win = isSeahawksWin(g);
         const cardClass =
@@ -148,7 +156,9 @@ const fmtUpdatedLine = updatedAt
           <article class={cardClass}>
             <div class="card-top">
               <div class="week">
-                {Number.isFinite(Number(g?.week)) ? `Week ${g.week}` : String(g?.week || "")}
+                <a class="week-link" href={gameHref(g, i)} aria-label={`Open recap for week ${g?.week ?? ""}`}>
+                  {Number.isFinite(Number(g?.week)) ? `Week ${g.week}` : String(g?.week || "")}
+                </a>
               </div>
               <div class="date">{fmtPT(g?.date)}</div>
             </div>
@@ -173,6 +183,10 @@ const fmtUpdatedLine = updatedAt
               <div class="status">{statusText(g)}</div>
               <div class="score">{scoreText(g)}</div>
             </div>
+
+            <div class="card-links">
+              <a class="pill pill--ghost" href={gameHref(g, i)}>Recap →</a>
+            </div>
           </article>
         );
       })}
@@ -183,17 +197,22 @@ const fmtUpdatedLine = updatedAt
     <>
       <h3 class="section-title" style="margin-top: 1.5rem;">Playoffs</h3>
       <div class="cards-grid">
-        {playoffs.map((g) => {
+        {playoffs.map((g, i) => {
           const opp = oppAbbr(g);
           const win = isSeahawksWin(g);
           const cardClass =
             win === true ? "card card--win" : win === false ? "card card--loss" : "card";
 
+          // Use offset so keys/hrefs don’t collide with regular index if fallback-id is used
+          const idx = regular.length + i;
+
           return (
             <article class={cardClass}>
               <div class="card-top">
                 <div class="week">
-                  {Number.isFinite(Number(g?.week)) ? `Playoffs Week ${g.week}` : "Playoffs"}
+                  <a class="week-link" href={gameHref(g, idx)} aria-label={`Open recap for playoffs week ${g?.week ?? ""}`}>
+                    {Number.isFinite(Number(g?.week)) ? `Playoffs Week ${g.week}` : "Playoffs"}
+                  </a>
                 </div>
                 <div class="date">{fmtPT(g?.date)}</div>
               </div>
@@ -218,6 +237,10 @@ const fmtUpdatedLine = updatedAt
                 <div class="status">{statusText(g)}</div>
                 <div class="score">{scoreText(g)}</div>
               </div>
+
+              <div class="card-links">
+                <a class="pill pill--ghost" href={gameHref(g, idx)}>Recap →</a>
+              </div>
             </article>
           );
         })}
@@ -237,7 +260,8 @@ const fmtUpdatedLine = updatedAt
     .week,
     .date,
     .status,
-    .score {
+    .score,
+    .card-links {
       min-width: 0;
       max-width: 100%;
       box-sizing: border-box;
@@ -287,7 +311,7 @@ const fmtUpdatedLine = updatedAt
       align-items: start;
     }
 
-    /* ✅ if odd number of cards, last one spans & centers (fixes the big empty hole) */
+    /* ✅ if odd number of cards, last one spans & centers */
     .cards-grid > *:last-child:nth-child(odd) {
       grid-column: 1 / -1;
       justify-self: center;
@@ -309,7 +333,7 @@ const fmtUpdatedLine = updatedAt
       background: #fff;
       padding: .85rem .9rem;
       box-shadow: 0 10px 22px rgba(0,0,0,.08);
-      overflow: hidden; /* ✅ containment */
+      overflow: hidden;
     }
 
     .card--win { border-color: rgba(105,190,40,.65); box-shadow: 0 10px 22px rgba(105,190,40,.12); }
@@ -326,6 +350,13 @@ const fmtUpdatedLine = updatedAt
 
     .week { font-weight: 900; color: var(--navy); }
     .date { color: rgba(15,23,32,.65); font-weight: 700; }
+
+    .week-link{
+      color: inherit;
+      text-decoration: underline;
+      font-weight: 900;
+    }
+    .week-link:hover{ opacity: .85; }
 
     .matchup {
       display: grid;
@@ -364,6 +395,29 @@ const fmtUpdatedLine = updatedAt
 
     .status { font-weight: 900; color: rgba(0,34,68,.80); }
     .score { font-weight: 900; color: rgba(0,34,68,.90); }
+
+    .card-links{
+      margin-top: .65rem;
+      display:flex;
+      justify-content:flex-end;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:.35rem;
+      padding:.38rem .6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0,34,68,.16);
+      background: rgba(0,34,68,.04);
+      color: rgba(0,34,68,.86);
+      font-weight: 900;
+      text-decoration: none;
+      user-select: none;
+    }
+    .pill:hover{ background: rgba(0,34,68,.07); }
+    .pill--ghost{ background: transparent; }
   </style>
 </SeahawksLayout>
+
 
