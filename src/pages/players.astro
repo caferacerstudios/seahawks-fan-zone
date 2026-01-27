@@ -1,7 +1,6 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import data from "../data/nfl/seahawks.json";
-import playerProfiles from "../data/nfl/playerProfiles.json";
 
 const pageTitle = `Player Stats (${data.season})`;
 
@@ -69,14 +68,8 @@ function playerIdFromRow(r) {
   return r?.player?.id ?? r?.player_id ?? null;
 }
 
-const profileMap = playerProfiles?.profiles || {};
-function hasProfile(pid) {
-  if (pid === null || pid === undefined) return false;
-  return !!profileMap[String(pid)];
-}
-
-function playerHref(pid) {
-  return `/players/${encodeURIComponent(String(pid))}`;
+function playerHref(id) {
+  return `/players/${encodeURIComponent(String(id))}`;
 }
 ---
 
@@ -121,15 +114,13 @@ function playerHref(pid) {
         {rows.map((r) => {
           const pos = (r?.player?.position_abbreviation || "").toUpperCase();
           const pid = playerIdFromRow(r);
-          const canLink = hasProfile(pid);
-
           return (
             <tr data-pos={pos}>
               <td class="name">
-                {canLink ? (
+                {pid ? (
                   <a class="player-link" href={playerHref(pid)}>{playerName(r)}</a>
                 ) : (
-                  <span>{playerName(r)}</span>
+                  playerName(r)
                 )}
               </td>
               <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
@@ -284,6 +275,16 @@ function playerHref(pid) {
       color: var(--navy);
     }
 
+    .player-link {
+      color: inherit;
+      text-decoration: none;
+      font-weight: 900;
+    }
+    .player-link:hover {
+      text-decoration: underline;
+      opacity: 0.95;
+    }
+
     .pos {
       color: rgba(15, 23, 32, 0.7);
       font-weight: 800;
@@ -294,17 +295,6 @@ function playerHref(pid) {
       font-variant-numeric: tabular-nums;
       font-weight: 800;
       color: rgba(15, 23, 32, 0.75);
-    }
-
-    /* ✅ NEW: link styling for names (only when profile exists) */
-    .player-link {
-      color: inherit;
-      text-decoration: underline;
-      text-decoration-thickness: 2px;
-      text-underline-offset: 2px;
-    }
-    .player-link:hover {
-      opacity: .88;
     }
 
     .sfz-note {
