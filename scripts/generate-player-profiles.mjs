@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Build-time player profiles:
- * - reads src/data/nfl/players.json (treated as active roster)
+ * Build-time player profiles (Seahawks):
  * - reads src/data/nfl/seahawks.json (season stats)
- * - tries to fetch BDL player injuries filtered by Seahawks team id (if endpoint/tier allows)
+ * - derives "roster" from seahawks.json playerSeasonStats (deduped)
+ * - fetches BDL player_injuries (best-effort; endpoint/tier may vary)
+ * - filters injuries down to ONLY the derived Seahawks playerIds
  * - calls OpenAI to generate:
  *    - short bio
  *    - short gameplay recap (1 paragraph + 3 bullets)
@@ -14,7 +15,7 @@
  * ENV:
  * - BALLDONTLIE_API_KEY
  * - OPENAI_API_KEY
- * - (optional) SEA_TEAM_ID (fallback 31)
+ * - (optional) FORCE=1 to regenerate even if profile exists
  */
 
 import fs from "node:fs";
@@ -35,8 +36,9 @@ if (!OPENAI_KEY) {
   process.exit(1);
 }
 
+const FORCE = String(process.env.FORCE || "").toLowerCase() === "1";
+
 const projectRoot = process.cwd();
-const playersPath = path.join(projectRoot, "src", "data", "nfl", "players.json");
 const seahawksPath = path.join(projectRoot, "src", "data", "nfl", "seahawks.json");
 
 const outProfilesPath = path.join(projectRoot, "src", "data", "nfl", "playerProfiles.json");
@@ -97,22 +99,11 @@ async function bdlPaged(endpoint, baseParams = {}) {
   return all;
 }
 
-function getRoster(playersData) {
-  if (Array.isArray(playersData?.data)) return playersData.data;
-  if (Array.isArray(playersData?.players)) return playersData.players;
-  if (Array.isArray(playersData)) return playersData;
-  return [];
+function n(v) {
+  return typeof v === "number" ? v : 0;
 }
-
-function getSeaTeamId(teamData) {
-  const fromFile = teamData?.team?.id ?? teamData?.team_id ?? null;
-  const env = process.env.SEA_TEAM_ID ? Number(process.env.SEA_TEAM_ID) : null;
-  const fallback = 31; // your logs show SEA team id: 31
-  return Number.isFinite(Number(env))
-    ? Number(env)
-    : Number.isFinite(Number(fromFile))
-      ? Number(fromFile)
-      : fallback;
+function totalYards(r) {
+  return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
 }
 
 function playerName(p) {
@@ -125,31 +116,8 @@ function pickPos(p) {
   return String(p?.position_abbreviation || p?.position || "").toUpperCase();
 }
 
-function pickTeamId(p) {
-  return p?.team?.id ?? p?.team_id ?? null;
-}
-
-function isActivePlayer(p) {
-  // Keep this permissive: your players.json is already treated as "active roster".
-  // If the API includes status flags, enforce them.
-  const s = String(p?.status || p?.player_status || "").toLowerCase();
-  if (!s) return true;
-  // common shapes: "active", "inactive"
-  if (s.includes("inactive")) return false;
-  if (s.includes("active")) return true;
-  return true;
-}
-
-function n(v) {
-  return typeof v === "number" ? v : 0;
-}
-function totalYards(r) {
-  return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
-}
-
 // Deduplicate season stat rows by player id, keeping the “best” stat line (most total yards)
-// and optionally restricting to the active roster.
-function reduceBestStatsByPlayer(statRows, activeIdSet) {
+function reduceBestStatsByPlayer(statRows) {
   const bestById = new Map();
 
   for (const r of statRows || []) {
@@ -157,8 +125,6 @@ function reduceBestStatsByPlayer(statRows, activeIdSet) {
     if (!pid) continue;
 
     const key = String(pid);
-    if (activeIdSet?.size && !activeIdSet.has(key)) continue;
-
     const existing = bestById.get(key);
     if (!existing || totalYards(r) > totalYards(existing)) bestById.set(key, r);
   }
@@ -166,12 +132,41 @@ function reduceBestStatsByPlayer(statRows, activeIdSet) {
   return bestById;
 }
 
-async function bdlTryTeamInjuries(teamId) {
-  // Endpoint availability can vary by tier. We try a couple common shapes and fall back to empty.
+function deriveRosterFromStats(statRows) {
+  // Build a minimal roster list from the stats file (Seahawks-only data source).
+  const byId = new Map();
+
+  for (const r of statRows || []) {
+    const p = r?.player || null;
+    const pid = p?.id ?? r?.player_id ?? null;
+    if (pid == null) continue;
+
+    const key = String(pid);
+    if (!byId.has(key)) {
+      byId.set(key, {
+        id: key,
+        first_name: p?.first_name ?? null,
+        last_name: p?.last_name ?? null,
+        full_name: p?.full_name ?? null,
+        position_abbreviation: p?.position_abbreviation ?? null,
+        position: p?.position ?? null,
+        jersey_number: p?.jersey_number ?? p?.jersey ?? null,
+        height: p?.height ?? null,
+        weight: p?.weight ?? null,
+        college: p?.college ?? null,
+        experience: p?.experience ?? p?.years_pro ?? null,
+      });
+    }
+  }
+
+  return Array.from(byId.values());
+}
+
+async function bdlTryInjuriesAll() {
+  // Endpoint availability can vary by tier. Try common variants; fall back to [].
   const tries = [
-    { endpoint: "/player_injuries", params: { team_id: Number(teamId) } },
-    // sometimes list endpoints use team_ids[] style
-    { endpoint: "/player_injuries", params: { "team_ids[]": [Number(teamId)] } },
+    { endpoint: "/player_injuries", params: {} },
+    { endpoint: "/injuries", params: {} },
   ];
 
   for (const t of tries) {
@@ -179,29 +174,27 @@ async function bdlTryTeamInjuries(teamId) {
       const data = await bdlPaged(t.endpoint, t.params);
       return Array.isArray(data) ? data : [];
     } catch (e) {
-      const msg = String(e?.message || "");
       const status = e?.status;
+      const msg = String(e?.message || "").toLowerCase();
 
-      // If unauthorized or not found, stop trying and fall back to empty.
       if (status === 401 || status === 403) {
         console.warn(`BDL injuries not available (HTTP ${status}). Writing empty injuries.json.`);
         return [];
       }
-      if (status === 404 || msg.toLowerCase().includes("not found")) {
-        console.warn(`BDL injuries endpoint not found. Writing empty injuries.json.`);
-        return [];
+      if (status === 404 || msg.includes("not found")) {
+        // try next
+      } else {
+        // try next
       }
-
-      // For other errors, try next variant; if last, throw.
-      // (loop continues)
     }
   }
 
+  console.warn("BDL injuries endpoint not found/available. Writing empty injuries.json.");
   return [];
 }
 
 function normalizeInjuryRow(row) {
-  // Keep it generic; BDL field names can vary.
+  // BDL fields vary; "comment" often contains the detail.
   const pid = row?.player?.id ?? row?.player_id ?? null;
   const player = row?.player ?? null;
 
@@ -209,7 +202,7 @@ function normalizeInjuryRow(row) {
     playerId: pid != null ? String(pid) : null,
     playerName: playerName(player),
     status: row?.status ?? row?.injury_status ?? row?.game_status ?? null,
-    description: row?.description ?? row?.injury_description ?? row?.details ?? null,
+    description: row?.comment ?? row?.description ?? row?.injury_description ?? row?.details ?? null,
     reportDate: row?.report_date ?? row?.date ?? row?.updated_at ?? null,
     raw: row,
   };
@@ -262,7 +255,6 @@ async function openaiPlayerProfile(prompt) {
 
   const json = await res.json();
 
-  // Responses API shape can include a convenience `output_text` or structured output in `output`.
   const outText =
     json?.output_text ||
     json?.output?.[0]?.content?.find?.((c) => c?.type === "output_text")?.text;
@@ -272,28 +264,21 @@ async function openaiPlayerProfile(prompt) {
 }
 
 function buildPrompt({ player, statRow, injury }) {
-  const p = player || {};
-  const name = playerName(p);
-  const pos = pickPos(p) || null;
-  const jersey = p?.jersey_number ?? p?.jersey ?? null;
-  const height = p?.height ?? null;
-  const weight = p?.weight ?? null;
-  const college = p?.college ?? null;
-  const experience = p?.experience ?? p?.years_pro ?? null;
+  const name = playerName(player);
+  const pos = pickPos(player) || null;
 
   const s = statRow || null;
 
-  // Keep the data small + factual. No “known for” claims unless supported here.
   const profileInput = {
     player: {
-      id: p?.id ?? p?.player_id ?? null,
+      id: player?.id ?? null,
       name,
       position: pos,
-      jersey_number: jersey,
-      height,
-      weight,
-      college,
-      experience,
+      jersey_number: player?.jersey_number ?? null,
+      height: player?.height ?? null,
+      weight: player?.weight ?? null,
+      college: player?.college ?? null,
+      experience: player?.experience ?? null,
     },
     injury: injury
       ? {
@@ -322,7 +307,7 @@ function buildPrompt({ player, statRow, injury }) {
       : null,
     rules: {
       bio: "2–4 sentences max. Use ONLY provided fields. If unknown, omit rather than guessing.",
-      recap: "1 short paragraph + exactly 3 bullets. Use ONLY provided season_stat_line. If season_stat_line missing, keep recap generic (role + availability) without invented stats.",
+      recap: "1 short paragraph + exactly 3 bullets. Use ONLY provided season_stat_line. If season_stat_line missing, keep recap generic without invented stats.",
       injuries: "If injury provided, mention status briefly. Do NOT invent injury details.",
       tone: "neutral, factual, not hypey.",
     },
@@ -339,34 +324,29 @@ function buildPrompt({ player, statRow, injury }) {
 }
 
 async function main() {
-  const playersData = readJson(playersPath);
   const seahawksData = readJson(seahawksPath);
 
-  const seaTeamId = getSeaTeamId(seahawksData);
-  const rosterAll = getRoster(playersData);
-
-  // Filter: only active Seahawks roster
-  const roster = rosterAll
-    .filter((p) => Number(pickTeamId(p)) === Number(seaTeamId))
-    .filter((p) => isActivePlayer(p));
-
-  const activeIdSet = new Set(
-    roster
-      .map((p) => p?.id ?? p?.player_id ?? null)
-      .filter((x) => x != null)
-      .map((x) => String(x))
-  );
-
+  const season = seahawksData?.season ?? null;
   const statRows = Array.isArray(seahawksData?.playerSeasonStats) ? seahawksData.playerSeasonStats : [];
-  const bestStatsById = reduceBestStatsByPlayer(statRows, activeIdSet);
 
-  // Injuries (best effort)
-  const injuryRows = await bdlTryTeamInjuries(seaTeamId);
-  const injuriesNorm = injuryRows.map(normalizeInjuryRow).filter((x) => x?.playerId);
+  const roster = deriveRosterFromStats(statRows);
+  if (roster.length === 0) {
+    console.warn("No players derived from seahawks.json playerSeasonStats. Writing empty profiles.");
+  }
 
+  const activeIdSet = new Set(roster.map((p) => String(p.id)));
+
+  const bestStatsById = reduceBestStatsByPlayer(statRows);
+
+  // Injuries (best effort): fetch whatever the endpoint returns, then filter to Seahawks ids
+  const injuryRowsRaw = await bdlTryInjuriesAll();
+  const injuriesNormAll = injuryRowsRaw.map(normalizeInjuryRow).filter((x) => x?.playerId);
+
+  const injuriesNorm = injuriesNormAll.filter((x) => activeIdSet.has(String(x.playerId)));
+
+  // If multiple rows exist per player, keep most recent reportDate if comparable
   const injuriesByPlayerId = new Map();
   for (const inj of injuriesNorm) {
-    // If multiple rows exist, keep the most recent reportDate (lexicographic ISO works if it is ISO).
     const key = String(inj.playerId);
     const existing = injuriesByPlayerId.get(key);
     if (!existing) {
@@ -381,19 +361,19 @@ async function main() {
   // Load existing profiles to avoid re-spending tokens
   const existing = fs.existsSync(outProfilesPath)
     ? readJson(outProfilesPath)
-    : { season: seahawksData?.season ?? null, updatedAt: null, profiles: {} };
+    : { season, updatedAt: null, profiles: {} };
 
   const profiles = existing?.profiles && typeof existing.profiles === "object" ? existing.profiles : {};
 
   let wrote = 0;
+
   for (const p of roster) {
-    const pid = p?.id ?? p?.player_id ?? null;
-    if (pid == null) continue;
+    const key = String(p.id);
 
-    const key = String(pid);
+    const existingBio = String(profiles?.[key]?.bio || "").trim();
+    const existingRecap = String(profiles?.[key]?.recap?.paragraph || "").trim();
 
-    // Skip if already present and looks valid
-    if (profiles?.[key]?.bio && profiles?.[key]?.recap?.paragraph) continue;
+    if (!FORCE && existingBio.length > 0 && existingRecap.length > 0) continue;
 
     const statRow = bestStatsById.get(key) || null;
     const injury = injuriesByPlayerId.get(key) || null;
@@ -408,9 +388,9 @@ async function main() {
       name: playerName(p),
       position: pickPos(p) || null,
       createdAt: new Date().toISOString(),
-      bio: out?.bio ?? "",
+      bio: String(out?.bio || ""),
       recap: {
-        paragraph: out?.recap?.paragraph ?? "",
+        paragraph: String(out?.recap?.paragraph || ""),
         bullets: Array.isArray(out?.recap?.bullets) ? out.recap.bullets : [],
       },
       injury: injury
@@ -426,14 +406,12 @@ async function main() {
   }
 
   const outProfiles = {
-    season: seahawksData?.season ?? null,
+    season,
     updatedAt: new Date().toISOString(),
-    teamId: seaTeamId,
     profiles,
   };
 
   const outInjuries = {
-    teamId: seaTeamId,
     updatedAt: new Date().toISOString(),
     injuries: Array.from(injuriesByPlayerId.values()),
   };
