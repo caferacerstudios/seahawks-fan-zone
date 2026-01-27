@@ -1,16 +1,16 @@
 {
-  "name": "site2",
+  "name": "seahawksfanzone",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "node scripts/fetch-nfl.mjs && astro build && generate-game-recaps",
+    "build": "node scripts/fetch-nfl.mjs && astro build && node scripts/generate-game-recaps.mjs",
     "preview": "astro preview",
     "astro": "astro",
-    "fetch-ebay": "node scripts/fetch-ebay.mjs"
+    "fetch-ebay": "node scripts/fetch-ebay.mjs",
+    "generate-game-recaps": "node scripts/generate-game-recaps.mjs"
   },
   "dependencies": {
     "astro": "^5.16.6"
   }
 }
-
