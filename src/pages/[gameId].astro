@@ -1,0 +1,144 @@
+---
+import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
+import data from "../../data/nfl/seahawks.json";
+
+const title = "Game Page | Seahawks Fan Zone";
+const description = "Single game details, score, and quick links.";
+const activePath = ""; // leave blank so top-nav doesn't mis-highlight
+
+const gamesAll = [
+  ...(Array.isArray(data?.gamesRegular) ? data.gamesRegular : []),
+  ...(Array.isArray(data?.gamesPostseason) ? data.gamesPostseason : []),
+];
+
+function teamAbbr(t) {
+  return String(t?.abbreviation || t?.abbr || "").toUpperCase();
+}
+function isoToPT(iso) {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
+function scoreNum(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+function matchupLabel(g) {
+  const home = teamAbbr(g?.home_team);
+  const away = teamAbbr(g?.visitor_team);
+  return `${away || "AWAY"} @ ${home || "HOME"}`;
+}
+function isFinal(g) {
+  const s = String(g?.status || "").toLowerCase();
+  return s.includes("final") || s.includes("finished") || g?.completed === true;
+}
+
+export function getStaticPaths() {
+  const all = gamesAll
+    .map((g, idx) => {
+      const id = String(g?.id ?? g?.game_id ?? idx);
+      return { params: { gameId: id } };
+    })
+    // remove duplicates just in case
+    .filter((x, i, arr) => arr.findIndex((y) => y.params.gameId === x.params.gameId) === i);
+
+  return all;
+}
+
+const { gameId } = Astro.params;
+
+const gameIndex = gamesAll.findIndex((g, idx) => String(g?.id ?? g?.game_id ?? idx) === String(gameId));
+const game = gameIndex >= 0 ? gamesAll[gameIndex] : null;
+
+const prevGame = gameIndex > 0 ? gamesAll[gameIndex - 1] : null;
+const nextGame = gameIndex >= 0 && gameIndex < gamesAll.length - 1 ? gamesAll[gameIndex + 1] : null;
+
+const pageTitle = game ? matchupLabel(game) : "Game Not Found";
+const pageTagline = game?.date ? isoToPT(game.date) : "Game details";
+---
+
+<SeahawksLayout {title} {description} {activePath} {pageTitle} {pageTagline}>
+  {!game ? (
+    <div class="card">
+      <p>Couldn’t find that game.</p>
+      <p><a href="/weekly-recap">← Back to Weekly Recap</a></p>
+    </div>
+  ) : (
+    <>
+      <div class="card">
+        <h3>Summary</h3>
+        <p>
+          <strong>{matchupLabel(game)}</strong><br />
+          {game?.date ? isoToPT(game.date) : ""}
+          <br />
+          <span class="muted">Status: {String(game?.status || (isFinal(game) ? "Final" : "Scheduled"))}</span>
+        </p>
+
+        {(() => {
+          const hs = scoreNum(game?.home_team_score);
+          const as = scoreNum(game?.visitor_team_score);
+          if (hs === null || as === null) {
+            return <p class="muted">Score not available yet.</p>;
+          }
+          const home = teamAbbr(game?.home_team);
+          const away = teamAbbr(game?.visitor_team);
+          return (
+            <p>
+              <strong>Score:</strong> {away} {as} — {home} {hs}
+            </p>
+          );
+        })()}
+
+        {game?.venue || game?.location ? (
+          <p>
+            <strong>Location:</strong> {String(game?.venue || game?.location)}
+          </p>
+        ) : null}
+
+        {Number.isFinite(Number(game?.week)) ? (
+          <p>
+            <strong>Week:</strong> {Number(game.week)}
+          </p>
+        ) : null}
+
+        {typeof game?.postseason === "boolean" ? (
+          <p>
+            <strong>Postseason:</strong> {game.postseason ? "Yes" : "No"}
+          </p>
+        ) : null}
+      </div>
+
+      <div class="card">
+        <h3>Navigation</h3>
+        <p>
+          <a href="/weekly-recap">← Weekly Recap</a>
+        </p>
+        <p>
+          {prevGame ? (
+            <a href={`/games/${encodeURIComponent(String(prevGame?.id ?? prevGame?.game_id))}`}>← Previous game</a>
+          ) : (
+            <span class="muted">← Previous game</span>
+          )}
+          {" · "}
+          {nextGame ? (
+            <a href={`/games/${encodeURIComponent(String(nextGame?.id ?? nextGame?.game_id))}`}>Next game →</a>
+          ) : (
+            <span class="muted">Next game →</span>
+          )}
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Future: per-game content generation</h3>
+        <ul>
+          <li>Pull play-by-play / drives (if your API tier provides it) and render a drive summary.</li>
+          <li>Add “key players” by filtering your `playerSeasonStats` to the top contributors (QB/RB/WR).</li>
+          <li>Add a “highlights” section (manual links) that you can append per game.</li>
+        </ul>
+      </div>
+    </>
+  )}
+</SeahawksLayout>
