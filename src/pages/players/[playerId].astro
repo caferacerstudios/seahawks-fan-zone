@@ -20,9 +20,6 @@ export function getStaticPaths() {
     return p?.id ?? p?.player_id ?? p?.player?.id ?? null;
   }
 
-  // build pages for:
-  // - all roster players
-  // - any players that exist in season stats (in case roster is missing some ids)
   const roster = getRosterLocal(rosterData);
   const seen = new Set();
   const out = [];
@@ -114,36 +111,153 @@ function fmtUpdatedPT(iso) {
   }).format(new Date(iso));
 }
 
-function normalizeInjRow(x) {
-  if (!x || typeof x !== "object") return null;
-  const p = x?.player ?? null;
-  const id = x?.player_id ?? p?.id ?? null;
-  const name = playerNameFromAny(p);
-  const status = x?.status ?? x?.game_status ?? x?.injury_status ?? x?.practice_status ?? null;
-  const description = x?.description ?? x?.injury ?? x?.injury_description ?? x?.notes ?? null;
-  const date = x?.date ?? x?.report_date ?? x?.updated_at ?? x?.created_at ?? null;
+/* =======================
+   Profiles: support multiple shapes
+   ======================= */
+// Accept either:
+// A) { updatedAt, profiles: { [id]: { bio, recap } } }
+// B) { updatedAt, byId: { [id]: { bio, recap } } }
+// C) { updatedAt, data: [{ player_id, bio, recap_paragraph, recap_bullets, ... }] }
+// D) { updatedAt, data: { [id]: { bio, recap } } }
+// E) { [id]: { bio, recap } }  (no wrapper)
+function getProfileFor(id) {
+  const key = String(id);
+  const root = playerProfilesData || {};
+
+  // map-style wrappers
+  const map1 = root?.profiles && typeof root.profiles === "object" ? root.profiles : null;
+  const map2 = root?.byId && typeof root.byId === "object" ? root.byId : null;
+  if (map1 && map1[key]) return map1[key];
+  if (map2 && map2[key]) return map2[key];
+
+  // data object keyed by id
+  if (root?.data && typeof root.data === "object" && !Array.isArray(root.data) && root.data[key]) {
+    return root.data[key];
+  }
+
+  // data array
+  if (Array.isArray(root?.data)) {
+    const hit = root.data.find((x) => String(x?.player_id ?? x?.id ?? x?.player?.id ?? "") === key);
+    if (hit) return hit;
+  }
+
+  // bare map at root
+  if (root && typeof root === "object" && root[key]) return root[key];
+
+  return null;
+}
+
+function normalizeProfile(p) {
+  if (!p || typeof p !== "object") return { bio: null, recap: null, name: null };
+
+  // already normalized
+  if (typeof p?.bio === "string" && p?.recap && typeof p.recap === "object") {
+    return {
+      name: p?.name ?? p?.full_name ?? null,
+      bio: p.bio,
+      recap: {
+        paragraph: typeof p.recap?.paragraph === "string" ? p.recap.paragraph : null,
+        bullets: Array.isArray(p.recap?.bullets) ? p.recap.bullets : [],
+      },
+    };
+  }
+
+  // flattened recap fields
+  const paragraph =
+    p?.recap_paragraph ??
+    p?.paragraph ??
+    p?.gameplay_paragraph ??
+    null;
+
+  const bullets =
+    Array.isArray(p?.recap_bullets) ? p.recap_bullets :
+    Array.isArray(p?.bullets) ? p.bullets :
+    Array.isArray(p?.gameplay_bullets) ? p.gameplay_bullets :
+    [];
+
   return {
-    id,
-    name,
-    status,
-    description,
-    date
+    name: p?.name ?? p?.full_name ?? null,
+    bio: typeof p?.bio === "string" ? p.bio : null,
+    recap: paragraph
+      ? { paragraph: String(paragraph), bullets: bullets.map(String) }
+      : null,
   };
 }
 
+/* =======================
+   Injuries: support multiple shapes
+   ======================= */
+// Accept either:
+// A) { injuries: [...] }
+// B) { data: [...] }
+// C) [...] array at root
+function getInjuryArray(root) {
+  if (Array.isArray(root?.injuries)) return root.injuries;
+  if (Array.isArray(root?.data)) return root.data;
+  if (Array.isArray(root)) return root;
+  return [];
+}
+
+function normalizeInjRow(x) {
+  if (!x || typeof x !== "object") return null;
+
+  const p = x?.player ?? null;
+
+  const id =
+    x?.player_id ??
+    x?.playerId ??
+    p?.id ??
+    x?.id ??
+    null;
+
+  const status =
+    x?.status ??
+    x?.game_status ??
+    x?.injury_status ??
+    x?.practice_status ??
+    x?.designation ??
+    null;
+
+  const description =
+    x?.description ??
+    x?.injury ??
+    x?.injury_description ??
+    x?.notes ??
+    x?.detail ??
+    null;
+
+  const date =
+    x?.date ??
+    x?.report_date ??
+    x?.updated_at ??
+    x?.created_at ??
+    x?.updatedAt ??
+    null;
+
+  return {
+    id,
+    status,
+    description,
+    date,
+  };
+}
+
+/* =======================
+   Page data
+   ======================= */
 const rosterPlayer = findRosterPlayer(playerId);
 const statRow = bestStatRowForPlayer(playerId);
 
-const profileMap = playerProfilesData?.profiles || {};
-const profile = profileMap?.[String(playerId)] || null;
+const rawProfile = getProfileFor(playerId);
+const profile = normalizeProfile(rawProfile);
 
-const injuries = Array.isArray(injuriesData?.injuries) ? injuriesData.injuries : [];
-const injuryMatches = injuries
+const injuries = getInjuryArray(injuriesData)
   .map(normalizeInjRow)
-  .filter(Boolean)
-  .filter((r) => String(r.id ?? "") === String(playerId));
+  .filter(Boolean);
 
-// basic display fields (safe across shapes)
+const injuryMatches = injuries.filter((r) => String(r.id ?? "") === String(playerId));
+
+// display fields (safe across shapes)
 const displayName =
   playerNameFromAny(rosterPlayer) !== "Unknown"
     ? playerNameFromAny(rosterPlayer)
@@ -166,6 +280,9 @@ const weight =
 const experience =
   rosterPlayer?.experience ?? rosterPlayer?.years_pro ?? "—";
 
+const updatedAtForPage =
+  playerProfilesData?.updatedAt ?? seasonData?.updatedAt ?? null;
+
 const pageTitle = `${displayName} — Player Profile`;
 ---
 
@@ -184,7 +301,7 @@ const pageTitle = `${displayName} — Player Profile`;
         <span class="dot">•</span>
         <span><strong>Jersey:</strong> {String(jersey)}</span>
         <span class="dot">•</span>
-        <span><strong>Updated:</strong> {fmtUpdatedPT(playerProfilesData?.updatedAt)} PT</span>
+        <span><strong>Updated:</strong> {fmtUpdatedPT(updatedAtForPage)} PT</span>
       </div>
     </div>
 
@@ -435,5 +552,3 @@ const pageTitle = `${displayName} — Player Profile`;
     }
   </style>
 </SeahawksLayout>
-
-
