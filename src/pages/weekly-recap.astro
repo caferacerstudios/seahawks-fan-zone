@@ -1,194 +1,474 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
-import data from "../data/nfl/seahawks.json";
+import scheduleData from "../data/nfl/seahawks.json";
 
-const title = "Weekly Recap | Seahawks Fan Zone";
-const description = "Weekly Seahawks recap: results, upcoming games, and quick context.";
-const activePath = "/weekly-recap";
+const season = scheduleData?.season ?? "";
+const updatedAt = scheduleData?.updatedAt ?? "";
 
-const team = data?.team ?? {};
-const season = data?.season ?? "";
-const updatedAt = data?.updatedAt ?? "";
-const gamesAll = [
-  ...(Array.isArray(data?.gamesRegular) ? data.gamesRegular : []),
-  ...(Array.isArray(data?.gamesPostseason) ? data.gamesPostseason : []),
-];
+// Accept both shapes:
+// 1) { games: [...] }
+// 2) { gamesRegular: [...], gamesPostseason: [...] }
+const rawGames = Array.isArray(scheduleData?.games)
+  ? scheduleData.games
+  : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
+    ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
+    : [];
 
-function teamAbbr(t) {
-  return String(t?.abbreviation || t?.abbr || "").toUpperCase();
-}
-function teamName(t) {
-  return t?.full_name || t?.fullName || t?.name || teamAbbr(t) || "Team";
-}
-function isFinal(g) {
-  const s = String(g?.status || "").toLowerCase();
-  // common patterns: "final", "finished", etc.
-  return s.includes("final") || s.includes("finished") || g?.completed === true;
-}
-function scoreNum(x) {
-  const n = Number(x);
-  return Number.isFinite(n) ? n : null;
-}
-function matchupLabel(g) {
-  const home = teamAbbr(g?.home_team);
-  const away = teamAbbr(g?.visitor_team);
-  return `${away || "AWAY"} @ ${home || "HOME"}`;
-}
-function isoToPT(iso) {
-  if (!iso) return "";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(iso));
-}
-function gameWeek(g, idx) {
-  // Prefer week if present; otherwise fall back to index+1
-  const w = Number(g?.week);
-  return Number.isFinite(w) && w > 0 ? w : idx + 1;
-}
-function gameId(g, idx) {
-  return String(g?.id ?? g?.game_id ?? `w${gameWeek(g, idx)}`);
-}
-function isSeahawksGame(g) {
-  const sea = String(team?.abbreviation || "SEA").toUpperCase();
-  return teamAbbr(g?.home_team) === sea || teamAbbr(g?.visitor_team) === sea;
-}
-function seahawksSide(g) {
-  const sea = String(team?.abbreviation || "SEA").toUpperCase();
-  if (teamAbbr(g?.home_team) === sea) return "home";
-  if (teamAbbr(g?.visitor_team) === sea) return "away";
-  return null;
-}
-function seahawksPointsForAgainst(g) {
-  const side = seahawksSide(g);
-  const hs = scoreNum(g?.home_team_score);
-  const as = scoreNum(g?.visitor_team_score);
-  if (!side || hs === null || as === null) return null;
-  const pf = side === "home" ? hs : as;
-  const pa = side === "home" ? as : hs;
-  return { pf, pa };
-}
-function seahawksResult(g) {
-  const p = seahawksPointsForAgainst(g);
-  if (!p) return null;
-  if (p.pf > p.pa) return "W";
-  if (p.pf < p.pa) return "L";
-  return "T";
+// Normalize "is playoff" across possible fields
+function isPlayoffGame(g) {
+  const st = String(g?.seasonType ?? g?.season_type ?? "").toLowerCase();
+  if (st.includes("post") || st.includes("playoff")) return true;
+  if (g?.postseason === true) return true;
+  if (g?.is_postseason === true) return true;
+  return false;
 }
 
-// Sort chronologically
-const gamesSorted = gamesAll
-  .slice()
-  .sort((a, b) => new Date(a?.date).getTime() - new Date(b?.date).getTime());
+function teamAbbr(teamObj, fallback = "") {
+  return String(teamObj?.abbreviation || fallback).toUpperCase();
+}
 
-// Only Seahawks games (should already be, but just in case)
-const seaGames = gamesSorted.filter(isSeahawksGame);
+function teamLogo(abbr) {
+  return `/images/nfl/teams/${abbr}.png`;
+}
 
-const completed = seaGames.filter(isFinal);
-const upcoming = seaGames.filter((g) => !isFinal(g));
+function seaIsHome(game) {
+  return teamAbbr(game?.home_team) === "SEA";
+}
+
+function oppAbbr(game) {
+  const home = teamAbbr(game?.home_team);
+  const away = teamAbbr(game?.visitor_team);
+  return home === "SEA" ? away : home;
+}
+
+function statusText(game) {
+  const s = String(game?.status || "").toLowerCase();
+  if (s.includes("final")) return "Final";
+  if (s.includes("in progress")) return "Live";
+  if (s.includes("scheduled")) return "Scheduled";
+  return game?.status || "";
+}
+
+function fmtPT(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  try {
+    return d.toLocaleString("en-US", {
+      timeZone: "America/Los_Angeles",
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return d.toISOString();
+  }
+}
+
+function scoreText(game) {
+  const hs = game?.home_team_score;
+  const as = game?.visitor_team_score;
+
+  if (hs === null || hs === undefined || as === null || as === undefined) return "TBD";
+
+  const home = teamAbbr(game?.home_team);
+  const away = teamAbbr(game?.visitor_team);
+
+  if (home === "SEA") return `${hs} : ${as}`;
+  if (away === "SEA") return `${as} : ${hs}`;
+  return `${as} : ${hs}`;
+}
+
+function isSeahawksWin(game) {
+  const home = teamAbbr(game?.home_team);
+  const away = teamAbbr(game?.visitor_team);
+  const hs = Number(game?.home_team_score);
+  const as = Number(game?.visitor_team_score);
+
+  if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
+
+  const seaIsHome_ = home === "SEA";
+  const seaIsAway = away === "SEA";
+  if (!seaIsHome_ && !seaIsAway) return null;
+
+  const seaScore = seaIsHome_ ? hs : as;
+  const oppScore = seaIsHome_ ? as : hs;
+
+  if (seaScore === oppScore) return null;
+  return seaScore > oppScore;
+}
+
+function sortByDate(a, b) {
+  const ad = a?.date ? new Date(a.date).getTime() : 0;
+  const bd = b?.date ? new Date(b.date).getTime() : 0;
+  if (ad !== bd) return ad - bd;
+  const aw = Number(a?.week);
+  const bw = Number(b?.week);
+  if (Number.isFinite(aw) && Number.isFinite(bw)) return aw - bw;
+  return 0;
+}
+
+// Split + sort
+const regularAll = rawGames.filter((g) => !isPlayoffGame(g)).slice().sort(sortByDate);
+const playoffsAll = rawGames.filter((g) => isPlayoffGame(g)).slice().sort(sortByDate);
+
+const allSorted = [...regularAll, ...playoffsAll].slice().sort(sortByDate);
+
+function isFinal(game) {
+  const s = String(game?.status || "").toLowerCase();
+  return s.includes("final") || s.includes("finished");
+}
+
+const completed = allSorted.filter(isFinal);
+const upcoming = allSorted.filter((g) => !isFinal(g));
+
+const lastGame = completed.length ? completed[completed.length - 1] : null;
+const nextGame = upcoming.length ? upcoming[0] : null;
 
 const record = completed.reduce(
   (acc, g) => {
-    const r = seahawksResult(g);
-    if (r === "W") acc.w++;
-    else if (r === "L") acc.l++;
-    else if (r === "T") acc.t++;
+    const win = isSeahawksWin(g);
+    if (win === true) acc.w++;
+    else if (win === false) acc.l++;
+    // ties / null ignored
     return acc;
   },
-  { w: 0, l: 0, t: 0 }
+  { w: 0, l: 0 }
 );
 
-const lastGame = completed.length ? completed[completed.length - 1] : null;
-
-function gameScoreLine(g) {
-  const hs = scoreNum(g?.home_team_score);
-  const as = scoreNum(g?.visitor_team_score);
-  const home = teamAbbr(g?.home_team);
-  const away = teamAbbr(g?.visitor_team);
-  if (hs === null || as === null) return "";
-  return `${away} ${as} — ${home} ${hs}`;
-}
+const fmtUpdatedLine = updatedAt
+  ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) + " PT"
+  : "—";
 ---
 
-<SeahawksLayout {title} {description} {activePath} pageTitle="Weekly Recap" pageTagline="Results, upcoming games, and quick context.">
-  <div class="card">
-    <h3>{team?.full_name || "Seahawks"} — {season} recap</h3>
-    <p>
-      <strong>Record (final games):</strong> {record.w}-{record.l}{record.t ? `-${record.t}` : ""}
-      <br />
-      <span class="muted">Updated: {updatedAt ? isoToPT(updatedAt) : "unknown"}</span>
-    </p>
+<SeahawksLayout
+  title={`Weekly Recap (${season})`}
+  description="Weekly recap, last result, and what's next."
+  activePath="/weekly-recap"
+>
+  <div class="meta-line">
+    <span><strong>Season:</strong> {season}</span>
+    <span class="dot">•</span>
+    <span><strong>Record:</strong> {record.w}-{record.l}</span>
+    <span class="dot">•</span>
+    <span><strong>Updated:</strong> {fmtUpdatedLine}</span>
   </div>
 
-  {lastGame ? (
-    <div class="card">
-      <h3>Last game</h3>
-      <p>
-        <strong>{matchupLabel(lastGame)}</strong><br />
-        {lastGame?.date ? isoToPT(lastGame.date) : ""}
-      </p>
-      <p>
-        {gameScoreLine(lastGame) ? (
-          <>
-            <strong>Final:</strong> {gameScoreLine(lastGame)}
-          </>
-        ) : (
-          <span class="muted">Score not available yet.</span>
-        )}
-      </p>
-      <p>
-        <a href={`/games/${encodeURIComponent(String(lastGame?.id ?? lastGame?.game_id))}`}>
-          View game page →
-        </a>
-      </p>
-    </div>
-  ) : null}
+  <div class="cards-grid">
+    <article class="card">
+      <div class="card-top">
+        <div class="week">Last game</div>
+        <div class="date">{lastGame?.date ? fmtPT(lastGame.date) : "—"}</div>
+      </div>
 
-  <div class="card">
-    <h3>Upcoming</h3>
-    {upcoming.length ? (
-      <ul>
-        {upcoming.slice(0, 6).map((g, idx) => (
-          <li>
-            <strong>{matchupLabel(g)}</strong>
-            {" — "}
-            {g?.date ? isoToPT(g.date) : "TBD"}
-            {" — "}
-            <a href={`/games/${encodeURIComponent(String(g?.id ?? g?.game_id ?? gameId(g, idx)))}`}>details</a>
-          </li>
-        ))}
-      </ul>
-    ) : (
-      <p class="muted">No upcoming games found.</p>
-    )}
+      {lastGame ? (
+        <>
+          <div class="matchup">
+            <div class="team">
+              <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
+              <div class="abbr">SEA</div>
+              <div class="ha">{seaIsHome(lastGame) ? "H" : "A"}</div>
+            </div>
+
+            <div class="at">@</div>
+
+            <div class="team">
+              {(() => {
+                const opp = oppAbbr(lastGame);
+                return (
+                  <>
+                    <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
+                    <div class="abbr">{opp}</div>
+                    <div class="ha">{seaIsHome(lastGame) ? "A" : "H"}</div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          <div class="card-bottom">
+            <div class="status">{statusText(lastGame)}</div>
+            <div class="score">{scoreText(lastGame)}</div>
+          </div>
+
+          <div class="links-row">
+            <a class="pill" href={`/games/${encodeURIComponent(String(lastGame?.id ?? lastGame?.game_id ?? ""))}`}>
+              Game page →
+            </a>
+          </div>
+        </>
+      ) : (
+        <div class="empty" style="margin-top:.6rem;">No completed games found yet.</div>
+      )}
+    </article>
+
+    <article class="card">
+      <div class="card-top">
+        <div class="week">Next game</div>
+        <div class="date">{nextGame?.date ? fmtPT(nextGame.date) : "—"}</div>
+      </div>
+
+      {nextGame ? (
+        <>
+          <div class="matchup">
+            <div class="team">
+              <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
+              <div class="abbr">SEA</div>
+              <div class="ha">{seaIsHome(nextGame) ? "H" : "A"}</div>
+            </div>
+
+            <div class="at">@</div>
+
+            <div class="team">
+              {(() => {
+                const opp = oppAbbr(nextGame);
+                return (
+                  <>
+                    <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
+                    <div class="abbr">{opp}</div>
+                    <div class="ha">{seaIsHome(nextGame) ? "A" : "H"}</div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          <div class="card-bottom">
+            <div class="status">{statusText(nextGame)}</div>
+            <div class="score">{scoreText(nextGame)}</div>
+          </div>
+
+          <div class="links-row">
+            <a class="pill" href={`/games/${encodeURIComponent(String(nextGame?.id ?? nextGame?.game_id ?? ""))}`}>
+              Game page →
+            </a>
+            <a class="pill pill--ghost" href="/schedule">Full schedule →</a>
+          </div>
+        </>
+      ) : (
+        <div class="empty" style="margin-top:.6rem;">No upcoming games found.</div>
+      )}
+    </article>
   </div>
 
-  <div class="card">
-    <h3>All weeks</h3>
-    <ul>
-      {seaGames.map((g, idx) => {
-        const w = gameWeek(g, idx);
-        const gid = String(g?.id ?? g?.game_id ?? gameId(g, idx));
-        const final = isFinal(g);
-        const res = final ? seahawksResult(g) : null;
-        const scoreLine = final ? gameScoreLine(g) : "";
+  <h3 class="section-title" style="margin-top: 1.25rem;">All games (quick list)</h3>
+
+  {allSorted.length === 0 ? (
+    <div class="empty">No games found in the current data file.</div>
+  ) : (
+    <div class="cards-grid">
+      {allSorted.map((g) => {
+        const opp = oppAbbr(g);
+        const win = isSeahawksWin(g);
+        const cardClass =
+          win === true ? "card card--win" : win === false ? "card card--loss" : "card";
+
         return (
-          <li>
-            <strong>Week {w}:</strong>{" "}
-            <a href={`/games/${encodeURIComponent(gid)}`}>{matchupLabel(g)}</a>
-            {final ? (
-              <>
-                {" — "}
-                <strong>{res}</strong>
-                {scoreLine ? ` (${scoreLine})` : ""}
-              </>
-            ) : (
-              <span class="muted"> — upcoming</span>
-            )}
-          </li>
+          <article class={cardClass}>
+            <div class="card-top">
+              <div class="week">
+                {isPlayoffGame(g)
+                  ? (Number.isFinite(Number(g?.week)) ? `Playoffs Week ${g.week}` : "Playoffs")
+                  : (Number.isFinite(Number(g?.week)) ? `Week ${g.week}` : String(g?.week || ""))}
+              </div>
+              <div class="date">{fmtPT(g?.date)}</div>
+            </div>
+
+            <div class="matchup">
+              <div class="team">
+                <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
+                <div class="abbr">SEA</div>
+                <div class="ha">{seaIsHome(g) ? "H" : "A"}</div>
+              </div>
+
+              <div class="at">@</div>
+
+              <div class="team">
+                <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
+                <div class="abbr">{opp}</div>
+                <div class="ha">{seaIsHome(g) ? "A" : "H"}</div>
+              </div>
+            </div>
+
+            <div class="card-bottom">
+              <div class="status">{statusText(g)}</div>
+              <div class="score">{scoreText(g)}</div>
+            </div>
+
+            <div class="links-row">
+              <a class="pill pill--ghost" href={`/games/${encodeURIComponent(String(g?.id ?? g?.game_id ?? ""))}`}>
+                Game page →
+              </a>
+            </div>
+          </article>
         );
       })}
-    </ul>
-  </div>
+    </div>
+  )}
+
+  <style>
+    /* (copied from your schedule page + tiny extras) */
+    .meta-line,
+    .cards-grid,
+    .card,
+    .card-top,
+    .matchup,
+    .team,
+    .card-bottom,
+    .week,
+    .date,
+    .status,
+    .score,
+    .links-row {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .meta-line,
+    .week,
+    .date,
+    .status,
+    .score,
+    .empty,
+    .section-title {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .meta-line {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      color: rgba(15,23,32,.65);
+      margin: .35rem 0 1rem;
+      flex-wrap: wrap;
+    }
+
+    .dot { opacity: .5; }
+
+    .section-title {
+      color: var(--navy);
+      margin: 0.75rem 0 0.7rem;
+    }
+
+    .empty {
+      padding: .9rem 1rem;
+      border-radius: 14px;
+      border: 1px solid rgba(0,34,68,0.14);
+      background: rgba(165,172,175,0.18);
+      color: rgba(15,23,32,0.85);
+      font-weight: 800;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .85rem;
+      align-items: start;
+    }
+
+    .cards-grid > *:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+      justify-self: center;
+      width: min(520px, 100%);
+    }
+
+    @media (max-width: 820px) {
+      .cards-grid { grid-template-columns: 1fr; }
+      .cards-grid > *:last-child:nth-child(odd) {
+        grid-column: auto;
+        justify-self: stretch;
+        width: 100%;
+      }
+    }
+
+    .card {
+      border-radius: 14px;
+      border: 1px solid rgba(0,34,68,0.16);
+      background: #fff;
+      padding: .85rem .9rem;
+      box-shadow: 0 10px 22px rgba(0,0,0,.08);
+      overflow: hidden;
+    }
+
+    .card--win { border-color: rgba(105,190,40,.65); box-shadow: 0 10px 22px rgba(105,190,40,.12); }
+    .card--loss { border-color: rgba(220,38,38,.45); box-shadow: 0 10px 22px rgba(220,38,38,.10); }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      gap: .75rem;
+      padding-bottom: .55rem;
+      border-bottom: 1px solid rgba(0,34,68,.10);
+      margin-bottom: .6rem;
+    }
+
+    .week { font-weight: 900; color: var(--navy); }
+    .date { color: rgba(15,23,32,.65); font-weight: 700; }
+
+    .matchup {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: .55rem;
+      padding: .2rem 0 .65rem;
+    }
+
+    .team {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      justify-content: center;
+    }
+
+    .logo {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      display: block;
+      flex: 0 0 auto;
+    }
+
+    .abbr { font-weight: 900; color: var(--navy); }
+    .ha { font-size: .78rem; color: rgba(15,23,32,.55); font-weight: 800; }
+    .at { font-weight: 900; color: rgba(0,34,68,.55); text-align: center; }
+
+    .card-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: .75rem;
+      margin-top: .25rem;
+    }
+
+    .status { font-weight: 900; color: rgba(0,34,68,.80); }
+    .score { font-weight: 900; color: rgba(0,34,68,.90); }
+
+    .links-row{
+      display:flex;
+      gap:.5rem;
+      margin-top:.65rem;
+      justify-content:flex-end;
+      flex-wrap:wrap;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:.35rem;
+      padding:.38rem .6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0,34,68,.16);
+      background: rgba(0,34,68,.04);
+      color: rgba(0,34,68,.86);
+      font-weight: 900;
+      text-decoration: none;
+    }
+    .pill:hover{ background: rgba(0,34,68,.07); }
+    .pill--ghost{
+      background: transparent;
+    }
+  </style>
 </SeahawksLayout>
