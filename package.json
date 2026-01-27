@@ -4,11 +4,17 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "node scripts/fetch-nfl.mjs && node scripts/generate-game-recaps.mjs && astro build",
+
+    "fetch-nfl": "node scripts/fetch-nfl.mjs",
+    "generate-game-recaps": "node scripts/generate-game-recaps.mjs",
+    "generate-player-profiles": "node scripts/generate-player-profiles.mjs",
+
+    "prebuild": "node scripts/fetch-nfl.mjs && node scripts/generate-game-recaps.mjs && node scripts/generate-player-profiles.mjs",
+    "build": "npm run prebuild && astro build",
+
     "preview": "astro preview",
     "astro": "astro",
-    "fetch-ebay": "node scripts/fetch-ebay.mjs",
-    "generate-game-recaps": "node scripts/generate-game-recaps.mjs"
+    "fetch-ebay": "node scripts/fetch-ebay.mjs"
   },
   "dependencies": {
     "astro": "^5.16.6"
