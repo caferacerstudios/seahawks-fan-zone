@@ -4,10 +4,45 @@ import playersData from "../../data/nfl/players.json";
 import profilesData from "../../data/nfl/playerProfiles.json";
 import injuriesData from "../../data/nfl/injuries.json";
 
-/* =======================
-   Helpers (safe + local)
-   ======================= */
+/* =========================================
+   getStaticPaths (SELF-CONTAINED)
+   - Do NOT reference helpers outside this fn
+   ========================================= */
+export function getStaticPaths() {
+  function getRosterLocal(playersJson) {
+    if (Array.isArray(playersJson?.data)) return playersJson.data;
+    if (Array.isArray(playersJson?.players)) return playersJson.players;
+    if (Array.isArray(playersJson)) return playersJson;
+    return [];
+  }
 
+  function playerIdOfLocal(p) {
+    return p?.id ?? p?.player_id ?? null;
+  }
+
+  const roster = getRosterLocal(playersData);
+
+  const ids = roster
+    .map((p) => playerIdOfLocal(p))
+    .filter((id) => id !== null && id !== undefined)
+    .map((id) => String(id));
+
+  const seen = new Set();
+  const unique = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    unique.push(id);
+  }
+
+  return unique.map((id) => ({
+    params: { playerId: id },
+  }));
+}
+
+/* =======================
+   Helpers (page render)
+   ======================= */
 function getRoster(playersJson) {
   if (Array.isArray(playersJson?.data)) return playersJson.data;
   if (Array.isArray(playersJson?.players)) return playersJson.players;
@@ -29,10 +64,6 @@ function pos(p) {
   return String(p?.position_abbreviation || p?.position || "").toUpperCase() || "-";
 }
 
-function nOrDash(v) {
-  return typeof v === "number" ? String(v) : "-";
-}
-
 function fmtPT(dateStr) {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
@@ -47,51 +78,23 @@ function fmtPT(dateStr) {
   }
 }
 
-/* =========================================
-   getStaticPaths (SELF-CONTAINED, no roster)
-   ========================================= */
-export function getStaticPaths() {
-  const roster = getRoster(playersData);
-
-  // Only build pages for players with IDs
-  const ids = roster
-    .map((p) => playerIdOf(p))
-    .filter((id) => id !== null && id !== undefined)
-    .map((id) => String(id));
-
-  // de-dupe
-  const seen = new Set();
-  const unique = [];
-  for (const id of ids) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    unique.push(id);
-  }
-
-  return unique.map((id) => ({
-    params: { playerId: id },
-  }));
-}
-
 /* =======================
    Page logic
    ======================= */
 const { playerId } = Astro.params;
 
 const roster = getRoster(playersData);
-const player =
-  roster.find((p) => String(playerIdOf(p)) === String(playerId)) || null;
+const player = roster.find((p) => String(playerIdOf(p)) === String(playerId)) || null;
 
-const profiles = profilesData?.profiles && typeof profilesData.profiles === "object"
-  ? profilesData.profiles
-  : {};
+const profiles =
+  profilesData?.profiles && typeof profilesData.profiles === "object"
+    ? profilesData.profiles
+    : {};
 
 const profile = profiles?.[String(playerId)] || null;
 
-// injuries.json is { injuries: [...] } with items containing playerId
 const injuriesArr = Array.isArray(injuriesData?.injuries) ? injuriesData.injuries : [];
-const injury =
-  injuriesArr.find((x) => String(x?.playerId) === String(playerId)) || null;
+const injury = injuriesArr.find((x) => String(x?.playerId) === String(playerId)) || null;
 
 const title = player ? `${playerName(player)} — Player` : "Player not found";
 ---
@@ -135,12 +138,7 @@ const title = player ? `${playerName(player)} — Player` : "Player not found";
 
       <section class="recap">
         <h3 class="recap-title">Bio</h3>
-
-        {!profile?.bio ? (
-          <div class="empty">Bio coming soon.</div>
-        ) : (
-          <p class="recap-text">{profile.bio}</p>
-        )}
+        {!profile?.bio ? <div class="empty">Bio coming soon.</div> : <p class="recap-text">{profile.bio}</p>}
       </section>
 
       <section class="recap">
