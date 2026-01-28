@@ -2,8 +2,6 @@
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
-
-// ✅ Use your roster / player data to decide if a player is a Seahawk
 import rosterData from "../../data/nfl/players.json";
 
 /* =======================
@@ -117,56 +115,6 @@ function gameKey(g, idx) {
 }
 
 /* =======================
-   Seahawks player set (for linking)
-   ======================= */
-
-function getRosterLocal(playersData) {
-  if (Array.isArray(playersData?.data)) return playersData.data;
-  if (Array.isArray(playersData?.players)) return playersData.players;
-  if (Array.isArray(playersData)) return playersData;
-  return [];
-}
-
-function pidLocal(p) {
-  return p?.id ?? p?.player_id ?? p?.player?.id ?? null;
-}
-
-function teamLocal(p) {
-  // handle a few common shapes
-  const abbr =
-    p?.team?.abbreviation ??
-    p?.team_abbreviation ??
-    p?.teamAbbr ??
-    p?.team ??
-    "";
-  return String(abbr || "").toUpperCase();
-}
-
-const SEA_PLAYER_IDS = (() => {
-  const out = new Set();
-  const roster = getRosterLocal(rosterData);
-  for (const p of roster) {
-    if (teamLocal(p) !== "SEA") continue;
-    const id = pidLocal(p);
-    if (id === null || id === undefined) continue;
-    out.add(String(id));
-  }
-  return out;
-})();
-
-function playerHref(id) {
-  // assumes your player page route is /players/[playerId]
-  return `/players/${encodeURIComponent(String(id))}`;
-}
-
-function canLinkPlayer(id) {
-  const key = String(id ?? "").trim();
-  if (!key) return false;
-  // ✅ Only link if the player is in your SEA roster set
-  return SEA_PLAYER_IDS.has(key);
-}
-
-/* =======================
    getStaticPaths (SELF-CONTAINED)
    ======================= */
 export function getStaticPaths() {
@@ -217,7 +165,55 @@ const pageTitle = game
 const recap = gameRecaps?.recaps?.[String(gameId)] || null;
 
 /* =======================
-   Safe HTML rendering for recap
+   Seahawks-only player linking
+   ======================= */
+
+function getRosterLocal(playersData) {
+  if (Array.isArray(playersData?.data)) return playersData.data;
+  if (Array.isArray(playersData?.players)) return playersData.players;
+  if (Array.isArray(playersData)) return playersData;
+  return [];
+}
+
+function pidLocal(p) {
+  return p?.id ?? p?.player_id ?? p?.player?.id ?? null;
+}
+
+function teamLocal(p) {
+  const abbr =
+    p?.team?.abbreviation ??
+    p?.team_abbreviation ??
+    p?.teamAbbr ??
+    p?.team ??
+    "";
+  return String(abbr || "").toUpperCase();
+}
+
+// ✅ Set of Seahawks player IDs we are allowed to link
+const SEA_PLAYER_IDS = (() => {
+  const out = new Set();
+  const roster = getRosterLocal(rosterData);
+  for (const p of roster) {
+    if (teamLocal(p) !== "SEA") continue;
+    const id = pidLocal(p);
+    if (id === null || id === undefined) continue;
+    out.add(String(id));
+  }
+  return out;
+})();
+
+function playerHref(id) {
+  return `/players/${encodeURIComponent(String(id))}`;
+}
+
+function canLinkPlayer(id) {
+  const key = String(id ?? "").trim();
+  if (!key) return false;
+  return SEA_PLAYER_IDS.has(key);
+}
+
+/* =======================
+   Safe HTML rendering (fixes token leakage everywhere)
    ======================= */
 
 function escapeHtml(s) {
@@ -229,51 +225,82 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
+// Matches model token blobs like:
+// {t:'player', v:'Name', id:123, name:'Name'}
+// Works even if fields are in different order, id is quoted, etc.
+const PLAYER_TOKEN_RE =
+  /\{\s*[^}]*\bt\s*:\s*['"]player['"][^}]*\bid\s*:\s*['"]?(\d+)['"]?[^}]*\b(?:name|v)\s*:\s*['"]([^'"]+)['"][^}]*\}\s*/g;
+
+// Render a plain text string into SAFE html, but convert any embedded player tokens:
+// - Seahawks players => link
+// - everyone else => plain text (no link)
+function renderTextWithSeahawksLinks(input) {
+  const s = String(input ?? "");
+  if (!s) return "";
+
+  let html = "";
+  let lastIdx = 0;
+
+  for (const m of s.matchAll(PLAYER_TOKEN_RE)) {
+    const start = m.index ?? 0;
+    const end = start + m[0].length;
+
+    const id = m[1];
+    const name = m[2];
+
+    // text before token
+    html += escapeHtml(s.slice(lastIdx, start));
+
+    // token replacement
+    const safeName = escapeHtml(name);
+    if (canLinkPlayer(id)) {
+      html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${safeName}</a>`;
+    } else {
+      html += safeName;
+    }
+
+    lastIdx = end;
+  }
+
+  // remainder
+  html += escapeHtml(s.slice(lastIdx));
+
+  // ✅ fix common spacing issue: "Name" + "rushed" => "Name rushed"
+  // Only adds a space when a letter follows a closing anchor/name without whitespace/punct.
+  html = html.replaceAll(/<\/a>(?=[A-Za-z])/g, "</a> ");
+  html = html.replaceAll(/([a-zA-Z])(?=[A-Za-z])/g, "$1"); // no-op, keeps safe
+
+  return html;
+}
+
 function renderRecapHtml(recapObj) {
   const segs = Array.isArray(recapObj?.segments) ? recapObj.segments : [];
   let html = "";
 
-  for (const s of segs) {
-    const t = String(s?.t || "text");
-    const display = s?.name || s?.v || "";
+  for (const seg of segs) {
+    const t = String(seg?.t || "text");
+    const display = seg?.name || seg?.v || "";
+
     if (t === "player") {
-      const id = s?.id;
+      const id = seg?.id;
+      const safeName = escapeHtml(display);
       if (canLinkPlayer(id)) {
-        html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${escapeHtml(display)}</a>`;
+        html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${safeName}</a>`;
       } else {
-        html += `<strong class="player-plain">${escapeHtml(display)}</strong>`;
+        html += safeName;
       }
     } else {
-      html += escapeHtml(s?.v || "");
+      // ✅ even "text" segments may contain embedded {t:'player'...} blobs — fix them
+      html += renderTextWithSeahawksLinks(seg?.v || "");
     }
   }
 
   return html;
 }
 
-// Convert model-ish object-literal bullet prefix into link/bold.
 function renderBulletHtml(b) {
-  const raw = String(b ?? "");
-
-  // Matches: {t:'player', v:'Name', id:123, name:'Name'} ...
-  // Also tolerates id as "123"
-  const m = raw.match(
-    /^\s*\{[^}]*\bt\s*:\s*['"]player['"][^}]*\bid\s*:\s*['"]?([0-9]+)['"]?[^}]*\b(?:name|v)\s*:\s*['"]([^'"]+)['"][^}]*\}\s*/
-  );
-
-  if (m) {
-    const id = m[1];
-    const name = m[2];
-    const rest = raw.slice(m[0].length);
-
-    const head = canLinkPlayer(id)
-      ? `<a class="player-link" href="${escapeHtml(playerHref(id))}">${escapeHtml(name)}</a>`
-      : `<strong class="player-plain">${escapeHtml(name)}</strong>`;
-
-    return `${head}${escapeHtml(rest)}`;
-  }
-
-  return escapeHtml(raw);
+  // ✅ bullet strings may contain embedded tokens anywhere
+  return renderTextWithSeahawksLinks(b);
 }
 
 const recapHtml = recap ? renderRecapHtml(recap) : "";
@@ -358,7 +385,6 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
   )}
 
   <style>
-    /* ✅ prevent grid/flex overflow */
     .meta-line,
     .card,
     .card-top,
@@ -379,7 +405,6 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
       box-sizing: border-box;
     }
 
-    /* ✅ wrap text safely */
     .meta-line,
     .week,
     .date,
@@ -509,7 +534,6 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
       pointer-events: none;
     }
 
-    /* ===== Recap ===== */
     .recap { margin-top: 1.1rem; }
 
     .recap-card{
@@ -536,18 +560,12 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
       line-height: 1.45;
     }
 
-    /* Linked Seahawks players only */
+    /* Seahawks players only */
     .player-link{
       font-weight: 900;
       text-decoration: underline;
       white-space: nowrap;
     }
     .player-link:hover{ opacity: .85; }
-
-    /* Non-linked player mentions */
-    .player-plain{
-      font-weight: 900;
-      white-space: nowrap;
-    }
   </style>
 </SeahawksLayout>
