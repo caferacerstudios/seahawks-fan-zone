@@ -38,7 +38,7 @@ const featured = [
   { title: "Player Stats", desc: "Season stats by player (QB/RB/WR/TE and more).", href: "/players" },
 ];
 
-// ✅ Basic position filters only (no placeholders, no ST/DEF for now)
+// ✅ Basic position filters only
 const quickLinks = [
   { href: "/players", label: "All Players" },
   { href: "/players?pos=QB", label: "QB" },
@@ -145,8 +145,8 @@ Go Hawks!`;
 
             <div class="snapshot" role="listitem">
               <div class="snapshot-k">Last update</div>
-              <div class="snapshot-v">{updatedAt ?? "Not fetched yet"}</div>
-              <div class="snapshot-note">Build-time pull from BALLDONTLIE</div>
+              <div class="snapshot-v">{updatedAt ?? "Latest data not available yet"}</div>
+              <div class="snapshot-note">Updated during site builds</div>
             </div>
           </div>
 
@@ -157,10 +157,7 @@ Go Hawks!`;
             </a>
           </p>
 
-          <!-- Footer note -->
-          <div class="note-box">
-            <strong>Next milestone:</strong> add a simple “last game / next game” card on the homepage.
-          </div>
+          <!-- ✅ Removed any “next milestone / soon / templated” public notes for ad readiness -->
         </div>
       </article>
 
@@ -186,8 +183,9 @@ Go Hawks!`;
         </ul>
       </section>
 
-      <!-- ✅ Removed “Build next” section (avoid dead links during ad review) -->
+      <!-- ✅ Removed any “soon”/placeholder sections for ad review -->
     </aside>
   </div>
 </BaseLayout>
+
 
