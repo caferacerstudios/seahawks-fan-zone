@@ -1,4 +1,7 @@
 ---
+import fs from "node:fs";
+import path from "node:path";
+
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import rosterData from "../../data/nfl/players.json";
 import seasonData from "../../data/nfl/seahawks.json";
@@ -65,9 +68,7 @@ function pid(p) {
 function playerNameFromAny(obj) {
   const p = obj?.player ?? obj;
   if (!p) return "Unknown";
-  const full =
-    p?.full_name ||
-    `${p?.first_name || ""} ${p?.last_name || ""}`.trim();
+  const full = p?.full_name || `${p?.first_name || ""} ${p?.last_name || ""}`.trim();
   return full || "Unknown";
 }
 
@@ -114,34 +115,24 @@ function fmtUpdatedPT(iso) {
 /* =======================
    Profiles: support multiple shapes
    ======================= */
-// Accept either:
-// A) { updatedAt, profiles: { [id]: { bio, recap } } }
-// B) { updatedAt, byId: { [id]: { bio, recap } } }
-// C) { updatedAt, data: [{ player_id, bio, recap_paragraph, recap_bullets, ... }] }
-// D) { updatedAt, data: { [id]: { bio, recap } } }
-// E) { [id]: { bio, recap } }  (no wrapper)
 function getProfileFor(id) {
   const key = String(id);
   const root = playerProfilesData || {};
 
-  // map-style wrappers
   const map1 = root?.profiles && typeof root.profiles === "object" ? root.profiles : null;
   const map2 = root?.byId && typeof root.byId === "object" ? root.byId : null;
   if (map1 && map1[key]) return map1[key];
   if (map2 && map2[key]) return map2[key];
 
-  // data object keyed by id
   if (root?.data && typeof root.data === "object" && !Array.isArray(root.data) && root.data[key]) {
     return root.data[key];
   }
 
-  // data array
   if (Array.isArray(root?.data)) {
     const hit = root.data.find((x) => String(x?.player_id ?? x?.id ?? x?.player?.id ?? "") === key);
     if (hit) return hit;
   }
 
-  // bare map at root
   if (root && typeof root === "object" && root[key]) return root[key];
 
   return null;
@@ -150,7 +141,6 @@ function getProfileFor(id) {
 function normalizeProfile(p) {
   if (!p || typeof p !== "object") return { bio: null, recap: null, name: null };
 
-  // already normalized
   if (typeof p?.bio === "string" && p?.recap && typeof p.recap === "object") {
     return {
       name: p?.name ?? p?.full_name ?? null,
@@ -162,12 +152,7 @@ function normalizeProfile(p) {
     };
   }
 
-  // flattened recap fields
-  const paragraph =
-    p?.recap_paragraph ??
-    p?.paragraph ??
-    p?.gameplay_paragraph ??
-    null;
+  const paragraph = p?.recap_paragraph ?? p?.paragraph ?? p?.gameplay_paragraph ?? null;
 
   const bullets =
     Array.isArray(p?.recap_bullets) ? p.recap_bullets :
@@ -178,19 +163,13 @@ function normalizeProfile(p) {
   return {
     name: p?.name ?? p?.full_name ?? null,
     bio: typeof p?.bio === "string" ? p.bio : null,
-    recap: paragraph
-      ? { paragraph: String(paragraph), bullets: bullets.map(String) }
-      : null,
+    recap: paragraph ? { paragraph: String(paragraph), bullets: bullets.map(String) } : null,
   };
 }
 
 /* =======================
    Injuries: support multiple shapes
    ======================= */
-// Accept either:
-// A) { injuries: [...] }
-// B) { data: [...] }
-// C) [...] array at root
 function getInjuryArray(root) {
   if (Array.isArray(root?.injuries)) return root.injuries;
   if (Array.isArray(root?.data)) return root.data;
@@ -203,12 +182,7 @@ function normalizeInjRow(x) {
 
   const p = x?.player ?? null;
 
-  const id =
-    x?.player_id ??
-    x?.playerId ??
-    p?.id ??
-    x?.id ??
-    null;
+  const id = x?.player_id ?? x?.playerId ?? p?.id ?? x?.id ?? null;
 
   const status =
     x?.status ??
@@ -234,12 +208,141 @@ function normalizeInjRow(x) {
     x?.updatedAt ??
     null;
 
-  return {
-    id,
-    status,
-    description,
-    date,
-  };
+  return { id, status, description, date };
+}
+
+/* =======================
+   Team logo + manual headshot (name-based, typo-tolerant)
+   ======================= */
+function teamAbbrFromAny(rosterPlayer, statRow) {
+  const a =
+    rosterPlayer?.team?.abbreviation ||
+    rosterPlayer?.team_abbreviation ||
+    rosterPlayer?.team ||
+    statRow?.player?.team?.abbreviation ||
+    statRow?.team_abbreviation ||
+    "SEA";
+  return String(a || "SEA").toUpperCase();
+}
+
+function teamLogoUrl(abbr) {
+  return `/images/nfl/teams/${String(abbr || "SEA").toUpperCase()}.png`;
+}
+
+// Normalize a name / filename to a "comparable" key:
+// - lowercase
+// - remove diacritics
+// - keep only a-z0-9
+function normKey(s) {
+  return String(s || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "") // strip accents
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+// Small Levenshtein distance for "slight typo"
+function levenshtein(a, b) {
+  a = String(a || "");
+  b = String(b || "");
+  const n = a.length;
+  const m = b.length;
+  if (n === 0) return m;
+  if (m === 0) return n;
+
+  const dp = new Array(m + 1);
+  for (let j = 0; j <= m; j++) dp[j] = j;
+
+  for (let i = 1; i <= n; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= m; j++) {
+      const tmp = dp[j];
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[j] = Math.min(
+        dp[j] + 1,      // deletion
+        dp[j - 1] + 1,  // insertion
+        prev + cost     // substitution
+      );
+      prev = tmp;
+    }
+  }
+  return dp[m];
+}
+
+// Build a directory index ONCE per page module load.
+// Put images here (any extension): public/images/nfl/players/<anything>.jpg|png|webp...
+const projectRoot = Astro.root ?? process.cwd();
+const playersDirDisk = path.join(projectRoot, "public", "images", "nfl", "players");
+const allowedExt = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
+
+function listPlayerImageFiles() {
+  try {
+    const files = fs.readdirSync(playersDirDisk);
+    return files.filter((f) => allowedExt.has(path.extname(f).toLowerCase()));
+  } catch {
+    return [];
+  }
+}
+
+const playerImageFiles = listPlayerImageFiles();
+
+// Index by normalized basename for exact-ish lookup
+const imageIndex = new Map(); // normBase -> filename
+for (const f of playerImageFiles) {
+  const base = path.basename(f, path.extname(f));
+  const k = normKey(base);
+  if (!k) continue;
+  // keep first if duplicates
+  if (!imageIndex.has(k)) imageIndex.set(k, f);
+}
+
+/**
+ * Find an image by display name:
+ * - exact match on normalized base
+ * - else best Levenshtein match within small threshold (typo tolerance)
+ *
+ * Your manual workflow:
+ *   Save files in: public/images/nfl/players/
+ *   Name them like: "DK Metcalf.jpg" or "dk_metcalf.png" or even "Dk Metcalf.webp"
+ */
+function findHeadshotForName(displayName) {
+  const target = normKey(displayName);
+  if (!target) return null;
+
+  // exact normalized match
+  const exact = imageIndex.get(target);
+  if (exact) return `/images/nfl/players/${encodeURIComponent(exact)}`;
+
+  // prefix contains check (handles extra middle initials, etc.)
+  for (const [k, f] of imageIndex.entries()) {
+    if (k.startsWith(target) || target.startsWith(k)) {
+      return `/images/nfl/players/${encodeURIComponent(f)}`;
+    }
+  }
+
+  // typo-tolerant match
+  let bestFile = null;
+  let bestDist = Infinity;
+
+  for (const [k, f] of imageIndex.entries()) {
+    // quick length guard (avoid weird matches)
+    if (Math.abs(k.length - target.length) > 3) continue;
+
+    const d = levenshtein(target, k);
+    if (d < bestDist) {
+      bestDist = d;
+      bestFile = f;
+      if (bestDist === 1) break; // good enough
+    }
+  }
+
+  // allow only "slight typo"
+  if (bestFile && bestDist <= 2) {
+    return `/images/nfl/players/${encodeURIComponent(bestFile)}`;
+  }
+
+  return null;
 }
 
 /* =======================
@@ -251,13 +354,9 @@ const statRow = bestStatRowForPlayer(playerId);
 const rawProfile = getProfileFor(playerId);
 const profile = normalizeProfile(rawProfile);
 
-const injuries = getInjuryArray(injuriesData)
-  .map(normalizeInjRow)
-  .filter(Boolean);
-
+const injuries = getInjuryArray(injuriesData).map(normalizeInjRow).filter(Boolean);
 const injuryMatches = injuries.filter((r) => String(r.id ?? "") === String(playerId));
 
-// display fields (safe across shapes)
 const displayName =
   playerNameFromAny(rosterPlayer) !== "Unknown"
     ? playerNameFromAny(rosterPlayer)
@@ -284,6 +383,11 @@ const updatedAtForPage =
   playerProfilesData?.updatedAt ?? seasonData?.updatedAt ?? null;
 
 const pageTitle = `${displayName} — Player Profile`;
+
+// image URLs
+const abbr = teamAbbrFromAny(rosterPlayer, statRow);
+const fallbackImg = teamLogoUrl(abbr);
+const headshotImg = findHeadshotForName(displayName) || fallbackImg;
 ---
 
 <SeahawksLayout title={pageTitle} description="Player profile page." activePath="/players">
@@ -295,13 +399,28 @@ const pageTitle = `${displayName} — Player Profile`;
 
   <article class="card">
     <div class="card-top">
-      <div class="name">{displayName}</div>
-      <div class="sub">
-        <span><strong>Pos:</strong> {String(position).toUpperCase()}</span>
-        <span class="dot">•</span>
-        <span><strong>Jersey:</strong> {String(jersey)}</span>
-        <span class="dot">•</span>
-        <span><strong>Updated:</strong> {fmtUpdatedPT(updatedAtForPage)} PT</span>
+      <div class="avatar-wrap">
+        <img
+          class="avatar"
+          src={headshotImg}
+          alt={`${displayName} headshot`}
+          width="104"
+          height="104"
+          loading="lazy"
+          decoding="async"
+          onerror={`this.onerror=null;this.src='${fallbackImg}';`}
+        />
+      </div>
+
+      <div class="top-text">
+        <div class="name">{displayName}</div>
+        <div class="sub">
+          <span><strong>Pos:</strong> {String(position).toUpperCase()}</span>
+          <span class="dot">•</span>
+          <span><strong>Jersey:</strong> {String(jersey)}</span>
+          <span class="dot">•</span>
+          <span><strong>Updated:</strong> {fmtUpdatedPT(updatedAtForPage)} PT</span>
+        </div>
       </div>
     </div>
 
@@ -424,6 +543,34 @@ const pageTitle = `${displayName} — Player Profile`;
       padding-bottom: .75rem;
       border-bottom: 1px solid rgba(0,34,68,.10);
       margin-bottom: .85rem;
+
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+    }
+
+    .avatar-wrap {
+      flex: 0 0 auto;
+      width: 104px;
+      height: 104px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(0,34,68,0.14);
+      background: rgba(0,34,68,0.03);
+      display: grid;
+      place-items: center;
+    }
+
+    .avatar {
+      width: 104px;
+      height: 104px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .top-text {
+      min-width: 0;
+      flex: 1 1 auto;
     }
 
     .name {
@@ -453,6 +600,12 @@ const pageTitle = `${displayName} — Player Profile`;
 
     @media (max-width: 820px) {
       .grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 520px) {
+      .card-top { align-items: flex-start; }
+      .avatar-wrap { width: 88px; height: 88px; }
+      .avatar { width: 88px; height: 88px; }
     }
 
     .panel {
@@ -552,3 +705,4 @@ const pageTitle = `${displayName} — Player Profile`;
     }
   </style>
 </SeahawksLayout>
+
