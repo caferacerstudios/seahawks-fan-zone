@@ -30,6 +30,11 @@ function teamAbbr(teamObj, fallback = "") {
   return String(teamObj?.abbreviation || fallback).toUpperCase();
 }
 
+function teamConf(teamObj) {
+  // best-effort: BDL often includes conference on the team object
+  return String(teamObj?.conference ?? "").toUpperCase();
+}
+
 function teamLogo(abbr) {
   return `/images/nfl/teams/${abbr}.png`;
 }
@@ -129,31 +134,46 @@ const fmtUpdatedLine = updatedAt
   : "—";
 
 /* =======================
-   Playoff labeling
+   Playoff labeling (FIXED)
    ======================= */
 
-// Best-effort: map playoff games by order to standard NFC path.
-// (Wild Card -> Divisional -> NFC Championship -> Super Bowl)
-function playoffTitleByIndex(i, total) {
-  // If there are 4 games, last is Super Bowl.
-  // If there are 3 games, last is NFC Championship (no SB in data yet).
-  if (total >= 4) {
-    if (i === total - 1) return "Super Bowl";
-    if (i === total - 2) return "NFC Championship";
-    if (i === total - 3) return "Divisional Round";
-    return "Wild Card Round";
-  }
-  if (total === 3) {
-    if (i === 2) return "NFC Championship";
-    if (i === 1) return "Divisional Round";
-    return "Wild Card Round";
-  }
-  if (total === 2) return i === 1 ? "Divisional Round" : "Wild Card Round";
-  return "Playoffs";
+function isSuperBowlGame(g) {
+  // 1) explicit seasonType hint
+  const st = String(g?.seasonType ?? g?.season_type ?? "").toLowerCase();
+  if (st.includes("super") && st.includes("bowl")) return true;
+
+  // 2) if we have conferences and they differ, it's AFC vs NFC => Super Bowl
+  const hc = teamConf(g?.home_team);
+  const vc = teamConf(g?.visitor_team);
+  if (hc && vc && hc !== vc) return true;
+
+  return false;
 }
 
-function isSuperBowlByIndex(i, total) {
-  return total >= 4 && i === total - 1;
+function playoffRoundLabel(g, i, allPlayoffs) {
+  // If this game itself is SB, call it SB no matter what.
+  if (isSuperBowlGame(g)) return "Super Bowl";
+
+  // If SB exists in this postseason set, then 3-game run means:
+  // Divisional -> NFC Championship -> Super Bowl (bye week happened)
+  const sbIndex = allPlayoffs.findIndex(isSuperBowlGame);
+  if (sbIndex !== -1) {
+    // Everything before SB is ordered chronologically already
+    // Typical: i=0 Divisional, i=1 NFC Championship, i=2 Super Bowl
+    if (i === sbIndex - 1) return "NFC Championship";
+    return "Divisional";
+  }
+
+  // Otherwise, fallback by count (no SB present in data yet)
+  // Use shorter labels so they don't wrap ugly.
+  const total = allPlayoffs.length;
+  if (total >= 3) {
+    if (i === total - 1) return "NFC Championship";
+    if (i === total - 2) return "Divisional";
+    return "Wild Card";
+  }
+  if (total === 2) return i === 1 ? "Divisional" : "Wild Card";
+  return "Playoffs";
 }
 ---
 
@@ -236,19 +256,21 @@ function isSuperBowlByIndex(i, total) {
             win === true ? "card card--win" : win === false ? "card card--loss" : "card";
 
           const idx = regular.length + i; // avoid fallback-id collisions
-          const title = playoffTitleByIndex(i, playoffs.length);
-          const isSB = isSuperBowlByIndex(i, playoffs.length);
+          const round = playoffRoundLabel(g, i, playoffs);
+          const isSB = round === "Super Bowl";
 
           const cls = isSB ? `${baseClass} card--sb` : `${baseClass} card--po`;
 
           return (
             <article class={cls}>
+              {isSB && <div class="sb-ribbon">SUPER BOWL</div>}
+
               <div class="card-top">
                 <div class="week">
-                  <a class="week-link" href={gameHref(g, idx)} aria-label={`Open recap for ${title}`}>
-                    {title}
+                  <a class="week-link" href={gameHref(g, idx)} aria-label={`Open recap for ${round}`}>
+                    {round}
                   </a>
-                  {isSB && <span class="sb-badge">Super Bowl</span>}
+                  <span class={`round-badge ${isSB ? "round-badge--sb" : ""}`}>SEA vs {opp}</span>
                 </div>
 
                 <div class="date">{fmtPT(g?.date)}</div>
@@ -286,7 +308,6 @@ function isSuperBowlByIndex(i, total) {
   )}
 
   <style>
-    /* ✅ prevent grid/flex overflow */
     .meta-line,
     .cards-grid,
     .card,
@@ -304,7 +325,6 @@ function isSuperBowlByIndex(i, total) {
       box-sizing: border-box;
     }
 
-    /* ✅ wrap text safely */
     .meta-line,
     .week,
     .date,
@@ -358,15 +378,13 @@ function isSuperBowlByIndex(i, total) {
       align-items: start;
     }
 
-    /* Default behavior: if odd number of cards, last one spans & centers */
     .cards-grid > *:last-child:nth-child(odd) {
       grid-column: 1 / -1;
       justify-self: center;
       width: min(520px, 100%);
     }
 
-    /* ✅ Regular season: DO NOT make last card span.
-       This fixes Week 18 becoming huge. */
+    /* ✅ Regular season: DO NOT make last card span (fix Week 18 giant card) */
     .cards-grid--regular > *:last-child:nth-child(odd) {
       grid-column: auto;
       justify-self: stretch;
@@ -380,10 +398,7 @@ function isSuperBowlByIndex(i, total) {
         justify-self: stretch;
         width: 100%;
       }
-      /* still fine for regular */
-      .cards-grid--regular > *:last-child:nth-child(odd) {
-        width: 100%;
-      }
+      .cards-grid--regular > *:last-child:nth-child(odd) { width: 100%; }
     }
 
     .card {
@@ -393,36 +408,40 @@ function isSuperBowlByIndex(i, total) {
       padding: .85rem .9rem;
       box-shadow: 0 10px 22px rgba(0,0,0,.08);
       overflow: hidden;
+      position: relative;
     }
 
     .card--win { border-color: rgba(105,190,40,.65); box-shadow: 0 10px 22px rgba(105,190,40,.12); }
     .card--loss { border-color: rgba(220,38,38,.45); box-shadow: 0 10px 22px rgba(220,38,38,.10); }
 
-    /* Playoff styling */
+    /* Playoff card */
     .card--po{
       border-color: rgba(0,34,68,0.20);
       box-shadow: 0 14px 30px rgba(0,0,0,.10);
     }
 
-    /* Super Bowl special */
-    .card--sb{
+    /* ✅ Super Bowl: full width + extra glow */
+    .cards-grid--playoffs .card--sb{
+      grid-column: 1 / -1;
+      justify-self: center;
+      width: min(720px, 100%);
       border-color: rgba(105,190,40,.55);
-      box-shadow: 0 18px 44px rgba(105,190,40,.14);
-      position: relative;
+      box-shadow: 0 18px 46px rgba(105,190,40,.16);
+      padding-top: 1.15rem;
     }
 
-    .sb-badge{
-      display:inline-flex;
-      align-items:center;
-      margin-left: .5rem;
-      padding: .18rem .5rem;
+    .sb-ribbon{
+      position:absolute;
+      top: 10px;
+      right: 10px;
+      padding: .22rem .55rem;
       border-radius: 999px;
-      border: 1px solid rgba(105,190,40,.45);
-      background: rgba(105,190,40,.10);
-      color: rgba(0,34,68,.95);
-      font-weight: 900;
+      border: 1px solid rgba(105,190,40,.50);
+      background: rgba(105,190,40,.12);
+      color: rgba(0,34,68,.96);
+      font-weight: 1000;
+      letter-spacing: .04em;
       font-size: .78rem;
-      white-space: nowrap;
     }
 
     .card-top {
@@ -434,15 +453,43 @@ function isSuperBowlByIndex(i, total) {
       margin-bottom: .6rem;
     }
 
-    .week { font-weight: 900; color: var(--navy); display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
+    .week {
+      font-weight: 900;
+      color: var(--navy);
+      display:flex;
+      align-items:center;
+      gap:.5rem;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
     .date { color: rgba(15,23,32,.65); font-weight: 700; }
 
     .week-link{
       color: inherit;
       text-decoration: underline;
-      font-weight: 900;
+      font-weight: 1000;
+      white-space: nowrap; /* prevents Wild Card breaking into 3 lines */
     }
     .week-link:hover{ opacity: .85; }
+
+    .round-badge{
+      display:inline-flex;
+      align-items:center;
+      padding: .18rem .5rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0,34,68,.14);
+      background: rgba(0,34,68,.04);
+      color: rgba(0,34,68,.88);
+      font-weight: 900;
+      font-size: .78rem;
+      white-space: nowrap;
+    }
+
+    .round-badge--sb{
+      border-color: rgba(105,190,40,.45);
+      background: rgba(105,190,40,.10);
+    }
 
     .matchup {
       display: grid;
@@ -482,7 +529,7 @@ function isSuperBowlByIndex(i, total) {
     .status { font-weight: 900; color: rgba(0,34,68,.80); }
     .score { font-weight: 900; color: rgba(0,34,68,.90); }
 
-    .status--sb{ color: rgba(0,34,68,.95); }
+    .status--sb{ color: rgba(0,34,68,.98); }
     .score--sb{ color: rgba(0,34,68,.98); }
 
     .card-links{
@@ -513,4 +560,3 @@ function isSuperBowlByIndex(i, total) {
     }
   </style>
 </SeahawksLayout>
-
