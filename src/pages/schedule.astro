@@ -127,6 +127,34 @@ playoffs.sort(sortByDate);
 const fmtUpdatedLine = updatedAt
   ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) + " PT"
   : "—";
+
+/* =======================
+   Playoff labeling
+   ======================= */
+
+// Best-effort: map playoff games by order to standard NFC path.
+// (Wild Card -> Divisional -> NFC Championship -> Super Bowl)
+function playoffTitleByIndex(i, total) {
+  // If there are 4 games, last is Super Bowl.
+  // If there are 3 games, last is NFC Championship (no SB in data yet).
+  if (total >= 4) {
+    if (i === total - 1) return "Super Bowl";
+    if (i === total - 2) return "NFC Championship";
+    if (i === total - 3) return "Divisional Round";
+    return "Wild Card Round";
+  }
+  if (total === 3) {
+    if (i === 2) return "NFC Championship";
+    if (i === 1) return "Divisional Round";
+    return "Wild Card Round";
+  }
+  if (total === 2) return i === 1 ? "Divisional Round" : "Wild Card Round";
+  return "Playoffs";
+}
+
+function isSuperBowlByIndex(i, total) {
+  return total >= 4 && i === total - 1;
+}
 ---
 
 <SeahawksLayout
@@ -145,7 +173,7 @@ const fmtUpdatedLine = updatedAt
   {regular.length === 0 ? (
     <div class="empty">No regular season games found in the current data file.</div>
   ) : (
-    <div class="cards-grid">
+    <div class="cards-grid cards-grid--regular">
       {regular.map((g, i) => {
         const opp = oppAbbr(g);
         const win = isSeahawksWin(g);
@@ -195,25 +223,34 @@ const fmtUpdatedLine = updatedAt
 
   {playoffs.length > 0 && (
     <>
-      <h3 class="section-title" style="margin-top: 1.5rem;">Playoffs</h3>
-      <div class="cards-grid">
+      <h3 class="section-title playoffs-title" style="margin-top: 1.5rem;">
+        Playoffs
+        <span class="playoffs-subtitle"> — road to the Super Bowl</span>
+      </h3>
+
+      <div class="cards-grid cards-grid--playoffs">
         {playoffs.map((g, i) => {
           const opp = oppAbbr(g);
           const win = isSeahawksWin(g);
-          const cardClass =
+          const baseClass =
             win === true ? "card card--win" : win === false ? "card card--loss" : "card";
 
-          // Use offset so keys/hrefs don’t collide with regular index if fallback-id is used
-          const idx = regular.length + i;
+          const idx = regular.length + i; // avoid fallback-id collisions
+          const title = playoffTitleByIndex(i, playoffs.length);
+          const isSB = isSuperBowlByIndex(i, playoffs.length);
+
+          const cls = isSB ? `${baseClass} card--sb` : `${baseClass} card--po`;
 
           return (
-            <article class={cardClass}>
+            <article class={cls}>
               <div class="card-top">
                 <div class="week">
-                  <a class="week-link" href={gameHref(g, idx)} aria-label={`Open recap for playoffs week ${g?.week ?? ""}`}>
-                    {Number.isFinite(Number(g?.week)) ? `Playoffs Week ${g.week}` : "Playoffs"}
+                  <a class="week-link" href={gameHref(g, idx)} aria-label={`Open recap for ${title}`}>
+                    {title}
                   </a>
+                  {isSB && <span class="sb-badge">Super Bowl</span>}
                 </div>
+
                 <div class="date">{fmtPT(g?.date)}</div>
               </div>
 
@@ -234,12 +271,12 @@ const fmtUpdatedLine = updatedAt
               </div>
 
               <div class="card-bottom">
-                <div class="status">{statusText(g)}</div>
-                <div class="score">{scoreText(g)}</div>
+                <div class={`status ${isSB ? "status--sb" : ""}`}>{statusText(g)}</div>
+                <div class={`score ${isSB ? "score--sb" : ""}`}>{scoreText(g)}</div>
               </div>
 
               <div class="card-links">
-                <a class="pill pill--ghost" href={gameHref(g, idx)}>Recap →</a>
+                <a class={`pill pill--ghost ${isSB ? "pill--sb" : ""}`} href={gameHref(g, idx)}>Recap →</a>
               </div>
             </article>
           );
@@ -293,6 +330,16 @@ const fmtUpdatedLine = updatedAt
     .section-title {
       color: var(--navy);
       margin: 0.75rem 0 0.7rem;
+      display:flex;
+      align-items: baseline;
+      gap: .5rem;
+      flex-wrap: wrap;
+    }
+
+    .playoffs-subtitle{
+      font-weight: 800;
+      color: rgba(15,23,32,.55);
+      font-size: .95rem;
     }
 
     .empty {
@@ -311,11 +358,19 @@ const fmtUpdatedLine = updatedAt
       align-items: start;
     }
 
-    /* ✅ if odd number of cards, last one spans & centers */
+    /* Default behavior: if odd number of cards, last one spans & centers */
     .cards-grid > *:last-child:nth-child(odd) {
       grid-column: 1 / -1;
       justify-self: center;
       width: min(520px, 100%);
+    }
+
+    /* ✅ Regular season: DO NOT make last card span.
+       This fixes Week 18 becoming huge. */
+    .cards-grid--regular > *:last-child:nth-child(odd) {
+      grid-column: auto;
+      justify-self: stretch;
+      width: auto;
     }
 
     @media (max-width: 820px) {
@@ -323,6 +378,10 @@ const fmtUpdatedLine = updatedAt
       .cards-grid > *:last-child:nth-child(odd) {
         grid-column: auto;
         justify-self: stretch;
+        width: 100%;
+      }
+      /* still fine for regular */
+      .cards-grid--regular > *:last-child:nth-child(odd) {
         width: 100%;
       }
     }
@@ -339,6 +398,33 @@ const fmtUpdatedLine = updatedAt
     .card--win { border-color: rgba(105,190,40,.65); box-shadow: 0 10px 22px rgba(105,190,40,.12); }
     .card--loss { border-color: rgba(220,38,38,.45); box-shadow: 0 10px 22px rgba(220,38,38,.10); }
 
+    /* Playoff styling */
+    .card--po{
+      border-color: rgba(0,34,68,0.20);
+      box-shadow: 0 14px 30px rgba(0,0,0,.10);
+    }
+
+    /* Super Bowl special */
+    .card--sb{
+      border-color: rgba(105,190,40,.55);
+      box-shadow: 0 18px 44px rgba(105,190,40,.14);
+      position: relative;
+    }
+
+    .sb-badge{
+      display:inline-flex;
+      align-items:center;
+      margin-left: .5rem;
+      padding: .18rem .5rem;
+      border-radius: 999px;
+      border: 1px solid rgba(105,190,40,.45);
+      background: rgba(105,190,40,.10);
+      color: rgba(0,34,68,.95);
+      font-weight: 900;
+      font-size: .78rem;
+      white-space: nowrap;
+    }
+
     .card-top {
       display: flex;
       justify-content: space-between;
@@ -348,7 +434,7 @@ const fmtUpdatedLine = updatedAt
       margin-bottom: .6rem;
     }
 
-    .week { font-weight: 900; color: var(--navy); }
+    .week { font-weight: 900; color: var(--navy); display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
     .date { color: rgba(15,23,32,.65); font-weight: 700; }
 
     .week-link{
@@ -396,6 +482,9 @@ const fmtUpdatedLine = updatedAt
     .status { font-weight: 900; color: rgba(0,34,68,.80); }
     .score { font-weight: 900; color: rgba(0,34,68,.90); }
 
+    .status--sb{ color: rgba(0,34,68,.95); }
+    .score--sb{ color: rgba(0,34,68,.98); }
+
     .card-links{
       margin-top: .65rem;
       display:flex;
@@ -417,7 +506,11 @@ const fmtUpdatedLine = updatedAt
     }
     .pill:hover{ background: rgba(0,34,68,.07); }
     .pill--ghost{ background: transparent; }
+
+    .pill--sb{
+      border-color: rgba(105,190,40,.45);
+      background: rgba(105,190,40,.10);
+    }
   </style>
 </SeahawksLayout>
-
 
