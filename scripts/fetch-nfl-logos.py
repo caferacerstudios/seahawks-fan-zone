@@ -118,14 +118,29 @@ def read_schedule_abbrs():
     with open(SCHEDULE_JSON, "r") as f:
         data = json.load(f)
 
+    # Accept both shapes:
+    # 1) { games: [...] }
+    # 2) { gamesRegular: [...], gamesPostseason: [...] }
+    games = []
+    if isinstance(data.get("games"), list):
+        games = data["games"]
+    else:
+        gr = data.get("gamesRegular") or []
+        gp = data.get("gamesPostseason") or []
+        if isinstance(gr, list):
+            games.extend(gr)
+        if isinstance(gp, list):
+            games.extend(gp)
+
     abbrs = set()
-    for g in data.get("games", []):
+    for g in games:
         vt = g.get("visitor_team", {}) or {}
         ht = g.get("home_team", {}) or {}
         if vt.get("abbreviation"):
             abbrs.add(str(vt["abbreviation"]).upper())
         if ht.get("abbreviation"):
             abbrs.add(str(ht["abbreviation"]).upper())
+
     return abbrs
 
 def espn_logo_url(abbr: str) -> str:
