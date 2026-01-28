@@ -3,6 +3,9 @@ import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
 
+// ✅ Use your roster / player data to decide if a player is a Seahawk
+import rosterData from "../../data/nfl/players.json";
+
 /* =======================
    Helpers for page render
    ======================= */
@@ -114,6 +117,56 @@ function gameKey(g, idx) {
 }
 
 /* =======================
+   Seahawks player set (for linking)
+   ======================= */
+
+function getRosterLocal(playersData) {
+  if (Array.isArray(playersData?.data)) return playersData.data;
+  if (Array.isArray(playersData?.players)) return playersData.players;
+  if (Array.isArray(playersData)) return playersData;
+  return [];
+}
+
+function pidLocal(p) {
+  return p?.id ?? p?.player_id ?? p?.player?.id ?? null;
+}
+
+function teamLocal(p) {
+  // handle a few common shapes
+  const abbr =
+    p?.team?.abbreviation ??
+    p?.team_abbreviation ??
+    p?.teamAbbr ??
+    p?.team ??
+    "";
+  return String(abbr || "").toUpperCase();
+}
+
+const SEA_PLAYER_IDS = (() => {
+  const out = new Set();
+  const roster = getRosterLocal(rosterData);
+  for (const p of roster) {
+    if (teamLocal(p) !== "SEA") continue;
+    const id = pidLocal(p);
+    if (id === null || id === undefined) continue;
+    out.add(String(id));
+  }
+  return out;
+})();
+
+function playerHref(id) {
+  // assumes your player page route is /players/[playerId]
+  return `/players/${encodeURIComponent(String(id))}`;
+}
+
+function canLinkPlayer(id) {
+  const key = String(id ?? "").trim();
+  if (!key) return false;
+  // ✅ Only link if the player is in your SEA roster set
+  return SEA_PLAYER_IDS.has(key);
+}
+
+/* =======================
    getStaticPaths (SELF-CONTAINED)
    ======================= */
 export function getStaticPaths() {
@@ -164,29 +217,6 @@ const pageTitle = game
 const recap = gameRecaps?.recaps?.[String(gameId)] || null;
 
 /* =======================
-   Player link gating (ONLY link if page exists)
-   ======================= */
-
-// Right now: you have no player pages yet, so keep this false.
-// When player pages exist, set to true AND populate EXISTING_PLAYER_IDS.
-const ENABLE_PLAYER_LINKS = false;
-
-// Later: fill this with ids you actually built pages for.
-// Example: new Set(["123", "456"])
-const EXISTING_PLAYER_IDS = new Set();
-
-function playerHref(id) {
-  return `/players/${encodeURIComponent(String(id))}`;
-}
-
-function canLinkPlayer(id) {
-  if (!ENABLE_PLAYER_LINKS) return false;
-  const key = String(id ?? "").trim();
-  if (!key) return false;
-  return EXISTING_PLAYER_IDS.has(key);
-}
-
-/* =======================
    Safe HTML rendering for recap
    ======================= */
 
@@ -221,13 +251,14 @@ function renderRecapHtml(recapObj) {
   return html;
 }
 
-// Model sometimes outputs bullets starting with an object-literal looking prefix.
-// Convert that prefix into a link (only if page exists) or bold text.
+// Convert model-ish object-literal bullet prefix into link/bold.
 function renderBulletHtml(b) {
   const raw = String(b ?? "");
+
   // Matches: {t:'player', v:'Name', id:123, name:'Name'} ...
+  // Also tolerates id as "123"
   const m = raw.match(
-    /^\s*\{[^}]*\bt\s*:\s*['"]player['"][^}]*\bid\s*:\s*([0-9]+)[^}]*\b(?:name|v)\s*:\s*['"]([^'"]+)['"][^}]*\}\s*/
+    /^\s*\{[^}]*\bt\s*:\s*['"]player['"][^}]*\bid\s*:\s*['"]?([0-9]+)['"]?[^}]*\b(?:name|v)\s*:\s*['"]([^'"]+)['"][^}]*\}\s*/
   );
 
   if (m) {
@@ -348,7 +379,7 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
       box-sizing: border-box;
     }
 
-    /* ✅ wrap text safely (NOT "anywhere" to avoid weird mid-word wraps) */
+    /* ✅ wrap text safely */
     .meta-line,
     .week,
     .date,
@@ -505,7 +536,7 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
       line-height: 1.45;
     }
 
-    /* Links only if pages exist (currently none) */
+    /* Linked Seahawks players only */
     .player-link{
       font-weight: 900;
       text-decoration: underline;
@@ -520,4 +551,3 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
     }
   </style>
 </SeahawksLayout>
-
