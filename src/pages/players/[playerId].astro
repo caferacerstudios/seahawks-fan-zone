@@ -16,6 +16,8 @@ export function getStaticPaths() {
     if (Array.isArray(playersData?.data)) return playersData.data;
     if (Array.isArray(playersData?.players)) return playersData.players;
     if (Array.isArray(playersData)) return playersData;
+    // if dict/map keyed by id
+    if (playersData && typeof playersData === "object") return Object.values(playersData);
     return [];
   }
 
@@ -58,6 +60,8 @@ function getRoster(playersData) {
   if (Array.isArray(playersData?.data)) return playersData.data;
   if (Array.isArray(playersData?.players)) return playersData.players;
   if (Array.isArray(playersData)) return playersData;
+  // if dict/map keyed by id
+  if (playersData && typeof playersData === "object") return Object.values(playersData);
   return [];
 }
 
@@ -68,7 +72,9 @@ function pid(p) {
 function playerNameFromAny(obj) {
   const p = obj?.player ?? obj;
   if (!p) return "Unknown";
-  const full = p?.full_name || `${p?.first_name || ""} ${p?.last_name || ""}`.trim();
+  const full =
+    p?.full_name ||
+    `${p?.first_name || ""} ${p?.last_name || ""}`.trim();
   return full || "Unknown";
 }
 
@@ -115,24 +121,34 @@ function fmtUpdatedPT(iso) {
 /* =======================
    Profiles: support multiple shapes
    ======================= */
+// Accept either:
+// A) { updatedAt, profiles: { [id]: { bio, recap } } }
+// B) { updatedAt, byId: { [id]: { bio, recap } } }
+// C) { updatedAt, data: [{ player_id, bio, recap_paragraph, recap_bullets, ... }] }
+// D) { updatedAt, data: { [id]: { bio, recap } } }
+// E) { [id]: { bio, recap } }  (no wrapper)
 function getProfileFor(id) {
   const key = String(id);
   const root = playerProfilesData || {};
 
+  // map-style wrappers
   const map1 = root?.profiles && typeof root.profiles === "object" ? root.profiles : null;
   const map2 = root?.byId && typeof root.byId === "object" ? root.byId : null;
   if (map1 && map1[key]) return map1[key];
   if (map2 && map2[key]) return map2[key];
 
+  // data object keyed by id
   if (root?.data && typeof root.data === "object" && !Array.isArray(root.data) && root.data[key]) {
     return root.data[key];
   }
 
+  // data array
   if (Array.isArray(root?.data)) {
     const hit = root.data.find((x) => String(x?.player_id ?? x?.id ?? x?.player?.id ?? "") === key);
     if (hit) return hit;
   }
 
+  // bare map at root
   if (root && typeof root === "object" && root[key]) return root[key];
 
   return null;
@@ -141,6 +157,7 @@ function getProfileFor(id) {
 function normalizeProfile(p) {
   if (!p || typeof p !== "object") return { bio: null, recap: null, name: null };
 
+  // already normalized
   if (typeof p?.bio === "string" && p?.recap && typeof p.recap === "object") {
     return {
       name: p?.name ?? p?.full_name ?? null,
@@ -152,7 +169,12 @@ function normalizeProfile(p) {
     };
   }
 
-  const paragraph = p?.recap_paragraph ?? p?.paragraph ?? p?.gameplay_paragraph ?? null;
+  // flattened recap fields
+  const paragraph =
+    p?.recap_paragraph ??
+    p?.paragraph ??
+    p?.gameplay_paragraph ??
+    null;
 
   const bullets =
     Array.isArray(p?.recap_bullets) ? p.recap_bullets :
@@ -163,13 +185,19 @@ function normalizeProfile(p) {
   return {
     name: p?.name ?? p?.full_name ?? null,
     bio: typeof p?.bio === "string" ? p.bio : null,
-    recap: paragraph ? { paragraph: String(paragraph), bullets: bullets.map(String) } : null,
+    recap: paragraph
+      ? { paragraph: String(paragraph), bullets: bullets.map(String) }
+      : null,
   };
 }
 
 /* =======================
    Injuries: support multiple shapes
    ======================= */
+// Accept either:
+// A) { injuries: [...] }
+// B) { data: [...] }
+// C) [...] array at root
 function getInjuryArray(root) {
   if (Array.isArray(root?.injuries)) return root.injuries;
   if (Array.isArray(root?.data)) return root.data;
@@ -182,7 +210,12 @@ function normalizeInjRow(x) {
 
   const p = x?.player ?? null;
 
-  const id = x?.player_id ?? x?.playerId ?? p?.id ?? x?.id ?? null;
+  const id =
+    x?.player_id ??
+    x?.playerId ??
+    p?.id ??
+    x?.id ??
+    null;
 
   const status =
     x?.status ??
@@ -208,7 +241,12 @@ function normalizeInjRow(x) {
     x?.updatedAt ??
     null;
 
-  return { id, status, description, date };
+  return {
+    id,
+    status,
+    description,
+    date,
+  };
 }
 
 /* =======================
@@ -271,7 +309,7 @@ function levenshtein(a, b) {
 }
 
 // Build a directory index ONCE per page module load.
-// Put images here (any extension): public/images/nfl/players/<anything>.jpg|png|webp...
+// Put images here (any extension): public/images/nfl/players/<anything>.jpg|png|webp|avif...
 const projectRoot = Astro.root ?? process.cwd();
 const playersDirDisk = path.join(projectRoot, "public", "images", "nfl", "players");
 const allowedExt = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
@@ -293,18 +331,18 @@ for (const f of playerImageFiles) {
   const base = path.basename(f, path.extname(f));
   const k = normKey(base);
   if (!k) continue;
-  // keep first if duplicates
   if (!imageIndex.has(k)) imageIndex.set(k, f);
 }
 
 /**
  * Find an image by display name:
  * - exact match on normalized base
+ * - else prefix contains check
  * - else best Levenshtein match within small threshold (typo tolerance)
  *
  * Your manual workflow:
  *   Save files in: public/images/nfl/players/
- *   Name them like: "DK Metcalf.jpg" or "dk_metcalf.png" or even "Dk Metcalf.webp"
+ *   Name them like: "DK Metcalf.jpg" or "dk_metcalf.png" etc.
  */
 function findHeadshotForName(displayName) {
   const target = normKey(displayName);
@@ -326,14 +364,13 @@ function findHeadshotForName(displayName) {
   let bestDist = Infinity;
 
   for (const [k, f] of imageIndex.entries()) {
-    // quick length guard (avoid weird matches)
     if (Math.abs(k.length - target.length) > 3) continue;
 
     const d = levenshtein(target, k);
     if (d < bestDist) {
       bestDist = d;
       bestFile = f;
-      if (bestDist === 1) break; // good enough
+      if (bestDist === 1) break;
     }
   }
 
@@ -354,9 +391,13 @@ const statRow = bestStatRowForPlayer(playerId);
 const rawProfile = getProfileFor(playerId);
 const profile = normalizeProfile(rawProfile);
 
-const injuries = getInjuryArray(injuriesData).map(normalizeInjRow).filter(Boolean);
+const injuries = getInjuryArray(injuriesData)
+  .map(normalizeInjRow)
+  .filter(Boolean);
+
 const injuryMatches = injuries.filter((r) => String(r.id ?? "") === String(playerId));
 
+// display fields (safe across shapes)
 const displayName =
   playerNameFromAny(rosterPlayer) !== "Unknown"
     ? playerNameFromAny(rosterPlayer)
@@ -365,19 +406,38 @@ const displayName =
         : (profile?.name || "Player"));
 
 const position =
-  (rosterPlayer?.position_abbreviation || rosterPlayer?.position || statRow?.player?.position_abbreviation || "—");
+  (rosterPlayer?.position_abbreviation ||
+    rosterPlayer?.position ||
+    statRow?.player?.position_abbreviation ||
+    "—");
 
+// ✅ FIXED: fallback to statRow.player for the "missing info" fields
 const jersey =
-  rosterPlayer?.jersey_number ?? rosterPlayer?.jersey ?? rosterPlayer?.number ?? "—";
+  rosterPlayer?.jersey_number ??
+  rosterPlayer?.jersey ??
+  rosterPlayer?.number ??
+  statRow?.player?.jersey_number ??
+  statRow?.player?.jersey ??
+  statRow?.player?.number ??
+  "—";
 
 const height =
-  rosterPlayer?.height ?? rosterPlayer?.height_feet_inches ?? "—";
+  rosterPlayer?.height ??
+  rosterPlayer?.height_feet_inches ??
+  statRow?.player?.height ??
+  "—";
 
 const weight =
-  rosterPlayer?.weight ?? rosterPlayer?.weight_lbs ?? "—";
+  rosterPlayer?.weight ??
+  rosterPlayer?.weight_lbs ??
+  statRow?.player?.weight ??
+  "—";
 
 const experience =
-  rosterPlayer?.experience ?? rosterPlayer?.years_pro ?? "—";
+  rosterPlayer?.experience ??
+  rosterPlayer?.years_pro ??
+  statRow?.player?.experience ??
+  "—";
 
 const updatedAtForPage =
   playerProfilesData?.updatedAt ?? seasonData?.updatedAt ?? null;
