@@ -189,21 +189,39 @@ function teamLocal(p) {
   return String(abbr || "").toUpperCase();
 }
 
-// ✅ Set of Seahawks player IDs we are allowed to link
-const SEA_PLAYER_IDS = (() => {
-  const out = new Set();
+function nameLocal(p) {
+  const obj = p?.player ?? p;
+  const first = obj?.first_name ?? obj?.firstName ?? "";
+  const last = obj?.last_name ?? obj?.lastName ?? "";
+  const full = obj?.name ?? obj?.full_name ?? obj?.fullName ?? "";
+
+  const combined = `${String(first || "").trim()} ${String(last || "").trim()}`.trim();
+  const best = combined || String(full || "").trim() || "";
+  return best.replace(/\s+/g, " ").trim();
+}
+
+// ✅ Build {id -> name} for Seahawks roster
+const SEA_PLAYERS = (() => {
   const roster = getRosterLocal(rosterData);
+  const out = [];
   for (const p of roster) {
     if (teamLocal(p) !== "SEA") continue;
     const id = pidLocal(p);
+    const nm = nameLocal(p);
     if (id === null || id === undefined) continue;
-    out.add(String(id));
+    if (!nm) continue;
+    out.push({ id: String(id), name: nm });
   }
+  // Prefer longer names first for matching
+  out.sort((a, b) => b.name.length - a.name.length);
   return out;
 })();
 
+const SEA_PLAYER_IDS = new Set(SEA_PLAYERS.map((x) => x.id));
+
 function playerHref(id) {
-  return `/players/${encodeURIComponent(String(id))}`;
+  // ✅ match your routing (trailing slash)
+  return `/players/${encodeURIComponent(String(id))}/`;
 }
 
 function canLinkPlayer(id) {
@@ -213,7 +231,7 @@ function canLinkPlayer(id) {
 }
 
 /* =======================
-   Safe HTML rendering (fixes token leakage everywhere)
+   Safe HTML rendering (fixes token leakage + links plain names)
    ======================= */
 
 function escapeHtml(s) {
@@ -225,50 +243,94 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // Matches model token blobs like:
 // {t:'player', v:'Name', id:123, name:'Name'}
-// Works even if fields are in different order, id is quoted, etc.
 const PLAYER_TOKEN_RE =
   /\{\s*[^}]*\bt\s*:\s*['"]player['"][^}]*\bid\s*:\s*['"]?(\d+)['"]?[^}]*\b(?:name|v)\s*:\s*['"]([^'"]+)['"][^}]*\}\s*/g;
 
-// Render a plain text string into SAFE html, but convert any embedded player tokens:
-// - Seahawks players => link
-// - everyone else => plain text (no link)
+// Match ANY Seahawks full name in plain text
+const SEA_NAME_TO_ID = new Map(SEA_PLAYERS.map((x) => [x.name, x.id]));
+const SEA_NAMES_RE = SEA_PLAYERS.length
+  ? new RegExp(`\\b(?:${SEA_PLAYERS.map((x) => escapeRegex(x.name)).join("|")})\\b`, "g")
+  : null;
+
+// Internal marker for token replacement so we can link it reliably
+const M1 = "\u0001";
+const M2 = "\u0002";
+const M3 = "\u0003";
+
+// Render text -> safe html:
+// 1) convert embedded {t:'player'...} to either link (SEA) or plain name
+// 2) convert plain Seahawks names to links (SEA only)
 function renderTextWithSeahawksLinks(input) {
-  const s = String(input ?? "");
-  if (!s) return "";
+  const raw = String(input ?? "");
+  if (!raw) return "";
+
+  // Step 1: replace tokens with markers: \u0001id\u0002name\u0003
+  const marked = raw.replace(PLAYER_TOKEN_RE, (_all, id, name) => {
+    const safeId = String(id ?? "").trim();
+    const safeName = String(name ?? "").trim();
+    if (!safeId || !safeName) return "";
+    return `${M1}${safeId}${M2}${safeName}${M3}`;
+  });
 
   let html = "";
-  let lastIdx = 0;
+  let i = 0;
 
-  for (const m of s.matchAll(PLAYER_TOKEN_RE)) {
-    const start = m.index ?? 0;
-    const end = start + m[0].length;
+  while (i < marked.length) {
+    // Marker-based player mention
+    if (marked[i] === M1) {
+      const j2 = marked.indexOf(M2, i + 1);
+      const j3 = marked.indexOf(M3, j2 + 1);
 
-    const id = m[1];
-    const name = m[2];
+      if (j2 !== -1 && j3 !== -1) {
+        const id = marked.slice(i + 1, j2);
+        const name = marked.slice(j2 + 1, j3);
 
-    // text before token
-    html += escapeHtml(s.slice(lastIdx, start));
+        const safeName = escapeHtml(name);
+        if (canLinkPlayer(id)) {
+          html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${safeName}</a>`;
+        } else {
+          html += safeName;
+        }
 
-    // token replacement
-    const safeName = escapeHtml(name);
-    if (canLinkPlayer(id)) {
-      html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${safeName}</a>`;
-    } else {
-      html += safeName;
+        i = j3 + 1;
+        continue;
+      }
+      // If marker is malformed, fall through and escape it
     }
 
-    lastIdx = end;
+    // Name-based linking (plain text)
+    if (SEA_NAMES_RE) {
+      SEA_NAMES_RE.lastIndex = i;
+      const m = SEA_NAMES_RE.exec(marked);
+
+      if (m && m.index === i) {
+        const name = m[0];
+        const id = SEA_NAME_TO_ID.get(name);
+
+        if (id && canLinkPlayer(id)) {
+          html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${escapeHtml(name)}</a>`;
+        } else {
+          html += escapeHtml(name);
+        }
+
+        i += name.length;
+        continue;
+      }
+    }
+
+    // Default: escape single char
+    html += escapeHtml(marked[i]);
+    i += 1;
   }
 
-  // remainder
-  html += escapeHtml(s.slice(lastIdx));
-
-  // ✅ fix common spacing issue: "Name" + "rushed" => "Name rushed"
-  // Only adds a space when a letter follows a closing anchor/name without whitespace/punct.
+  // Clean up the common "Name"+"word" jam case after anchors (rare but happens)
   html = html.replaceAll(/<\/a>(?=[A-Za-z])/g, "</a> ");
-  html = html.replaceAll(/([a-zA-Z])(?=[A-Za-z])/g, "$1"); // no-op, keeps safe
 
   return html;
 }
@@ -283,23 +345,25 @@ function renderRecapHtml(recapObj) {
 
     if (t === "player") {
       const id = seg?.id;
-      const safeName = escapeHtml(display);
+      const nm = String(display ?? "").trim();
       if (canLinkPlayer(id)) {
-        html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${safeName}</a>`;
+        html += `<a class="player-link" href="${escapeHtml(playerHref(id))}">${escapeHtml(nm)}</a>`;
       } else {
-        html += safeName;
+        html += escapeHtml(nm);
       }
     } else {
-      // ✅ even "text" segments may contain embedded {t:'player'...} blobs — fix them
+      // ✅ text segments can contain embedded tokens or plain names
       html += renderTextWithSeahawksLinks(seg?.v || "");
     }
   }
+
+  // ✅ In case segments are missing and recapObj is plain string-ish, still safe
+  if (!html && recapObj?.text) html = renderTextWithSeahawksLinks(recapObj.text);
 
   return html;
 }
 
 function renderBulletHtml(b) {
-  // ✅ bullet strings may contain embedded tokens anywhere
   return renderTextWithSeahawksLinks(b);
 }
 
