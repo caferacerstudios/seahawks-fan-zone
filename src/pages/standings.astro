@@ -2,6 +2,14 @@
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import scheduleData from "../data/nfl/seahawks.json";
 
+// ✅ Optional standings file (safe import)
+let standingsData = null;
+try {
+  standingsData = (await import("../data/nfl/standings.json")).default;
+} catch (e) {
+  standingsData = null;
+}
+
 const season = scheduleData?.season ?? "";
 const updatedAt = scheduleData?.updatedAt ?? "";
 
@@ -72,7 +80,7 @@ function scoreText(game) {
   const home = teamAbbr(game?.home_team);
   const away = teamAbbr(game?.visitor_team);
 
-  // Show SEA score first
+  // SEA score first
   if (home === "SEA") return `${hs} : ${as}`;
   if (away === "SEA") return `${as} : ${hs}`;
   return `${as} : ${hs}`;
@@ -133,8 +141,25 @@ const fmtUpdatedLine = updatedAt
   ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) + " PT"
   : "—";
 
-// Simple helper text for empty states (no dev notes)
-const noGamesMsg = "No games found in the current data file.";
+/* =======================
+   Standings presence check
+   ======================= */
+// Expect something like:
+// standingsData = { season: 2025, updatedAt: "...", nfc: {...}, divisions: {...}, seeds: {...} }
+const HAS_STANDINGS =
+  !!standingsData &&
+  (
+    Array.isArray(standingsData?.teams) ||
+    Array.isArray(standingsData?.nfc) ||
+    Array.isArray(standingsData?.divisions) ||
+    Array.isArray(standingsData?.seeds)
+  );
+
+// Tiny helpers if/when you wire up a real shape
+function safeSeasonFromStandings() {
+  const s = standingsData?.season;
+  return s === null || s === undefined ? "" : String(s);
+}
 ---
 
 <SeahawksLayout
@@ -143,7 +168,7 @@ const noGamesMsg = "No games found in the current data file.";
   activePath="/standings"
 >
   <div class="meta-line">
-    <span><strong>Season:</strong> {season || "—"}</span>
+    <span><strong>Season:</strong> {season || safeSeasonFromStandings() || "—"}</span>
     <span class="dot">•</span>
     <span><strong>Updated:</strong> {fmtUpdatedLine}</span>
   </div>
@@ -181,28 +206,30 @@ const noGamesMsg = "No games found in the current data file.";
       </div>
     </article>
 
-    <!-- Playoff picture card (polished, no placeholders/dev notes) -->
-    <article class="card">
-      <div class="card-top">
-        <div class="week">Playoff picture</div>
-        <div class="date">NFC</div>
-      </div>
+    {/* ✅ Only render playoff card when real standings data exists */}
+    {HAS_STANDINGS ? (
+      <article class="card">
+        <div class="card-top">
+          <div class="week">Playoff picture</div>
+          <div class="date">NFC</div>
+        </div>
 
-      <div class="empty" style="margin-top:.6rem;">
-        Playoff seeding and division standings will appear here once the site pulls full-league standings data.
-      </div>
+        <div class="empty" style="margin-top:.6rem;">
+          Standings are available, but this section hasn’t been wired up to display them yet.
+        </div>
 
-      <div class="card-bottom" style="margin-top:.7rem;">
-        <div class="status">Status</div>
-        <div class="score">In progress</div>
-      </div>
-    </article>
+        <div class="card-bottom" style="margin-top:.7rem;">
+          <div class="status">Status</div>
+          <div class="score">Available</div>
+        </div>
+      </article>
+    ) : null}
   </div>
 
   <h3 class="section-title" style="margin-top: 1.25rem;">Remaining regular season</h3>
 
   {remaining.length === 0 ? (
-    <div class="empty">{noGamesMsg}</div>
+    <div class="empty">No remaining regular season games found in the current data file.</div>
   ) : (
     <div class="cards-grid">
       {remaining.map((g) => {
@@ -411,4 +438,5 @@ const noGamesMsg = "No games found in the current data file.";
     .pill--ghost{ background: transparent; }
   </style>
 </SeahawksLayout>
+
 
