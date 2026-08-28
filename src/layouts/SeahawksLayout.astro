@@ -45,18 +45,25 @@ try {
 } catch {}
 
 const navPages = [
-  { href: "/", label: "Home" },
   { href: "/news", label: "News" },
   { href: "/schedule", label: "Schedule" },
-  { href: latestRecapHref, label: "Latest Recap", activeHref: "/weekly-recap" },
-  { href: "/news/around-the-web", label: "Around the Web" },
-  { href: "/standings", label: "Standings" },
   { href: "/team", label: "Team Stats" },
-  { href: "/players", label: "Players" },
-  { href: "/team/transactions", label: "Moves" },
-  { href: "/history", label: "History & The 12s" },
-  { href: "/about", label: "About" },
+  { href: "/players", label: "Player Stats" },
+  { href: "/history", label: "History" },
 ];
+const morePages: Array<{ href: string; label: string; match?: string[] }> = [
+  { href: "/standings", label: "Standings" },
+  { href: latestRecapHref, label: "Latest Recap", match: ["/games"] },
+  { href: "/weekly-recap", label: "Recap Archive" },
+  { href: "/news/around-the-web", label: "Around the Web" },
+  { href: "/team/transactions", label: "Transactions" },
+  { href: "/team/injuries", label: "Injuries" },
+  { href: "/about", label: "About" },
+  { href: "/methodology", label: "Methodology" },
+];
+const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
+const isActive = (href: string) => currentPath === href || (href !== "/" && currentPath.startsWith(`${href}/`));
+const moreIsActive = morePages.some((page) => page.match?.some((path) => isActive(path)) ?? isActive(page.href));
 ---
 
 <BaseLayout
@@ -87,45 +94,22 @@ const navPages = [
           <a
             class="top-nav-link"
             href={p.href}
-            aria-current={activePath === (p.activeHref ?? p.href) ? "page" : undefined}
+            aria-current={isActive(p.href) && !moreIsActive ? "page" : undefined}
           >
             {p.label}
           </a>
         ))}
+        <div class="nav-more">
+          <button class="top-nav-link more-toggle" type="button" aria-expanded="false" aria-controls="more-menu" aria-current={moreIsActive ? "page" : undefined}>More <span aria-hidden="true">▾</span></button>
+          <div class="more-menu" id="more-menu">
+            {morePages.map((page) => <a href={page.href} aria-current={(page.match?.some((path) => isActive(path)) ?? isActive(page.href)) ? "page" : undefined}>{page.label}</a>)}
+          </div>
+        </div>
       </nav>
     </div>
   </header>
 
   <div class="lr-middle">
-    <aside class="lr-sidebar lr-sidebar-left">
-      <section class="lr-panel">
-        <h3 class="lr-panel-title">Quick links</h3>
-        <ul class="lr-nav lr-subnav">
-          {(quickLinks.length ? quickLinks : [
-            { href: "/news", label: "Newsroom" },
-            { href: "/weekly-recap", label: "Recap archive" },
-            { href: "/schedule", label: "Schedule" },
-            { href: "/team", label: "Team Stats" },
-            { href: "/players", label: "Player Stats" },
-            { href: "/team/transactions", label: "Transactions" },
-            { href: "/team/injuries", label: "Injuries & Status" },
-            { href: "/history", label: "History & The 12s" },
-            { href: "/methodology", label: "Methodology" },
-          ]).map((x) => (
-            <li><a href={x.href}>{x.label}</a></li>
-          ))}
-        </ul>
-      </section>
-
-      <section class="lr-panel">
-        <h3 class="lr-panel-title">Site</h3>
-        <ul class="lr-nav">
-          <li><a href="/privacy-policy">Privacy Policy</a></li>
-          <li><a href="/methodology">Methodology</a></li>
-        </ul>
-      </section>
-    </aside>
-
     <main class="lr-main" id="main-content" tabindex="-1">
       <article class="lr-paper seahawks-paper">
         {visualCrumbs.length > 0 && <nav aria-label="Breadcrumb"><ol class="seo-breadcrumbs">{visualCrumbs.map((crumb, index) => <li aria-current={index === visualCrumbs.length - 1 ? "page" : undefined}>{index === visualCrumbs.length - 1 ? crumb.name : <a href={crumb.href}>{crumb.name}</a>}</li>)}</ol></nav>}
@@ -142,27 +126,13 @@ const navPages = [
 
     </main>
 
-    <aside class="lr-sidebar lr-sidebar-right">
-      <section class="lr-panel">
-        <h3 class="lr-panel-title">Popular</h3>
-        <ul class="lr-nav">
-          {(rightLinks.length ? rightLinks : [
-            { href: "/schedule", label: "Schedule" },
-            { href: "/players", label: "Players" },
-            { href: "/team", label: "Team totals" },
-          ]).map((x) => (
-            <li><a href={x.href}>{x.label}</a></li>
-          ))}
-        </ul>
-      </section>
-    </aside>
   </div>
 
   <footer class="lr-footer">
     <div class="footer-inner">
       <div class="footer-brand"><span class="footer-mark">SFZ</span><span>Independent football coverage for the 12s.</span></div>
       <nav class="footer-links" aria-label="Footer">
-        <a href="/disclosure">Disclosure</a><a href="/methodology">Methodology</a><a href="/about#contact">Contact</a><a href="/sources">Data updates</a><a href="/privacy-policy">Privacy</a><a href="#" data-manage-privacy>Manage Privacy Choices</a>
+        <a href="/news">News</a><a href="/schedule">Schedule</a><a href="/team">Team Stats</a><a href="/players">Player Stats</a><a href="/history">History</a><a href="/about">About</a><a href="/disclosure">Disclosure</a><a href="/methodology">Methodology</a><a href="/sources">Data Updates</a><a href="/privacy-policy">Privacy</a><a href="#" data-manage-privacy>Manage Privacy Choices</a>
       </nav>
       <p class="lr-footer-note">Seahawks Fan Zone is an independent fan site and is not affiliated with the NFL or the Seattle Seahawks. Data refreshes during scheduled site builds.</p>
       <div class="lr-copyright">&copy; {new Date().getFullYear()} Seahawks Fan Zone</div>
@@ -173,20 +143,53 @@ const navPages = [
     (() => {
       const button = document.querySelector('.nav-toggle');
       const nav = document.getElementById('primary-nav');
+      const moreButton = nav?.querySelector('.more-toggle');
+      const moreMenu = nav?.querySelector('.more-menu');
       if (!button || !nav) return;
+      const closeMore = (focus = false) => {
+        moreButton?.setAttribute('aria-expanded', 'false');
+        moreMenu?.classList.remove('is-open');
+        if (focus) moreButton?.focus();
+      };
       button.addEventListener('click', () => {
         const open = button.getAttribute('aria-expanded') === 'true';
         button.setAttribute('aria-expanded', String(!open));
         button.setAttribute('aria-label', `${open ? 'Open' : 'Close'} primary navigation`);
         nav.classList.toggle('is-open', !open);
       });
+      moreButton?.addEventListener('click', () => {
+        const open = moreButton.getAttribute('aria-expanded') === 'true';
+        moreButton.setAttribute('aria-expanded', String(!open));
+        moreMenu?.classList.toggle('is-open', !open);
+      });
+      moreButton?.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          moreButton.setAttribute('aria-expanded', 'true');
+          moreMenu?.classList.add('is-open');
+          moreMenu?.querySelector('a')?.focus();
+        }
+      });
+      moreMenu?.addEventListener('keydown', (event) => {
+        const links = [...moreMenu.querySelectorAll('a')];
+        const index = links.indexOf(document.activeElement);
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          links[(index + (event.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length]?.focus();
+        }
+      });
       nav.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
+          if (moreButton?.getAttribute('aria-expanded') === 'true') return closeMore(true);
           button.setAttribute('aria-expanded', 'false');
           button.setAttribute('aria-label', 'Open primary navigation');
           nav.classList.remove('is-open');
+          closeMore();
           button.focus();
         }
+      });
+      document.addEventListener('click', (event) => {
+        if (!event.target.closest('.nav-more')) closeMore();
       });
       nav.addEventListener('click', (event) => {
         if (event.target.closest('a')) {
