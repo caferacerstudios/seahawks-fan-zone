@@ -13,7 +13,7 @@
  *
  * Optional:
  * - env NFL_TEAM_ABBR (default "SEA")
- * - env NFL_SEASON (default: current year - 1; Jan 2026 -> 2025)
+ * - env NFL_SEASON (default: current/upcoming NFL season)
  */
 
 import fs from "node:fs";
@@ -26,7 +26,22 @@ const __dirname = path.dirname(__filename);
 const API_BASE = "https://api.balldontlie.io/nfl/v1";
 
 const TEAM_ABBR = (process.env.NFL_TEAM_ABBR || "SEA").toUpperCase();
-const SEASON = Number(process.env.NFL_SEASON) || new Date().getUTCFullYear() - 1;
+
+function defaultSeason(now = new Date()) {
+  const year = now.getUTCFullYear();
+
+  // The Super Bowl is played on the second Sunday in February. Keep showing
+  // the season that just ended for one month, then move to the upcoming season.
+  const februaryFirst = new Date(Date.UTC(year, 1, 1));
+  const firstSunday = 1 + ((7 - februaryFirst.getUTCDay()) % 7);
+  const superBowlSunday = new Date(Date.UTC(year, 1, firstSunday + 7));
+  const upcomingSeasonStart = new Date(superBowlSunday);
+  upcomingSeasonStart.setUTCMonth(upcomingSeasonStart.getUTCMonth() + 1);
+
+  return now >= upcomingSeasonStart ? year : year - 1;
+}
+
+const SEASON = Number(process.env.NFL_SEASON) || defaultSeason();
 
 const API_KEY = process.env.BALLDONTLIE_API_KEY;
 if (!API_KEY) {
