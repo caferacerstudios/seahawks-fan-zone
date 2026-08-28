@@ -13,7 +13,10 @@ const {
   canonical,
   article,
   structuredData,
+  monetizationEligible = true,
 } = Astro.props;
+const nonMonetizedPaths = new Set(["/privacy-policy", "/disclosure", "/404"]);
+const pageCanBeMonetized = monetizationEligible && !nonMonetizedPaths.has(Astro.url.pathname.replace(/\/$/, "") || "/");
 
 let latestRecapHref = "/weekly-recap";
 try {
@@ -36,7 +39,7 @@ const navPages = [
 ];
 ---
 
-<BaseLayout {title} {description} {canonical} {article} {structuredData}>
+<BaseLayout {title} {description} {canonical} {article} {structuredData} monetizationEligible={pageCanBeMonetized}>
   <header class="lr-header seahawks-header">
     <div class="lr-header-bg seahawks-header-bg" aria-hidden="true"></div>
 
@@ -126,7 +129,7 @@ const navPages = [
     <div class="footer-inner">
       <div class="footer-brand"><span class="footer-mark">SFZ</span><span>Independent football coverage for the 12s.</span></div>
       <nav class="footer-links" aria-label="Footer">
-        <a href="/disclosure">Disclosure</a><a href="/methodology">Methodology</a><a href="/about#contact">Contact</a><a href="/sources">Data updates</a><a href="/privacy-policy">Privacy</a>
+        <a href="/disclosure">Disclosure</a><a href="/methodology">Methodology</a><a href="/about#contact">Contact</a><a href="/sources">Data updates</a><a href="/privacy-policy">Privacy</a><a href="#" data-manage-privacy>Manage Privacy Choices</a>
       </nav>
       <p class="lr-footer-note">Seahawks Fan Zone is an independent fan site and is not affiliated with the NFL or the Seattle Seahawks. Data refreshes during scheduled site builds.</p>
       <div class="lr-copyright">&copy; {new Date().getFullYear()} Seahawks Fan Zone</div>
@@ -151,5 +154,14 @@ const navPages = [
         }
       });
     })();
+  </script>
+  <script is:inline>
+    document.querySelectorAll('[data-manage-privacy]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        const opened = window.sfzPrivacy?.manage?.();
+        if (!opened) window.location.assign('/privacy-policy#privacy-choices');
+      });
+    });
   </script>
 </BaseLayout>

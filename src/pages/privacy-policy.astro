@@ -10,14 +10,15 @@ const updated = new Intl.DateTimeFormat("en-US", {
 }).format(new Date());
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/privacy-policy">
+<SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/privacy-policy" monetizationEligible={false}>
   <section class="sfz-card">
     <p class="sfz-updated"><strong>Last updated:</strong> {updated} (Pacific Time)</p>
 
     <h3>Overview</h3>
     <p>
       Seahawks Fan Zone is a stats-focused fan site. We aim to collect as little personal information as possible.
-      This policy explains what information may be collected automatically when you use the site, especially if advertising is enabled.
+      This policy explains the site's current support for hosting logs, analytics, and Google advertising. Advertising and
+      optional browser analytics are disabled unless configured by the operator and permitted by the applicable consent signal.
     </p>
 
     <h3>Information we may collect</h3>
@@ -35,8 +36,8 @@ const updated = new Intl.DateTimeFormat("en-US", {
 
     <h3>Advertising</h3>
     <p>
-      This site may show ads provided by third-party ad networks (for example, Google AdSense).
-      Ad networks may use cookies or similar technologies to:
+      If advertising is enabled after account approval, this site may show ads provided by Google AdSense. Google and its
+      third-party advertising vendors may use cookies, local storage, device identifiers, or similar technologies to:
     </p>
     <ul class="sfz-list">
       <li>deliver and measure advertisements</li>
@@ -46,26 +47,36 @@ const updated = new Intl.DateTimeFormat("en-US", {
     </ul>
 
     <p>
-      If you prefer fewer personalized ads, you can adjust ad personalization settings in your Google account (if applicable)
-      and use browser controls to limit cookies. Some ad features may not work correctly if cookies are disabled.
+      Depending on your location and choices, Google may serve personalized or non-personalized ads. Where consent is required,
+      advertising does not load until the configured Google-certified consent management platform reports the required consent.
+      Rejecting optional consent does not prevent access to site content.
     </p>
 
     <h3>Analytics</h3>
     <p>
-      This site may use analytics to understand what pages are useful and to improve performance.
-      Analytics tools typically collect aggregated usage information, not sensitive personal details.
+      If configured and permitted by your consent choice, this site uses Cloudflare Web Analytics to understand page usage and
+      improve performance. Optional browser analytics is not loaded before the centralized consent state allows it. The hosting
+      provider may separately process request information in server logs for delivery, security, abuse prevention, and diagnostics.
     </p>
 
     <h3>Cookies</h3>
     <p>
-      Cookies are small text files stored by your browser. This site may use cookies for:
-      site functionality, basic preferences, measuring traffic, and ad delivery if ads are enabled.
+      Cookies are small text files stored by your browser. Local storage is another way a browser can retain information on a
+      device. Google, its vendors, and the configured consent platform may use these technologies for consent choices, ad delivery,
+      frequency limits, fraud prevention, measurement, and personalization. This site does not create a separate custom consent cookie.
     </p>
 
-    <h3>Sharing</h3>
+    <h3 id="privacy-choices">Your privacy choices</h3>
     <p>
-      We do not sell your personal information. Data may be shared with service providers only as needed to operate the site,
-      such as hosting, analytics, and advertising providers.
+      Use <a href="#" data-manage-privacy>Manage Privacy Choices</a> in the footer at any time to reopen the configured consent
+      platform and change or withdraw a choice. If the control redirects back here, the production consent platform is not configured.
+      You may also use browser controls and Google's ad settings; browser restrictions can affect site or advertising features.
+    </p>
+
+    <h3>Sharing and third-party vendors</h3>
+    <p>
+      We do not sell your personal information. Information may be processed by service providers only as needed to operate the site,
+      including hosting providers, Cloudflare when analytics is enabled, Google, and Google's advertising vendors when advertising is enabled.
     </p>
 
     <h3>External links</h3>
