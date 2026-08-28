@@ -1,6 +1,6 @@
 ---
 import SeasonContextView from "./SeasonContext.astro";
-import { formatPacificTime } from "../lib/season-context";
+import { formatKickoff } from "../lib/schedule.mjs";
 import Empty from "./game/EmptyState.astro";
 import FormRow from "./game/FormRow.astro";
 import LeaderList from "./game/LeaderList.astro";
@@ -21,7 +21,7 @@ const rowOpponent = (row) => String((String(row?.home_team?.abbreviation).toUppe
     <div class="versus">{completed ? "Final" : "vs"}</div>
     <div class="team opponent"><img src={logo(opponentAbbr)} alt={`${name} logo`} width="82" height="82" decoding="async" /><span>{name}</span><strong>{completed ? opponentScore ?? "—" : opponentRecord}</strong><small>{home ? "Away" : "Home"}</small></div>
   </div>
-  <div class="details"><span>{formatPacificTime(game?.date ?? game?.start_time ?? game?.kickoff)}</span><span>{venue ?? "Venue not yet announced"}</span><span>{home ? "Seattle home game" : "Seattle away game"}</span></div>
+  <div class="details"><span>{formatKickoff(game)}</span>{venue && <span>{venue}</span>}<span>{home ? "Seattle home game" : "Seattle away game"}</span></div>
 </article>
 
 {!completed ? <div class="center-grid">

@@ -5,6 +5,7 @@ import GameCenter from "../../components/GameCenter.astro";
 import TopicChips from "../../components/TopicChips.astro";
 import ContinueFanZone from "../../components/ContinueFanZone.astro";
 import { getAvailableSeasonContexts, getGameState, getSeasonContext, isFinalGame } from "../../lib/season-context";
+import { formatKickoff, normalizeGame } from "../../lib/schedule.mjs";
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
 import rosterData from "../../data/nfl/players.json";
@@ -45,23 +46,6 @@ function isPlayoffGame(g) {
   return false;
 }
 
-function fmtPT(dateStr) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  try {
-    return d.toLocaleString("en-US", {
-      timeZone: "America/Los_Angeles",
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }) + " PT";
-  } catch {
-    return d.toISOString();
-  }
-}
-
 function statusText(game) {
   const s = String(game?.status || "").toLowerCase();
   if (s.includes("final")) return "Final";
@@ -85,7 +69,7 @@ function venueName(game) {
 function recordBefore(target, abbreviation) {
   const targetTime = new Date(target?.date ?? 0).getTime();
   return ordered.reduce((record, row) => {
-    if (!isFinal(row) || new Date(row?.date ?? 0).getTime() >= targetTime) return record;
+    if (!isFinal(row) || row.phase !== target.phase || new Date(row?.date ?? 0).getTime() >= targetTime) return record;
     const home = teamAbbr(row?.home_team);
     const away = teamAbbr(row?.visitor_team);
     if (home !== abbreviation && away !== abbreviation) return record;
@@ -220,9 +204,10 @@ function sortByDate(a, b) {
 
 function getRawGamesLocal() {
   const records = Array.isArray(scheduleArchive?.seasons) ? scheduleArchive.seasons : [scheduleArchive];
-  return records.flatMap((record) => Array.isArray(record?.games)
+  return records.flatMap((record) => (Array.isArray(record?.games)
     ? record.games
     : [...(record?.gamesPreseason || []), ...(record?.gamesRegular || []), ...(record?.gamesPostseason || [])])
+    .map((game) => normalizeGame(game, record?.season ?? game?.season)))
     .filter((game) => game?.state !== "bye" && game?.bye !== true);
 }
 
@@ -270,7 +255,7 @@ const idx = game ? ordered.findIndex((row) => String(row?.id ?? row?.game_id) ==
 const gameSeasonData = Array.isArray(scheduleArchive?.seasons)
   ? scheduleArchive.seasons.find((record) => Number(record?.season) === Number(game?.season)) ?? scheduleArchive
   : scheduleArchive;
-const gameSeasonType = game && isPlayoffGame(game) ? "postseason" : "regular season";
+const gameSeasonType = game?.phase === "preseason" ? "preseason" : game && isPlayoffGame(game) ? "postseason" : "regular season";
 const gameContext = getSeasonContext({
   ...gameSeasonData,
   seasonContext: { ...gameSeasonData?.seasonContext, seasonType: gameSeasonType },
@@ -513,8 +498,8 @@ const pageDescription = !game ? "The requested Seahawks game could not be found.
   : `Matchup information for Seattle's ${weekLabel} game against ${opponentName}.`;
 const seaStanding = standingFor("SEA");
 const opponentStanding = standingFor(opp);
-const seaRecord = standingRecord(seaStanding) ?? (game ? recordText(recordBefore(game, "SEA")) : "—");
-const opponentRecord = standingRecord(opponentStanding) ?? "Unavailable";
+const seaRecord = (game?.phase === "regular" ? standingRecord(seaStanding) : null) ?? (game ? recordText(recordBefore(game, "SEA")) : "—");
+const opponentRecord = (game?.phase === "regular" ? standingRecord(opponentStanding) : null) ?? "Unavailable";
 const divisionRank = seaStanding?.division_rank ?? seaStanding?.divisionRank ?? seaStanding?.division_place;
 const divisionContext = divisionRank ? `Seattle is ${divisionRank} in the NFC West in the latest available standings.` : null;
 const rawOpponentForm = opponentStanding?.recent_form ?? opponentStanding?.recentForm;
@@ -620,7 +605,7 @@ const continueGroups = game ? [
               ? (Number.isFinite(Number(game?.week)) ? `Playoffs Week ${game.week}` : "Playoffs")
               : (Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game")}
           </div>
-          <div class="date">{fmtPT(game?.date)}</div>
+          <div class="date">{formatKickoff(game)}</div>
         </div>
 
         <div class="matchup">

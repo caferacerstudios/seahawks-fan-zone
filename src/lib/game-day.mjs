@@ -1,4 +1,5 @@
 import { scheduleResult } from "./schedule-display.mjs";
+import { formatKickoff } from "./schedule.mjs";
 
 const PACIFIC = "America/Los_Angeles";
 const text = (value) => String(value ?? "").trim();
@@ -18,7 +19,7 @@ function matchingRecord(game, side) {
   if (!source) return null;
   if (typeof source === "string") return null;
   const phase = text(source.phase ?? source.season_type ?? source.seasonType).toLowerCase();
-  if (phase && phase !== game.phase) return null;
+  if (phase !== game.phase) return null;
   const value = text(source.record ?? source.value);
   return value || null;
 }
@@ -32,7 +33,7 @@ export function gameDayView(game, now = new Date()) {
   const result = scheduleResult(game);
   const homeScore = Number(game.home_team_score);
   const awayScore = Number(game.visitor_team_score);
-  const liveScore = game.state === "in_progress" && Number.isFinite(homeScore) && Number.isFinite(awayScore)
+  const liveScore = game.state === "in_progress" && game.home_team_score != null && game.visitor_team_score != null && Number.isFinite(homeScore) && Number.isFinite(awayScore)
     ? { seahawks: game.isHome ? homeScore : awayScore, opponent: game.isHome ? awayScore : homeScore }
     : null;
   const start = game.startsAt ? new Date(game.startsAt) : null;
@@ -43,12 +44,8 @@ export function gameDayView(game, now = new Date()) {
     : game.state === "postponed" ? "Postponed"
     : game.state === "tbd" ? "Details TBD"
     : today ? "Today" : "Next game";
-  const date = game.dateConfirmed && game.date
-    ? new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(validStart ? start : new Date(`${game.date}T12:00:00Z`))
-    : "Date TBD";
-  const kickoff = game.timeConfirmed && validStart
-    ? `${new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(start)}`
-    : "Time TBD";
+  const date = formatKickoff(game, "date");
+  const kickoff = formatKickoff(game, "time");
   const detailHref = game.canonicalUrl || `/games/${encodeURIComponent(String(game.id))}`;
   const substantive = game.opponentConfirmed !== false && Boolean(game.date || game.venue || game.network || game.radio);
   return {
@@ -60,6 +57,8 @@ export function gameDayView(game, now = new Date()) {
     primeTime: Boolean(game.prime_time ?? game.primeTime ?? game.is_primetime),
     seaRecord: matchingRecord(game, "seahawks"), opponentRecord: matchingRecord(game, "opponent"),
     primaryLabel: game.state === "completed" ? "Game recap" : game.state === "in_progress" ? "Game center" : substantive ? "Game preview" : null,
+    quarter: text(game.quarter ?? game.period) || null,
+    clock: text(game.clock ?? game.time_remaining ?? game.timeRemaining) || null,
   };
 }
 
