@@ -260,6 +260,19 @@ async function openaiPlayerProfile(prompt) {
         const body = await res.text().catch(() => "");
         const status = res.status;
 
+        let errorCode = "";
+        try {
+          errorCode = JSON.parse(body)?.error?.code || "";
+        } catch {
+          // Keep the raw response body for the error below if it is not JSON.
+        }
+
+        if (errorCode === "credit_balance_exhausted" || errorCode === "insufficient_quota") {
+          const err = new Error(`OpenAI quota exhausted; add API credits before generating more profiles.\n${body}`);
+          err.code = errorCode;
+          throw err;
+        }
+
         const retryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
         if (retryable && attempt < maxAttempts) {
           const backoffMs = Math.min(20_000, 600 * Math.pow(2, attempt - 1));
@@ -412,6 +425,7 @@ async function main() {
 
   let wrote = 0;
   let skippedDueToErrors = 0;
+  let quotaExhausted = false;
 
   for (const p of roster) {
     const key = String(p.id);
@@ -436,6 +450,11 @@ async function main() {
       console.warn(
         `⚠️  OpenAI failed for ${playerName(p)} (${key}). Skipping.\n${String(e?.message || e)}`
       );
+      if (e?.code === "credit_balance_exhausted" || e?.code === "insufficient_quota") {
+        quotaExhausted = true;
+        console.warn("Skipping the remaining profile updates because OpenAI API credits are exhausted.");
+        break;
+      }
       continue;
     }
 
@@ -479,6 +498,9 @@ async function main() {
   console.log(`wrote ${path.relative(process.cwd(), outInjuriesPath)} (injuries: ${outInjuries.injuries.length})`);
   if (skippedDueToErrors > 0) {
     console.warn(`OpenAI failures skipped: ${skippedDueToErrors}`);
+  }
+  if (quotaExhausted) {
+    console.warn("Player profile data was left unchanged for profiles that still require generation.");
   }
 }
 
