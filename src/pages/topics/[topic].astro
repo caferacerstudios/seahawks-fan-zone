@@ -1,50 +1,15 @@
 ---
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
-import { TOPICS, type TopicSlug } from "../../lib/fan-zone-taxonomy";
-
-const LANDINGS: Partial<Record<TopicSlug, { description: string; links: { href: string; label: string; detail: string }[] }>> = {
-  players: { description: "Player profiles, roster context, and season statistics.", links: [
-    { href: "/players", label: "Player profiles and stats", detail: "Browse canonical player pages and season production." },
-    { href: "/team", label: "Team statistical context", detail: "Compare individual production with Seattle's team totals." },
-  ] },
-  roster: { description: "The current roster, player availability, and team context.", links: [
-    { href: "/players", label: "Seattle roster", detail: "Search the roster by name, number, or position." },
-    { href: "/team", label: "Team stats", detail: "See how the roster is producing across the season." },
-  ] },
-  injuries: { description: "Player availability information in the context of the current roster and schedule.", links: [
-    { href: "/players", label: "Player profiles", detail: "Open a player profile to see available injury-report entries." },
-    { href: "/schedule", label: "Upcoming games", detail: "Put player availability in game-week context." },
-  ] },
-  opponents: { description: "Upcoming and completed Seahawks matchups with standings context.", links: [
-    { href: "/schedule", label: "Opponent schedule", detail: "Browse every matchup and open its game center." },
-    { href: "/standings", label: "Opponent standings", detail: "Compare Seattle's latest divisional and conference position." },
-  ] },
-  "game-week": { description: "Game centers, schedule entries, and weekly recap coverage.", links: [
-    { href: "/schedule", label: "Full schedule", detail: "Find kickoff details and every game center." },
-    { href: "/weekly-recap", label: "Game recap archive", detail: "Read editorial recaps for completed games." },
-  ] },
-  "nfc-west": { description: "Seattle's divisional race, opponents, and season performance.", links: [
-    { href: "/standings", label: "NFC West standings", detail: "View the latest available divisional table." },
-    { href: "/schedule", label: "Division matchups", detail: "Find Seahawks games against NFC West opponents." },
-  ] },
-  "position-groups": { description: "Explore the roster and performance by football position.", links: [
-    { href: "/players", label: "Roster by position", detail: "Filter canonical player profiles by position group." },
-    { href: "/team", label: "Unit production", detail: "Review offense, defense, and special-teams totals." },
-  ] },
-  championship: { description: "Championship seasons and defining moments in Seahawks history.", links: [
-    { href: "/history", label: "Franchise history", detail: "Explore Seattle's championship era and major milestones." },
-    { href: "/weekly-recap", label: "Game recap archive", detail: "Continue with editorial coverage of completed games." },
-  ] },
-};
+import { TOPICS, TOPIC_LANDINGS, type TopicSlug } from "../../lib/fan-zone-taxonomy";
 
 export function getStaticPaths() {
-  return Object.entries(LANDINGS)
+  return Object.entries(TOPIC_LANDINGS)
     .filter(([, landing]) => landing && landing.links.length >= 2)
     .map(([topic]) => ({ params: { topic } }));
 }
 
 const slug = Astro.params.topic as TopicSlug;
-const landing = LANDINGS[slug];
+const landing = TOPIC_LANDINGS[slug];
 const topic = TOPICS[slug];
 const links = landing?.links ?? [];
 const substantive = Boolean(topic && links.length >= 2);
