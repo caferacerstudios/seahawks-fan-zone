@@ -1,0 +1,36 @@
+---
+import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
+import ArticleCard from "../../components/ArticleCard.astro";
+import { NEWS_CATEGORIES, NEWS_PAGE_SIZE, categorySlug, publishedArticles } from "../../lib/news";
+
+const lead = publishedArticles.find((article) => article.featured) ?? publishedArticles[0];
+const latest = publishedArticles.filter((article) => article !== lead).slice(0, NEWS_PAGE_SIZE);
+const hasMore = publishedArticles.length > NEWS_PAGE_SIZE + 1;
+const counts = new Map(NEWS_CATEGORIES.map((category) => [category, publishedArticles.filter((article) => article.category === category).length]));
+---
+<SeahawksLayout title="Seattle Seahawks News and Analysis | Seahawks Fan Zone" description="Original Seattle Seahawks news, analysis, roster context, injuries, game-week coverage and NFC West perspective." activePath="/news" showPageHeader={false} pageType="news-index" quickLinks={[{href:"/news/rss.xml",label:"RSS feed"},{href:"/schedule",label:"Schedule"},{href:"/players",label:"Player stats"}]}>
+  <header class="newsroom-header"><p>Independent · Original · Accountable</p><h1>Newsroom</h1><span>Seahawks reporting with the context that matters to the 12s.</span></header>
+
+  <nav class="category-rail" aria-label="News categories">
+    {NEWS_CATEGORIES.map((category) => <a href={`/news/category/${categorySlug(category)}/`}>{category}<span>{counts.get(category)}</span></a>)}
+  </nav>
+
+  {lead ? <section aria-labelledby="lead-story"><h2 class="section-title" id="lead-story">Lead story</h2><ArticleCard article={lead} prominent /></section> : <p class="news-empty">The newsroom is preparing its first story. Check back soon.</p>}
+
+  <section class="latest" aria-labelledby="latest-stories">
+    <div class="latest-heading"><h2 class="section-title" id="latest-stories">Latest stories</h2><label>Search newsroom <input id="news-search" type="search" placeholder="Player, topic or category" /></label></div>
+    <p id="search-status" class="search-status" aria-live="polite"></p>
+    <div class="latest-grid" id="latest-grid">{latest.map((article) => <ArticleCard article={article} />)}</div>
+    <p id="search-empty" class="news-empty" hidden>No published stories match that search. Try a player, category or broader topic.</p>
+    {hasMore && <nav class="pagination" aria-label="News archive pages"><span>Page 1</span><a href="/news/page/2/">Older stories →</a></nav>}
+  </section>
+
+  <aside class="rss-callout"><div><strong>Take the newsroom with you</strong><span>New stories in any feed reader, with canonical links back to the full article.</span></div><a href="/news/rss.xml">Subscribe via RSS →</a></aside>
+
+  <script is:inline>
+    (() => { const input=document.getElementById('news-search'),cards=[...document.querySelectorAll('[data-news-card]')].filter((card)=>card.closest('#latest-grid')),empty=document.getElementById('search-empty'),status=document.getElementById('search-status'); if(!input)return; input.addEventListener('input',()=>{const query=input.value.trim().toLowerCase();let visible=0;cards.forEach((card)=>{const match=!query||card.dataset.search.includes(query);card.hidden=!match;if(match)visible++});empty.hidden=visible!==0;status.textContent=query?`${visible} ${visible===1?'story':'stories'} found`:''}) })();
+  </script>
+  <style>
+    .newsroom-header{padding:clamp(1.4rem,5vw,3rem);background:linear-gradient(120deg,var(--navy-950),var(--navy-800));border-left:8px solid var(--action-green);color:#fff}.newsroom-header p{margin:0;color:var(--action-green);font:900 .75rem var(--font-display);letter-spacing:.12em;text-transform:uppercase}.newsroom-header h1{margin:.2rem 0;color:#fff;font:900 clamp(3rem,10vw,6rem)/.85 var(--font-display);text-transform:uppercase}.newsroom-header span{color:var(--slate-100)}.category-rail{display:flex;overflow:auto;margin:1rem 0 2rem;border:1px solid #c7d1d6;background:#fff}.category-rail a{display:flex;gap:.5rem;align-items:center;white-space:nowrap;padding:.75rem;color:var(--navy-900);font-weight:850;text-decoration:none}.category-rail a+a{border-left:1px solid #d8dfe3}.category-rail span{display:grid;place-items:center;min-width:1.4rem;height:1.4rem;border-radius:50%;background:var(--slate-100);font-size:.7rem}.section-title{padding-left:.65rem;border-left:5px solid var(--action-green);color:var(--navy-900)}.latest{margin-top:2.5rem}.latest-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem}.latest-heading label{color:var(--slate-700);font-size:.75rem;font-weight:800}.latest-heading input{display:block;min-width:230px;margin-top:.25rem;padding:.65rem;border:1px solid var(--slate-500);font:inherit}.latest-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.search-status{min-height:1.1rem;color:var(--slate-700);font-size:.8rem}.news-empty{padding:1.25rem;border:1px dashed var(--slate-500);background:var(--slate-100);color:var(--slate-700)}.pagination{display:flex;justify-content:space-between;margin-top:1.2rem;padding-top:1rem;border-top:1px solid #c7d1d6}.pagination span{color:var(--slate-700)}.pagination a{font-weight:900}.rss-callout{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:2rem;padding:1.1rem;background:var(--navy-800);color:#fff}.rss-callout div{display:grid}.rss-callout span{color:var(--slate-300);font-size:.8rem}.rss-callout a{color:#fff;font-weight:900}@media(max-width:620px){.latest-heading,.rss-callout{align-items:stretch;flex-direction:column}.latest-heading input{min-width:0;width:100%;box-sizing:border-box}.latest-grid{grid-template-columns:1fr}}
+  </style>
+</SeahawksLayout>
