@@ -1,5 +1,6 @@
 export type SeasonType = "preseason" | "regular season" | "postseason" | "final";
 export type SeasonStatus = "upcoming" | "active" | "complete";
+export type GameState = "upcoming" | "completed";
 
 export interface SeasonContext {
   seasonYear: number | null;
@@ -29,9 +30,18 @@ function type(value: unknown, fallback: SeasonType): SeasonType {
   return fallback;
 }
 
-function isFinal(game: any): boolean {
+export function isFinalGame(game: any): boolean {
   const status = String(game?.status ?? "").toLowerCase();
   return status.includes("final") || status.includes("finished") || status.includes("complete");
+}
+
+/**
+ * Game pages intentionally expose only durable states. Repository data is
+ * refreshed at build time, so an in-progress status must not become a live
+ * score claim.
+ */
+export function getGameState(game: any): GameState {
+  return isFinalGame(game) ? "completed" : "upcoming";
 }
 
 function gamesFor(data: any, seasonType: SeasonType): any[] {
@@ -71,7 +81,7 @@ export function getSeasonContext(data: any, requestedType: SeasonType = "regular
   const hasData = hasGames || hasStatistics;
 
   let seasonStatus: SeasonStatus = "upcoming";
-  if (hasData && games.some(isFinal)) seasonStatus = games.every(isFinal) ? "complete" : "active";
+  if (hasData && games.some(isFinalGame)) seasonStatus = games.every(isFinalGame) ? "complete" : "active";
   if (hasData && games.length === 0 && rows.length > 0) seasonStatus = "active";
   if (["upcoming", "active", "complete"].includes(explicit.seasonStatus)) {
     seasonStatus = explicit.seasonStatus;

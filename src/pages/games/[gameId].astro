@@ -2,7 +2,7 @@
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../../components/SeasonContext.astro";
 import GameCenter from "../../components/GameCenter.astro";
-import { getAvailableSeasonContexts, getSeasonContext } from "../../lib/season-context";
+import { getAvailableSeasonContexts, getGameState, getSeasonContext, isFinalGame } from "../../lib/season-context";
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
 import rosterData from "../../data/nfl/players.json";
@@ -68,7 +68,7 @@ function statusText(game) {
 }
 
 function isFinal(game) {
-  return /final|finished|complete/i.test(String(game?.status || ""));
+  return isFinalGame(game);
 }
 
 function teamName(team, fallback) {
@@ -484,7 +484,7 @@ function renderBulletHtml(b) {
 
 const recapHtml = recap ? renderRecapHtml(recap) : "";
 const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
-const completed = Boolean(game && isFinal(game));
+const completed = Boolean(game && getGameState(game) === "completed");
 const opponentTeam = game ? (seaIsHome(game) ? game?.visitor_team : game?.home_team) : null;
 const opponentName = teamName(opponentTeam, opp);
 const rawSeaScore = game ? (seaIsHome(game) ? game?.home_team_score : game?.visitor_team_score) : null;
@@ -493,6 +493,9 @@ const seaScore = rawSeaScore == null ? null : Number(rawSeaScore);
 const opponentScore = rawOpponentScore == null ? null : Number(rawOpponentScore);
 const validSeaScore = Number.isFinite(seaScore) ? seaScore : null;
 const validOpponentScore = Number.isFinite(opponentScore) ? opponentScore : null;
+const outcome = completed && validSeaScore !== null && validOpponentScore !== null
+  ? validSeaScore === validOpponentScore ? "T" : validSeaScore > validOpponentScore ? "W" : "L"
+  : null;
 const weekLabel = game ? (isPlayoffGame(game) ? "Playoffs" : Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game") : "Game";
 const pageTitle = !game ? "Game not found" : completed
   ? `Seahawks ${validSeaScore ?? "—"}, ${opponentName} ${validOpponentScore ?? "—"} — ${weekLabel} Recap`
@@ -507,7 +510,11 @@ const opponentRecord = standingRecord(opponentStanding) ?? "Unavailable";
 const divisionRank = seaStanding?.division_rank ?? seaStanding?.divisionRank ?? seaStanding?.division_place;
 const divisionContext = divisionRank ? `Seattle is ${divisionRank} in the NFC West in the latest available standings.` : null;
 const rawOpponentForm = opponentStanding?.recent_form ?? opponentStanding?.recentForm;
-const opponentForm = Array.isArray(rawOpponentForm) ? rawOpponentForm : [];
+const opponentForm = Array.isArray(rawOpponentForm)
+  ? rawOpponentForm.filter((result) => ["W", "L", "T"].includes(String(result).toUpperCase())).map((result) => String(result).toUpperCase()).slice(-5)
+  : typeof rawOpponentForm === "string"
+    ? rawOpponentForm.toUpperCase().match(/[WLT]/g)?.slice(-5) ?? []
+    : [];
 const quarters = game ? quarterScores(game) : [];
 const comparison = game ? comparisonStats(game) : [];
 const gamePlayerRows = game?.player_stats ?? game?.playerStats ?? game?.statistics?.players ?? [];
@@ -551,7 +558,7 @@ const structuredData = articleData ? {
     opponent={opponentTeam}
     opponentAbbr={opp}
     {completed}
-    outcome={win === true ? "W" : win === false ? "L" : null}
+    {outcome}
     {weekLabel}
     seaScore={validSeaScore}
     opponentScore={validOpponentScore}
@@ -571,7 +578,7 @@ const structuredData = articleData ? {
     links={officialLinks(game)}
     turningPoints={Array.isArray(turningPoints) ? turningPoints : []}
     sourceLabel={completed && recap ? "Schedule results and generated recap from repository game data" : "Schedule and season data maintained in this repository"}
-    updatedAt={gameRecaps?.updatedAt ?? scheduleData?.updatedAt}
+    updatedAt={completed && recap ? recap?.updatedAt ?? gameRecaps?.updatedAt ?? scheduleData?.updatedAt : scheduleData?.updatedAt}
   />}
   <div class="legacy-game-page">
   <SeasonContextView context={gameContext} options={seasonOptions} prefix="Data through" />
