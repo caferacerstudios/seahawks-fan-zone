@@ -79,6 +79,7 @@ const fold = (line) => {
 };
 
 export function gameCalendar(game, canonicalBase) {
+  if (["bye", "canceled", "postponed"].includes(game?.state)) return { enabled: false, label: "Calendar unavailable", reason: "This event does not currently have a confirmed active kickoff." };
   if (!game?.dateConfirmed || !game?.date || !game?.timeConfirmed || !game?.startsAt) return { enabled: false, label: "Calendar unavailable — kickoff not confirmed", reason: "Add to calendar becomes available when the date and kickoff time are confirmed." };
   const opponentName = teamName(game.opponent, "Opponent TBD");
   const sea = abbreviation(game.homeTeam) === "SEA" ? game.homeTeam : abbreviation(game.awayTeam) === "SEA" ? game.awayTeam : null;
@@ -95,4 +96,31 @@ export function gameCalendar(game, canonicalBase) {
     `DESCRIPTION:${icsEscape(`${location}. NFL dates and times may change. Game details: ${canonicalUrl}`)}`, `URL:${icsEscape(canonicalUrl)}`, "END:VEVENT", "END:VCALENDAR"];
   const content = `${lines.map(fold).join("\r\n")}\r\n`;
   return { enabled: true, label: "Add to calendar", filename: `seahawks-${game.id}.ics`, content, href: `data:text/calendar;charset=utf-8,${encodeURIComponent(content)}` };
+}
+
+export function seasonCalendar(schedule, canonicalBase) {
+  const events = (schedule?.games ?? []).filter((game) => game.state !== "bye" && game.state !== "canceled" && game.dateConfirmed && game.date);
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Seahawks Fan Zone//Schedule//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", `X-WR-CALNAME:Seattle Seahawks ${schedule.season} schedule`, `X-WR-TIMEZONE:${PACIFIC}`];
+  for (const game of events) {
+    const opponentName = teamName(game.opponent, "Opponent TBD");
+    const detailPath = game.canonicalUrl || `/games/${encodeURIComponent(String(game.id))}`;
+    const canonicalUrl = new URL(detailPath, canonicalBase).toString();
+    const result = scheduleResult(game);
+    const status = result ? `Final: Seahawks ${result.seahawks}, ${opponentName} ${result.opponent}` : game.state === "completed" ? "Final" : game.state === "postponed" ? "Postponed" : game.state === "in_progress" ? "In progress" : "Scheduled";
+    const start = game.startsAt ? new Date(game.startsAt) : null;
+    const timed = game.timeConfirmed && start && Number.isFinite(start.getTime());
+    const end = timed ? (game.endsAt && Number.isFinite(new Date(game.endsAt).getTime()) ? new Date(game.endsAt) : new Date(start.getTime() + 3.5 * 60 * 60 * 1000)) : null;
+    lines.push("BEGIN:VEVENT", `UID:${icsEscape(`${schedule.season}-${game.id}@seahawksfanzone`)}`, `DTSTAMP:${utcStamp(new Date(0))}`);
+    if (timed) lines.push(`DTSTART:${utcStamp(start)}`, `DTEND:${utcStamp(end)}`);
+    else {
+      const date = game.date.replaceAll("-", "");
+      const next = new Date(`${game.date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + 1);
+      lines.push(`DTSTART;VALUE=DATE:${date}`, `DTEND;VALUE=DATE:${next.toISOString().slice(0, 10).replaceAll("-", "")}`);
+    }
+    lines.push(`SUMMARY:${icsEscape(`Seattle Seahawks ${game.isHome ? "vs." : "at"} ${opponentName}${timed ? "" : " (time TBD)"}`)}`,
+      ...(game.venue ? [`LOCATION:${icsEscape(game.venue)}`] : []),
+      `DESCRIPTION:${icsEscape(`${status}. NFL dates and times may change. Game details: ${canonicalUrl}`)}`, `URL:${icsEscape(canonicalUrl)}`, "END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  return { filename: `seahawks-${schedule.season}-schedule.ics`, content: `${lines.map(fold).join("\r\n")}\r\n`, eventCount: events.length };
 }
