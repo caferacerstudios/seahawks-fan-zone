@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { absoluteUrl, PUBLIC_PAGES } from "../lib/seo";
+import { NEWS_CATEGORIES, categorySlug, publishedArticles } from "../lib/news";
 
 const escapeXml = (value: unknown) => String(value).replace(/[<>&'\"]/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[character]!);
 const validDate = (value: unknown) => value && Number.isFinite(new Date(String(value)).getTime()) ? new Date(String(value)).toISOString() : undefined;
@@ -37,6 +38,8 @@ export const GET: APIRoute = async () => {
   ].filter((id) => id != null).map(String));
   const pages = [
     ...PUBLIC_PAGES.filter((page) => includeStatic(page.canonicalPath)).map((page) => ({ loc: page.canonicalPath, lastmod: validDate(page.lastModified ?? (["/", "/schedule", "/weekly-recap", "/standings", "/team", "/players"].includes(page.canonicalPath) ? nfl?.updatedAt : undefined)) })),
+    ...publishedArticles.map((article) => ({ loc: `/news/${article.slug}`, lastmod: validDate(article.updatedAt) })),
+    ...NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category)).map((category) => ({ loc: `/news/category/${categorySlug(category)}`, lastmod: validDate(publishedArticles.find((article) => article.category === category)?.updatedAt) })),
     ...games.map((game) => ({ loc: `/games/${encodeURIComponent(String(gameId(game)))}`, lastmod: validDate(recaps?.recaps?.[String(gameId(game))]?.updatedAt ?? recaps?.updatedAt ?? nfl?.updatedAt) })),
     ...[...playerIds].map((id) => ({ loc: `/players/${encodeURIComponent(id)}`, lastmod: validDate(profiles?.updatedAt ?? nfl?.updatedAt) })),
   ];

@@ -1,6 +1,7 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import AdSlot from "../components/AdSlot.astro";
+import TrendingNow from "../components/TrendingNow.astro";
 import { formatPacificTime } from "../lib/season-context";
 import { formatUpdateDate, playerPath as movementPlayerPath, transactions } from "../lib/team-updates";
 
@@ -106,6 +107,8 @@ const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank ||
     <div class="actions"><a class="button primary" href={href(featured, games.indexOf(featured))}>{action} →</a><a class="button" href="/schedule">Full Schedule</a></div>
   </section> : <section class="scoreboard empty"><p class="location">Season hub</p><h1 id="featured-title">The next Seahawks game will appear here</h1><p>Schedule data is not available in this build yet.</p><a class="button primary" href="/schedule">Full Schedule</a></section>}
 
+  <TrendingNow />
+
   {regularFinals.length > 0 && <section class="glance" aria-label="Season at a glance"><h2>Season at a glance</h2>
     <a href="/standings"><span>Record</span><strong>{recordText(record(regularFinals))}</strong></a>
     {pointDiff !== null && <a href="/team"><span>Point differential</span><strong>{pointDiff > 0 ? "+" : ""}{pointDiff}</strong></a>}
@@ -134,6 +137,11 @@ const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank ||
     contentUnits={[featured, regularFinals.length > 0, latestScored, nextThree.length > 0, divisionRank, leaders.length > 0, latestRecap].filter(Boolean).length}
   />
 
+  {publishedArticles.length > 0 && <section class="home-news" aria-labelledby="home-news-title">
+    <div class="home-news-heading"><div><p class="label">From the newsroom</p><h2 id="home-news-title">Latest Seahawks stories</h2></div><a href="/news">Visit the newsroom →</a></div>
+    <div class="home-news-grid">{publishedArticles.slice(0, 3).map((article) => <ArticleCard article={article} />)}</div>
+  </section>}
+
   <aside class="history-teaser" aria-labelledby="history-teaser-title">
     <div class="teaser-number" aria-hidden="true">12</div>
     <div>
@@ -150,7 +158,8 @@ const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank ||
     .dashboard-empty{grid-column:1/-1;margin:0;padding:1rem;border:var(--border-crisp);color:var(--slate-700)}
     .latest-moves{margin-top:1rem;padding:1rem;border:1px solid #b7c4cb;background:#f8fafb}.module-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem}.module-heading h2{margin:0}.module-heading>a{color:#2f660b;font-weight:900}.latest-moves ol{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem;padding:0;list-style:none}.latest-moves li{display:grid;align-content:start;gap:.25rem;padding:.75rem;border-left:4px solid var(--action-green);background:#e8eef1}.latest-moves li div{display:flex;gap:.4rem;justify-content:space-between;color:var(--slate-700);font-size:.7rem;text-transform:uppercase}.latest-moves li>a{color:var(--navy-900);font-weight:900}.latest-moves .move-source{min-height:44px;padding-top:.5rem;color:#2f660b;font-size:.78rem}.moves-empty{margin:.8rem 0 0;color:var(--slate-700)}@media(max-width:800px){.latest-moves ol{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.latest-moves ol{grid-template-columns:1fr}.module-heading{align-items:start;flex-direction:column}}
     .history-teaser{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1.5rem;align-items:center;margin-top:2.25rem;padding:clamp(1.25rem,4vw,2rem);overflow:hidden;background:var(--navy-900);color:#fff;border-left:7px solid var(--action-green);box-shadow:var(--shadow-lg)}.history-teaser .teaser-number{font:900 clamp(4.5rem,12vw,8rem)/.75 var(--font-display);color:var(--action-green);letter-spacing:-.08em}.history-teaser h2{margin:.1rem 0;color:#fff;font-size:clamp(1.7rem,4vw,2.7rem)}.history-teaser p{margin:.4rem 0;color:var(--slate-100)}.history-teaser .label{color:var(--action-green)}.history-teaser a{display:inline-block;margin-top:.55rem;color:#fff;font-weight:900}
+    .home-news{margin-top:2.25rem}.home-news-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem;margin-bottom:1rem}.home-news-heading h2{margin:.1rem 0}.home-news-heading>a{font-weight:900}.home-news-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
     @media(max-width:600px){.dashboard-empty{grid-column:auto}}
-    @media(max-width:520px){.history-teaser{grid-template-columns:1fr}.history-teaser .teaser-number{font-size:4.5rem}}
+    @media(max-width:750px){.home-news-grid{grid-template-columns:1fr}}@media(max-width:520px){.history-teaser{grid-template-columns:1fr}.history-teaser .teaser-number{font-size:4.5rem}.home-news-heading{align-items:flex-start;flex-direction:column}}
   </style>
 </SeahawksLayout>
