@@ -14,6 +14,10 @@ const {
   article,
   structuredData,
   monetizationEligible = true,
+  pageType,
+  season,
+  opponent,
+  articleCategory,
 } = Astro.props;
 const nonMonetizedPaths = new Set(["/privacy-policy", "/disclosure", "/404"]);
 const pageCanBeMonetized = monetizationEligible && !nonMonetizedPaths.has(Astro.url.pathname.replace(/\/$/, "") || "/");
@@ -39,7 +43,18 @@ const navPages = [
 ];
 ---
 
-<BaseLayout {title} {description} {canonical} {article} {structuredData} monetizationEligible={pageCanBeMonetized}>
+<BaseLayout
+  {title}
+  {description}
+  {canonical}
+  {article}
+  {structuredData}
+  monetizationEligible={pageCanBeMonetized}
+  {pageType}
+  {season}
+  {opponent}
+  {articleCategory}
+>
   <header class="lr-header seahawks-header">
     <div class="lr-header-bg seahawks-header-bg" aria-hidden="true"></div>
 

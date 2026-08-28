@@ -1,5 +1,16 @@
 ---
-const { title = "Seahawks Fan Zone", description = "", canonical, article, structuredData, monetizationEligible = true } = Astro.props;
+const {
+  title = "Seahawks Fan Zone",
+  description = "",
+  canonical,
+  article,
+  structuredData,
+  monetizationEligible = true,
+  pageType,
+  season,
+  opponent,
+  articleCategory,
+} = Astro.props;
 const canonicalUrl = canonical ? new URL(canonical, Astro.site ?? Astro.url).toString() : null;
 const adsEnabled = import.meta.env.ADS_ENABLED === "true";
 const publisherId = String(import.meta.env.PUBLIC_ADSENSE_PUBLISHER_ID ?? "").trim();
