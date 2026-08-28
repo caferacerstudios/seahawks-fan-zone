@@ -35,7 +35,7 @@ const advertisingConfigured = adsEnabled && monetizationEligible && Boolean(vali
     <meta name="description" content={seo.description} />
     <meta name="robots" content={seo.robots ?? "index, follow"} />
     <link rel="canonical" href={canonicalUrl} />
-    <link rel="alternate" type="application/rss+xml" title="Seahawks Fan Zone Newsroom" href={absoluteUrl("/news/rss.xml")} />
+    <link rel="alternate" type="application/rss+xml" title="Seahawks Fan Zone News" href={absoluteUrl("/news/rss.xml")} />
     <meta property="og:title" content={seo.openGraphTitle ?? seo.title} />
     <meta property="og:description" content={seo.openGraphDescription ?? seo.description} />
     <meta property="og:type" content={resolvedArticle ? "article" : "website"} />
