@@ -53,7 +53,7 @@ const advertisingConfigured = adsEnabled && monetizationEligible && Boolean(vali
     />
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="/styles/main.css" />
+    <link rel="stylesheet" href="/styles/main.css?v=20260828-layout" />
 
     {validCmpScriptUrl && <script async src={validCmpScriptUrl}></script>}
     <script is:inline define:vars={{ advertisingConfigured, validPublisherId, cloudflareToken }}>
