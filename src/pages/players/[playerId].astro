@@ -8,7 +8,7 @@ import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from
 import rosterData from "../../data/nfl/players.json";
 import seasonData from "../../data/nfl/seahawks.json";
 import playerProfilesData from "../../data/nfl/playerProfiles.json";
-import injuriesData from "../../data/nfl/injuries.json";
+import { formatUpdateDate, injuryStatuses, transactions } from "../../lib/team-updates";
 
 /* =======================
    getStaticPaths (SELF-CONTAINED)
@@ -113,15 +113,6 @@ function dash(v) {
   return typeof v === "number" ? v : "—";
 }
 
-function fmtUpdatedPT(iso) {
-  if (!iso) return "—";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    dateStyle: "short",
-    timeStyle: "medium",
-  }).format(new Date(iso));
-}
-
 /* =======================
    Profiles: support multiple shapes
    ======================= */
@@ -192,64 +183,6 @@ function normalizeProfile(p) {
     recap: paragraph
       ? { paragraph: String(paragraph), bullets: bullets.map(String) }
       : null,
-  };
-}
-
-/* =======================
-   Injuries: support multiple shapes
-   ======================= */
-// Accept either:
-// A) { injuries: [...] }
-// B) { data: [...] }
-// C) [...] array at root
-function getInjuryArray(root) {
-  if (Array.isArray(root?.injuries)) return root.injuries;
-  if (Array.isArray(root?.data)) return root.data;
-  if (Array.isArray(root)) return root;
-  return [];
-}
-
-function normalizeInjRow(x) {
-  if (!x || typeof x !== "object") return null;
-
-  const p = x?.player ?? null;
-
-  const id =
-    x?.player_id ??
-    x?.playerId ??
-    p?.id ??
-    x?.id ??
-    null;
-
-  const status =
-    x?.status ??
-    x?.game_status ??
-    x?.injury_status ??
-    x?.practice_status ??
-    x?.designation ??
-    null;
-
-  const description =
-    x?.description ??
-    x?.injury ??
-    x?.injury_description ??
-    x?.notes ??
-    x?.detail ??
-    null;
-
-  const date =
-    x?.date ??
-    x?.report_date ??
-    x?.updated_at ??
-    x?.created_at ??
-    x?.updatedAt ??
-    null;
-
-  return {
-    id,
-    status,
-    description,
-    date,
   };
 }
 
@@ -398,11 +331,8 @@ const statRow = bestStatRowForPlayer(playerId);
 const rawProfile = getProfileFor(playerId);
 const profile = normalizeProfile(rawProfile);
 
-const injuries = getInjuryArray(injuriesData)
-  .map(normalizeInjRow)
-  .filter(Boolean);
-
-const injuryMatches = injuries.filter((r) => String(r.id ?? "") === String(playerId));
+const injuryMatches = injuryStatuses.filter((row) => String(row.playerId) === String(playerId));
+const rosterMoves = transactions.filter((row) => String(row.playerId) === String(playerId));
 
 // display fields (safe across shapes)
 const displayName =
@@ -491,7 +421,6 @@ const pageTitle = `${displayName} — Player Profile`;
 const abbr = teamAbbrFromAny(rosterPlayer, statRow);
 const fallbackImg = teamLogoUrl(abbr);
 const headshotImg = findHeadshotForName(displayName);
-const currentStatus = injuryMatches[0]?.status ? String(injuryMatches[0].status) : null;
 const canonicalPath = `/players/${encodeURIComponent(String(playerId))}`;
 const pageDescription = `${displayName} ${String(position).toUpperCase()} profile, roster information, and ${seasonContext.label} statistics for Seattle.`;
 ---
@@ -528,7 +457,6 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
         <div class="sub">
           <span><strong>{String(position).toUpperCase()}</strong></span>
           <span class="dot">•</span>
-          {currentStatus && <><span class="dot">•</span><span>{currentStatus}</span></>}
           {experience !== "—" && <><span class="dot">•</span><span>{String(experience)} experience</span></>}
           {college && <><span class="dot">•</span><span>{String(college)}</span></>}
         </div>
@@ -579,22 +507,34 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
     </div>
 
     <div class="panel" style="margin-top:.85rem;">
-      <div class="panel-title">Injury report</div>
+      <div class="panel-title">Injury &amp; status history</div>
       {injuryMatches.length === 0 ? (
-        <div class="empty">No injury entries found for this player.</div>
+        <div class="empty">No current injury-status entries have been imported for this period. This does not indicate the player is healthy.</div>
       ) : (
         <div class="inj-list">
           {injuryMatches.slice(0, 25).map((it) => (
             <div class="inj">
               <div class="inj-top">
-                <div class="inj-status">{it.status ? String(it.status) : "Injury"}</div>
-                <div class="inj-date">{it.date ? fmtUpdatedPT(it.date) + " PT" : ""}</div>
+                <div class="inj-status">{it.status} · {it.updateStatus}</div>
+                <time class="inj-date" datetime={it.date}>{formatUpdateDate(it.date)}</time>
               </div>
-              {it.description ? <div class="inj-desc">{String(it.description)}</div> : null}
+              <div class="inj-desc">{it.description}</div>
+              <a class="record-source" href={it.sourceUrl} rel="noopener noreferrer">Source: {it.sourcePublisher} ↗</a>
             </div>
           ))}
         </div>
       )}
+    </div>
+
+    <div class="panel" style="margin-top:.85rem;">
+      <div class="panel-title">Recent Roster Movement</div>
+      {rosterMoves.length === 0 ? <div class="empty">No sourced roster moves have been imported for this player.</div> : <div class="inj-list">
+        {rosterMoves.slice(0, 10).map((move) => <div class="inj">
+          <div class="inj-top"><div class="inj-status">{move.transactionType} · {move.updateStatus}</div><time class="inj-date" datetime={move.timestamp}>{formatUpdateDate(move.timestamp)}</time></div>
+          <div class="inj-desc">{move.description}</div><a class="record-source" href={move.sourceUrl} rel="noopener noreferrer">Source: {move.sourcePublisher} ↗</a>
+        </div>)}
+      </div>}
+      <a class="all-moves" href="/team/transactions">View all Seahawks transactions →</a>
     </div>
   </article>
 
@@ -626,6 +566,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
       overflow-wrap: anywhere;
       word-break: break-word;
     }
+    .record-source,.all-moves { display:inline-block; min-height:44px; padding-top:.55rem; color:#2f660b; font-weight:900; }
 
     .meta-line {
       display: flex;
