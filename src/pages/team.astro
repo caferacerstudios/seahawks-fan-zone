@@ -329,17 +329,17 @@ const rushYdsPerGame = read(s, ["rushing_yards_per_game", "rush_yards_per_game",
 const recYds = read(s, ["receiving_yards", "receivingYards"]);
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team">
+<SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team" pageType="team" season={seasonContext.seasonYear}>
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
   <div class="sfz-team-header">
     {seahawksLogo ? (
-      <img class="sfz-team-logo" src={seahawksLogo} alt="SEA logo" loading="lazy" />
+      <img class="sfz-team-logo" src={seahawksLogo} alt="SEA logo" width="64" height="64" loading="lazy" decoding="async" />
     ) : (
       <div class="sfz-team-logo sfz-team-logo-fallback" aria-hidden="true">SEA</div>
     )}
 
     <div class="sfz-team-text">
-      <h3 class="sfz-team-name">{t?.full_name ?? "Seattle Seahawks"}</h3>
+      <h2 class="sfz-team-name">{t?.full_name ?? "Seattle Seahawks"}</h2>
       <div class="sfz-team-meta">
         <span>{t?.conference ?? "NFC"}</span>
         <span class="sfz-dot">•</span>
@@ -489,4 +489,3 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
     }
   </style>
 </SeahawksLayout>
-
