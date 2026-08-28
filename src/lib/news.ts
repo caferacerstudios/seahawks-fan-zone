@@ -36,6 +36,7 @@ export interface NewsArticle {
 export type ArticleBodyBlock = string
   | { type: "heading"; heading: string }
   | { type: "paragraph"; html: string }
+  | { type: "rosterTable"; caption: string; rows: { position: string; players: string; status: string; role: string }[] }
   | { type: "timeline" | "watchlist"; items: { label: string; html: string }[] }
   | { type: "factbox"; heading: string; known: string[]; unknown: string[]; milestone: string };
 
@@ -47,6 +48,74 @@ const sharedHero: HeroAsset = {
 };
 
 const articles: NewsArticle[] = [
+  {
+    slug: "seahawks-roster-cutdown-board-2026",
+    headline: "Seahawks roster cutdown board: The decisions shaping the initial 53",
+    dek: "A clearly labeled projection, built from Seattle's official camp roster, official moves and role evidence through August 28.",
+    publishedAt: "2026-08-28", updatedAt: "2026-08-28", author: "Seahawks Fan Zone Editorial Team", category: "Roster",
+    tags: ["2026 roster", "Cutdown", "Projection", "Special teams"], season: 2026, opponent: null, featured: true, status: "published",
+    hero: sharedHero,
+    body: [
+      { type: "paragraph", html: "<strong>This is a projection, not Seattle's initial 53-player roster.</strong> The Seahawks had not announced final cuts as of our August 28 check. Seattle's official roster page listed 91 active camp players and four players on Reserve/Injured. The club also announced an August 27 waiver claim for tackle Kellen Diesch that the roster page had not yet reflected. We record that claim in the <a href=\"/team/transactions\">transaction tracker</a>, but do not silently force the two official sources to agree." },
+      { type: "heading", heading: "The rules that shape the board" },
+      { type: "paragraph", html: "Seattle must reduce to 53 active players by August 30. A player moved to Reserve/Injured before the initial 53 generally cannot return for that club during the season, which is why the timing of an injury move matters. A player who remains on preseason PUP at the deadline can move to reserve/PUP without occupying one of the 53 spots, but must miss at least four games. Zach Charbonnet is listed as active on the official roster page after beginning camp on PUP, so this projection treats him as an active-roster decision unless the club announces another status change." },
+      { type: "paragraph", html: "Players with fewer than four accrued seasons are generally exposed to waivers when released. Vested veterans become free agents. That distinction affects whether Seattle can realistically bring a player back. The practice squad can hold 16 players under the standard rules, with limited veteran exceptions, but Seattle must first accept waiver risk for eligible players. Game-day value also matters: a bottom-of-roster receiver, linebacker or safety who covers kicks may dress ahead of a more specialized reserve." },
+      { type: "heading", heading: "Quarterback" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Sam Darnold and Drew Lock. <strong>Strong position:</strong> Jalen Milroe. Seattle returned all three quarterbacks, and the club has described a developmental offensive role for Milroe. Lock's strong first quarter against Tennessee reinforced the value of an experienced No. 2. Keeping three costs a spot elsewhere, but waiving Milroe would expose a 2025 third-round pick whose rushing skill is not duplicated in the room." },
+      { type: "heading", heading: "Running back and fullback" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Jadarian Price and Zach Charbonnet, subject to Charbonnet's official availability. <strong>Strong positions:</strong> Emanuel Wilson, George Holani and Brady Russell. <strong>True bubble:</strong> Jacardia Wright versus a fourth healthy back if Charbonnet is not ready. Price is the first-round runner, Wilson supplies size, and Holani has recent offensive and special-teams experience. Russell played fullback and core special teams in 2025. Keeping Wright would protect the early rushing rotation, but it would probably cost a sixth receiver or tenth offensive lineman. His production against Tennessee is useful evidence, not proof from one game." },
+      { type: "heading", heading: "Wide receiver" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Jaxon Smith-Njigba, Cooper Kupp and Rashid Shaheed. <strong>Strong positions:</strong> Tory Horton and Irv Charles. <strong>True bubble:</strong> Montorie Foster Jr. against Emmanuel Henderson Jr. Foster led Seattle in receiving and scored in the opener. Charles was acquired with special-teams value central to the move. Henderson offers developmental upside and coverage value, while Foster has supplied more visible preseason receiving production. Choosing Foster risks losing a sixth-round rookie; choosing Henderson gives up a reserve who has already translated camp work into game production. Jake Bobo is on Reserve/Injured and is not part of this 53." },
+      { type: "heading", heading: "Tight end" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> AJ Barner and Elijah Arroyo. <strong>True bubble:</strong> Eric Saubert versus Nick Vannett. Barner's receiving, blocking and short-yardage roles make him central to the offense. Arroyo adds movement and receiving ability. The third choice is likely driven by in-line blocking and special teams. Saubert has continuity; Vannett was signed at camp's start as another veteran blocking option. Carrying four would squeeze receiver or offensive-line depth." },
+      { type: "heading", heading: "Offensive line" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Charles Cross, Grey Zabel, Jalen Sundell, Anthony Bradford and Abraham Lucas. <strong>Strong positions:</strong> Olu Oluwatimi, Christian Haynes, Josh Jones and Amari Kight. <strong>True bubble:</strong> Beau Stephens against a tenth lineman. Richman's injured-reserve move removed the unit's most flexible reserve, increasing the value of Jones at guard and tackle and Oluwatimi at center. Stephens has draft investment, but a developmental guard must beat the game-day flexibility of veterans. The alternative is carrying ten and trimming a coverage player." },
+      { type: "heading", heading: "Defensive line" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Leonard Williams, Byron Murphy II and Jarran Reed. <strong>Strong positions:</strong> Rylie Mills, Mike Morris and Brandon Pili. <strong>True bubble:</strong> Uso Seumalo versus Deven Eastern. Seattle's official camp preview called the front a team strength after a 47-sack season and league-low 3.7 yards allowed per rush. Morris offers length and positional flexibility, while Pili supplies proven nose-tackle depth. A seventh interior player improves rotation insurance but costs a spot in the secondary or on special teams." },
+      { type: "heading", heading: "Edge" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> DeMarcus Lawrence, Uchenna Nwosu, Derick Hall and Dante Fowler Jr. <strong>Strong position:</strong> Jared Ivey. The top four supply established run defense and pass rush. Ivey is the younger reserve who can preserve their workload and contribute on coverage units. Keeping a sixth edge would mean losing a player at a thinner position, so this is one of the clearest rooms on the board." },
+      { type: "heading", heading: "Linebacker" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Ernest Jones IV and Drake Thomas. <strong>Strong positions:</strong> Tyrice Knight and Chazz Surratt. Knight's opener, when the team called him its best defensive player on the field, supports a defensive role in addition to his established special-teams work. Surratt also has core special-teams value. Chris Paul Jr. is the likely practice-squad candidate in this projection. Keeping a fifth off-ball linebacker would protect against injury but duplicate coverage roles available at safety and edge." },
+      { type: "heading", heading: "Cornerback" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Devon Witherspoon and Josh Jobe. <strong>Strong positions:</strong> Trevon Diggs, Noah Igbinoghene and rookie Julian Neal. <strong>True bubble:</strong> Nehemiah Pritchett against a sixth corner. Diggs' August 19 signing changes the third-corner calculation, but his exact game-day workload remains unannounced. Neal brings draft investment; Igbinoghene and Pritchett must make their cases through outside depth and special teams. A sixth corner is defensible in a defense that uses many defensive backs, but safety became thinner after Bud Clark's injury." },
+      { type: "heading", heading: "Safety" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Julian Love, Nick Emmanwori and Ty Okada. <strong>True bubble:</strong> AJ Finley versus D'Anthony Bell. Emmanwori's ability to cover the slot, set an edge, rush and align at linebacker lets Seattle change personnel without substituting. Clark's broken ankle removes a projected contributor. Bell worked with the first unit while Emmanwori ramped back up; Finley offers special-teams value after returning from a missed season. Keeping only four safeties makes one injury immediately consequential." },
+      { type: "heading", heading: "Specialists" },
+      { type: "paragraph", html: "<strong>Roster locks:</strong> Jason Myers, Michael Dickson and Chris Stoll. There is no second kicker, punter or long snapper on the official roster page. Their three places are stable, while the coverage and return units influence the receiver, linebacker and defensive-back margins. Shaheed's return role is secure; Charles, Knight, Surratt and Russell gain value because they can fill coverage jobs without requiring specialist-only roster places." },
+      { type: "rosterTable", caption: "Projected initial 53, plus one PUP contingency", rows: [
+        {position:"QB",players:"Darnold, Lock, Milroe",status:"Projected active",role:"Starter, veteran backup, developmental package"},
+        {position:"RB/FB",players:"Price, Charbonnet, Wilson, Holani, Russell",status:"Projected active",role:"Four-runner plan and core special teams"},
+        {position:"WR",players:"Smith-Njigba, Kupp, Shaheed, Horton, Charles, Foster",status:"Projected active",role:"Top three, vertical depth, return and coverage work"},
+        {position:"TE",players:"Barner, Arroyo, Saubert",status:"Projected active",role:"Receiving, blocking and special teams"},
+        {position:"OL",players:"Cross, Zabel, Sundell, Bradford, Lucas, Oluwatimi, Haynes, Jones, Kight",status:"Projected active",role:"Five starters and four multiposition reserves"},
+        {position:"DL",players:"Williams, Murphy, Reed, Mills, Morris, Pili",status:"Projected active",role:"Interior rush and run rotation"},
+        {position:"Edge",players:"Lawrence, Nwosu, Hall, Fowler, Ivey",status:"Projected active",role:"Four-man veteran rotation plus young depth"},
+        {position:"LB",players:"E. Jones, D. Thomas, Knight, Surratt",status:"Projected active",role:"Two starters and two core special-teamers"},
+        {position:"CB",players:"Witherspoon, Jobe, Diggs, Igbinoghene, Neal",status:"Projected active",role:"Outside, slot and developmental depth"},
+        {position:"S",players:"Love, Emmanwori, Okada, Finley",status:"Projected active",role:"Three defensive roles and one coverage reserve"},
+        {position:"ST",players:"Myers, Dickson, Stoll",status:"Projected active",role:"Kicker, punter and long snapper"},
+        {position:"Contingency",players:"Charbonnet",status:"PUP only if officially retained there",role:"Would not count in the 53 and would open one place"}
+      ]},
+      { type: "heading", heading: "Where the roster is strongest" },
+      { type: "paragraph", html: "The defensive front has the best combination of top-end play and rotation depth. Williams, Murphy and Reed anchor the interior, while Lawrence, Nwosu, Hall and Fowler give Seattle four experienced edge options. Tight end is also structurally strong because Barner can block and receive, Arroyo can stretch coverages, and the third player can be selected for game-day blocking and coverage work." },
+      { type: "heading", heading: "Where one injury changes the picture" },
+      { type: "paragraph", html: "Safety is the clearest pressure point after Clark's injury. Love, Emmanwori and Okada can cover many assignments, but the fourth choice may need to play immediately. Running back is similarly sensitive until Seattle gives a new sourced update on Charbonnet. Offensive-line flexibility also declined when Richman went to injured reserve. One tackle injury could force Josh Jones or Kight into a larger role and leave fewer interior alternatives." },
+      { type: "heading", heading: "What can still change" },
+      { type: "paragraph", html: "Seattle still has a final preseason game, and the August 30 list is only the first version. The club can claim players waived elsewhere, trade from a deep room, bring eligible cuts back to the practice squad, or arrange post-cutdown injured-reserve moves after first carrying a return-eligible player on the initial 53. The Diesch claim is a reminder that outside additions can arrive before Seattle finishes its own cuts. We will update the roster, transactions and <a href=\"/team/injuries\">injury-status tracker</a> only when a sourced move or status change is published." }
+    ],
+    sources: [
+      {label:"Seattle Seahawks official roster, checked Aug. 28",url:"https://www.seahawks.com/team/players-roster/"},
+      {label:"Seattle Seahawks official transactions",url:"https://www.seahawks.com/team/transactions/"},
+      {label:"Seattle Seahawks: August 30 deadline and PUP explanation",url:"https://www.seahawks.com/news/why-nick-emmanwori-is-on-the-pup-list-other-seahawks-injury-updates"},
+      {label:"Seattle Seahawks: Clark and Richman to injured reserve",url:"https://www.seahawks.com/news/seahawks-sign-three-free-agents-place-bud-clark-mason-richman-on-injured-reserve"},
+      {label:"Seattle Seahawks: Bobo to injured reserve",url:"https://www.seahawks.com/news/seahawks-place-wr-jake-bobo-on-injured-reserve-sign-wr-julian-hicks"},
+      {label:"Seattle Seahawks: 2026 position storylines",url:"https://www.seahawks.com/news/10-storylines-to-watch-in-2026-seahawks-training-camp"},
+      {label:"Seattle Seahawks: preseason opener reactions",url:"https://www.seahawks.com/news/rapid-reactions-seahawks-fall-in-preseason-opener-to-the-cowboys"},
+      {label:"Seattle Seahawks: preseason game at Tennessee",url:"https://www.seahawks.com/news/2026-preseason-week-2-rapid-reactions-seahawks-fall-to-the-titans-in-the-preseason-matchup"},
+      {label:"Seattle Seahawks Fan Zone transactions tracker",url:"/team/transactions"},
+      {label:"Seattle Seahawks Fan Zone injury-status tracker",url:"/team/injuries"}
+    ]
+  },
   {
     slug: "nfl-approves-seahawks-sale-khosla-family-what-changes",
     headline: "NFL approves Seahawks sale to Khosla family: What changes now and what remains unknown",
