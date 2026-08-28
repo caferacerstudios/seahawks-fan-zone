@@ -32,7 +32,8 @@ export function schedulePhase(game) {
   const value = text(game?.phase ?? game?.season_type ?? game?.seasonType ?? game?.type).toLowerCase();
   if (value.includes("pre")) return "preseason";
   if (value.includes("post") || value.includes("playoff") || game?.postseason === true || game?.is_postseason === true) return "postseason";
-  return "regular";
+  if (value.includes("regular")) return "regular";
+  return null;
 }
 
 export function scheduleState(game) {
@@ -47,12 +48,46 @@ export function scheduleState(game) {
 }
 
 function sourceDate(game) {
-  return game?.startsAt ?? game?.date ?? game?.start_time ?? game?.kickoff ?? null;
+  return game?.startsAt ?? game?.datetime ?? game?.start_time ?? game?.kickoff ?? game?.date ?? null;
+}
+
+function calendarDate(value) {
+  const match = text(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const probe = new Date(`${year}-${month}-${day}T12:00:00Z`);
+  return Number.isFinite(probe.getTime()) && probe.toISOString().slice(0, 10) === `${year}-${month}-${day}` ? `${year}-${month}-${day}` : null;
+}
+
+function pacificCalendarDay(value) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
+  const fields = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
+}
+
+function pacificLocalTimestamp(date, timeValue) {
+  const match = text(timeValue).match(/(?:^|\b)(\d{1,2}):(\d{2})\s*(AM|PM)(?:\s*(?:PT|PST|PDT))?(?:$|\b)/i);
+  if (!match) return null;
+  let hour = Number(match[1]) % 12;
+  if (match[3].toUpperCase() === "PM") hour += 12;
+  const [year, month, day] = date.split("-").map(Number);
+  const localAsUtc = Date.UTC(year, month - 1, day, hour, Number(match[2]));
+  const midday = new Date(Date.UTC(year, month - 1, day, 12));
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(midday).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+  const offset = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute) - midday.getTime();
+  const result = new Date(localAsUtc - offset);
+  return Number.isFinite(result.getTime()) ? result.toISOString() : null;
 }
 
 function dateParts(game) {
   const raw = sourceDate(game);
   if (!raw) return { startsAt: null, date: null, dateConfirmed: false, timeConfirmed: false };
+  const dateOnly = calendarDate(raw);
+  if (dateOnly) {
+    const explicitDateTbd = game?.date_tbd === true || game?.dateTbd === true || game?.date_confirmed === false || game?.dateConfirmed === false;
+    const startsAt = explicitDateTbd ? null : pacificLocalTimestamp(dateOnly, game?.kickoff_time ?? game?.kickoffTime ?? game?.status);
+    return { startsAt, date: explicitDateTbd ? null : dateOnly, dateConfirmed: !explicitDateTbd, timeConfirmed: Boolean(startsAt) && game?.time_tbd !== true && game?.timeTbd !== true && game?.time_confirmed !== false && game?.timeConfirmed !== false };
+  }
   const parsed = new Date(raw);
   if (!Number.isFinite(parsed.getTime())) return { startsAt: null, date: null, dateConfirmed: false, timeConfirmed: false };
   const explicitDateTbd = game?.date_tbd === true || game?.dateTbd === true || game?.date_confirmed === false || game?.dateConfirmed === false;
@@ -62,7 +97,7 @@ function dateParts(game) {
   const timeConfirmed = dateConfirmed && !explicitTimeTbd && (game?.timeConfirmed === true || !placeholderMidnight);
   return {
     startsAt: timeConfirmed ? parsed.toISOString() : null,
-    date: dateConfirmed ? parsed.toISOString().slice(0, 10) : null,
+    date: dateConfirmed ? pacificCalendarDay(parsed) : null,
     dateConfirmed,
     timeConfirmed,
   };
@@ -70,6 +105,7 @@ function dateParts(game) {
 
 export function normalizeGame(game, season) {
   const phase = schedulePhase(game);
+  if (!SCHEDULE_PHASES.includes(phase)) throw new Error(`Game ${game?.id ?? game?.game_id ?? "unknown"} has an invalid or missing season type.`);
   const state = scheduleState(game);
   const dates = state === "bye" ? { startsAt: null, date: null, dateConfirmed: false, timeConfirmed: false } : dateParts(game);
   const home = game?.home_team ?? game?.homeTeam ?? null;
@@ -227,6 +263,12 @@ export function validateSchedule(schedule, displaySeason = schedule?.season) {
     if (game.state !== "bye" && game.isHome === null) errors.push(`impossible home/away assignment: ${game.id}`);
     if (game.timeConfirmed && !game.startsAt) errors.push(`placeholder timestamp marked confirmed: ${game.id}`);
     if (game.timeConfirmed && /T00:00:00(?:\.000)?Z$/.test(game.startsAt ?? "")) errors.push(`placeholder timestamp marked confirmed: ${game.id}`);
+    if (game.dateConfirmed && !calendarDate(game.date)) errors.push(`invalid kickoff date: ${game.id}`);
+    if (game.startsAt && !Number.isFinite(new Date(game.startsAt).getTime())) errors.push(`invalid kickoff timestamp: ${game.id}`);
+    if (game.date && game.startsAt) {
+      const renderedDay = pacificCalendarDay(new Date(game.startsAt));
+      if (renderedDay !== game.date) errors.push(`kickoff formatting moves calendar date: ${game.id} (${game.date} to ${renderedDay})`);
+    }
   }
   if (schedule?.byeWeek != null && !games.some((game) => game.state === "bye" && game.week === integer(schedule.byeWeek))) errors.push(`missing supplied bye week: ${schedule.byeWeek}`);
   const next = nextScheduleEvent(games);

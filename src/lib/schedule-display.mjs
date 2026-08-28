@@ -77,7 +77,7 @@ export function groupScheduleMonths(games) {
   for (const game of games) {
     if (game?.state !== "bye") {
       const value = game?.startsAt ?? game?.date;
-      const date = value ? new Date(value) : null;
+      const date = value ? new Date(game?.startsAt ?? `${game.date}T12:00:00Z`) : null;
       currentLabel = date && Number.isFinite(date.getTime())
         ? new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: PACIFIC }).format(date)
         : "Date to be announced";
