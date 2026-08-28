@@ -2,9 +2,11 @@
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import AdSlot from "../components/AdSlot.astro";
 import HomepageStories from "../components/HomepageStories.astro";
+import HomepageGlance from "../components/HomepageGlance.astro";
 import { formatKickoff, normalizeSchedule, scheduleFreshness, selectFeaturedGame } from "../lib/schedule.mjs";
 import { gameDayView } from "../lib/game-day.mjs";
-import { formatUpdateDate, injuryStatuses, playerPath as movementPlayerPath, transactions } from "../lib/team-updates";
+import { injuryStatuses, transactions } from "../lib/team-updates";
+import { buildHomepageGlance } from "../lib/homepage-glance.mjs";
 
 let nfl: any = null;
 let standings: any = null;
@@ -50,26 +52,16 @@ const latestScored = completed.filter((game) => score(game, true) !== null && sc
 const nextThree = upcoming.slice(0, 3);
 const result = (game: any) => score(game, true) === score(game, false) ? "T" : score(game, true)! > score(game, false)! ? "W" : "L";
 const regularFinals = completed.filter((game) => phase(game) === "Regular season" && score(game, true) !== null && score(game, false) !== null);
-const record = (rows: any[]) => rows.reduce((r, game) => { const outcome = result(game); if (outcome === "W") r.w++; if (outcome === "L") r.l++; if (outcome === "T") r.t++; return r; }, { w: 0, l: 0, t: 0 });
-const recordText = (r: any) => `${r.w}-${r.l}${r.t ? `-${r.t}` : ""}`;
-const pointDiff = regularFinals.length ? regularFinals.reduce((sum, game) => sum + score(game, true)! - score(game, false)!, 0) : null;
-const recentResults = regularFinals.map(result);
-const lastResult = recentResults.at(-1);
-let streakCount = 0;
-for (let i = recentResults.length - 1; i >= 0 && recentResults[i] === lastResult; i--) streakCount++;
 
 const standingRows = Array.isArray(standings?.data) ? standings.data : Array.isArray(standings?.teams) ? standings.teams : [];
 const standingTeam = (row: any) => row?.team ?? row;
 const seaStanding = standingRows.find((row: any) => abbr(standingTeam(row)) === "SEA");
-const division = String(seaStanding?.division ?? standingTeam(seaStanding)?.division ?? "NFC West");
 const divisionRank = seaStanding?.division_rank ?? seaStanding?.divisionRank ?? null;
-const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 
 const stats = Array.isArray(nfl?.playerSeasonStats) ? nfl.playerSeasonStats : [];
 const leader = (keys: string[]) => stats.map((row: any) => ({ row, value: keys.map((key) => row?.[key]).find((v) => typeof v === "number" && Number.isFinite(v)) }))
   .filter((x: any) => x.value > 0).sort((a: any, b: any) => b.value - a.value)[0];
 const playerName = (row: any) => `${row?.player?.first_name ?? ""} ${row?.player?.last_name ?? ""}`.trim();
-const playerHref = (row: any) => `/players/${encodeURIComponent(String(row?.player?.id ?? row?.player_id))}`;
 const tacklesLeader = leader(["tackles", "total_tackles"]);
 const sacksLeader = leader(["sacks"]);
 const leaders = [
@@ -81,13 +73,8 @@ const leaders = [
 const state = selection.state;
 const action = state === "live" ? "View Game Center" : state === "final" ? "Read Recap" : "View Preview";
 const freshness = scheduleFreshness(nfl?.updatedAt, now);
-const statsSeason = Number(nfl?.playerStatsSeason ?? nfl?.season);
-const leaderHeading = statsSeason === Number(nfl?.season) ? "Team leaders" : `${statsSeason} season leaders`;
 const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank || leaders.length || latest);
-const latestUpdates = [
-  ...transactions.map((move) => ({ kind: "Transaction", date: move.timestamp, playerId: move.playerId, playerName: move.playerName, action: move.transactionType, detail: move.newStatus, sourcePublisher: move.sourcePublisher, sourceUrl: move.sourceUrl, updateStatus: move.updateStatus })),
-  ...injuryStatuses.map((update) => ({ kind: "Injury status", date: update.date, playerId: update.playerId, playerName: update.playerName, action: update.status, detail: update.description, sourcePublisher: update.sourcePublisher, sourceUrl: update.sourceUrl, updateStatus: update.updateStatus })),
-].sort((a, b) => Date.parse(b.date) - Date.parse(a.date)).slice(0, 3);
+const glanceModel = nfl ? buildHomepageGlance({ nfl, standings, transactions, injuries: injuryStatuses, now }) : null;
 ---
 
 <SeahawksLayout title={`${nfl?.season ?? "Current"} Seattle Seahawks season hub`} description="Current Seahawks games, standings, leaders, and recaps." activePath="/" showPageHeader={false} monetizationEligible={Boolean(featured || hasDashboard)}>
@@ -114,27 +101,7 @@ const latestUpdates = [
 
   <HomepageStories />
 
-  {regularFinals.length > 0 && <section class="glance" aria-label="Season at a glance"><h2>Season at a glance</h2>
-    <a href="/standings"><span>Record</span><strong>{recordText(record(regularFinals))}</strong></a>
-    {pointDiff !== null && <a href="/team"><span>Point differential</span><strong>{pointDiff > 0 ? "+" : ""}{pointDiff}</strong></a>}
-    {regularFinals.some(home) && <a href="/schedule"><span>Home</span><strong>{recordText(record(regularFinals.filter(home)))}</strong></a>}
-    {regularFinals.some((g) => !home(g)) && <a href="/schedule"><span>Away</span><strong>{recordText(record(regularFinals.filter((g) => !home(g))))}</strong></a>}
-    {lastResult && <a href="/schedule"><span>Streak</span><strong>{lastResult}{streakCount}</strong></a>}
-  </section>}
-
-  <section class="dashboard" aria-labelledby="dashboard-title"><h2 id="dashboard-title">Team Snapshot</h2>
-    {latestScored && <article class="card"><p class="label">Latest result</p><h3>{result(latestScored)} {score(latestScored, true)}–{score(latestScored, false)} <small>{home(latestScored) ? "vs." : "at"} {opp(latestScored)}</small></h3><p>{week(latestScored)} · {phase(latestScored)}</p><a href={href(latestScored, games.indexOf(latestScored))}>Read recap →</a></article>}
-    {nextThree.length > 0 && <article class="card"><p class="label">Next three games</p><ol>{nextThree.map((game) => <li><a href={href(game, games.indexOf(game))}><strong>{home(game) ? "vs." : "at"} {opp(game)}</strong><span>{week(game)} · {formatKickoff(game)}</span></a></li>)}</ol><a href="/schedule">Full schedule →</a></article>}
-    {divisionRank && <article class="card standing"><p class="label">NFC West position</p><h3>{ordinal(Number(divisionRank))}</h3><p>{division}</p><a href="/standings">View standings →</a></article>}
-    {leaders.length > 0 && <article class="card leaders"><p class="label">{leaderHeading}</p><div class="leader-list">{leaders.map(([label, metric, item]: any) => <a href={playerHref(item.row)}><span>{label}</span><strong>{playerName(item.row)}</strong><small>{item.value.toLocaleString()} {metric}</small></a>)}</div><div class="stat-links"><a href="/players">All player stats →</a><a href="/team">Team stats →</a></div></article>}
-    {latestRecap && <article class="card"><p class="label">Latest game recap</p><h3>{week(latestRecap)}: {home(latestRecap) ? "vs." : "at"} {opp(latestRecap)}</h3><p>{result(latestRecap)} {score(latestRecap, true)}–{score(latestRecap, false)} · Read the authored recap and available game data.</p><a href={href(latestRecap, games.indexOf(latestRecap))}>Read latest recap →</a></article>}
-    {!hasDashboard && <p class="dashboard-empty">Season details will appear as schedule, standings, and statistics become available.</p>}
-  </section>
-
-  {latestUpdates.length > 0 && <section class="latest-moves" aria-labelledby="latest-moves-title">
-    <div class="module-heading"><div><p class="label">Team tracker</p><h2 id="latest-moves-title">Latest Updates</h2></div><div class="tracker-links">{transactions.length > 0 && <a href="/team/transactions">Transactions</a>}{injuryStatuses.length > 0 && <a href="/team/injuries">Injuries</a>}</div></div>
-    <ol>{latestUpdates.map((update) => <li><div><time datetime={update.date}>{formatUpdateDate(update.date)}</time><span>{update.kind} · {update.updateStatus}</span></div><a href={movementPlayerPath(update.playerId)}>{update.playerName || `Player ${update.playerId}`}</a><strong>{update.action}</strong>{update.detail && <span>{update.detail}</span>}<a class="move-source" href={update.sourceUrl} target="_blank" rel="noopener noreferrer">Source: {update.sourcePublisher}<span aria-hidden="true"> ↗</span><span class="visually-hidden"> (opens publisher site in a new tab)</span></a></li>)}</ol>
-  </section>}
+  <HomepageGlance model={glanceModel} />
 
   <AdSlot
     pageType="homepage"
