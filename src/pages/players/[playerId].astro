@@ -30,6 +30,15 @@ function getRosterLocal(playersData) {
     return p?.id ?? p?.player_id ?? p?.player?.id ?? null;
   }
 
+  function playerNameLocal(obj) {
+    const player = obj?.player ?? obj;
+    if (!player) return "Unknown";
+    const fullName =
+      player?.full_name ||
+      `${player?.first_name || ""} ${player?.last_name || ""}`.trim();
+    return fullName || "Unknown";
+  }
+
   const roster = getRosterLocal(rosterData);
   const seen = new Set();
   const out = [];
@@ -60,8 +69,8 @@ function getRosterLocal(playersData) {
     ["leonard-williams", "Leonard Williams"],
   ]);
   for (const [alias, wantedName] of aliases) {
-    const match = roster.find((player) => playerNameFromAny(player).toLowerCase() === wantedName.toLowerCase())
-      ?? statRows.find((row) => playerNameFromAny(row).toLowerCase() === wantedName.toLowerCase());
+    const match = roster.find((player) => playerNameLocal(player).toLowerCase() === wantedName.toLowerCase())
+      ?? statRows.find((row) => playerNameLocal(row).toLowerCase() === wantedName.toLowerCase());
     const resolvedPlayerId = match ? pidLocal(match) : null;
     out.push({ params: { playerId: alias }, props: { resolvedPlayerId, fallbackName: wantedName } });
   }
