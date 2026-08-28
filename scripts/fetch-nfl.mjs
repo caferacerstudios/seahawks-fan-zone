@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeSchedule } from "../src/lib/schedule.mjs";
+import { buildPhasedStandings } from "../src/lib/standings.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -153,12 +154,11 @@ async function main() {
   console.log(`Using season year: ${SEASON}`);
 
   // 2) Fetch games for that season
-  const fetchedGames = await pagedGet("/games", {
-    "team_ids[]": [team.id],
+  const fetchedLeagueGames = await pagedGet("/games", {
     "seasons[]": [SEASON],
   });
-
-  const gamesFiltered = fetchedGames.filter((g) => Number(g.season) === Number(SEASON));
+  const leagueGames = fetchedLeagueGames.filter((g) => Number(g.season) === Number(SEASON));
+  const gamesFiltered = leagueGames.filter((g) => [g.home_team?.id, g.visitor_team?.id].includes(team.id));
 
   // Normalize once at the ingestion boundary. In particular, `postseason:
   // false` does not mean regular season: the API also uses it for preseason.
@@ -234,14 +234,8 @@ async function main() {
       season: row.season ?? playerStatsSeason,
     };
   });
-  // 5) Fetch full league standings for this season
-  // Docs: GET /nfl/v1/standings?season=YYYY
-  const standingsJson = await apiGet("/standings", { season: SEASON });
-  const standings = Array.isArray(standingsJson?.data) ? standingsJson.data : [];
-  // Typical NFL should be 32 teams; we just guard against "oops empty".
-  assertNonEmptyArray("standings", standings);
-
   const updatedAt = new Date().toISOString();
+  const phasedStandings = buildPhasedStandings({ season: SEASON, updatedAt, games: leagueGames, teams });
 
   const outCombined = {
     team: {
@@ -286,11 +280,7 @@ async function main() {
   });
   console.log(`wrote ${path.relative(process.cwd(), playersPath)}`);
 
-  safeWriteJson(standingsPath, {
-    season: SEASON,
-    updatedAt,
-    data: standings,
-  });
+  safeWriteJson(standingsPath, phasedStandings);
   console.log(`wrote ${path.relative(process.cwd(), standingsPath)}`);
 }
 

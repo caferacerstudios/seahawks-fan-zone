@@ -15,7 +15,7 @@ import { gameCalendar, gameDayView, seasonCalendar } from "../src/lib/game-day.m
 
 const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const SF = { abbreviation: "SF", full_name: "San Francisco 49ers" };
-const game = (id, week, date, extra = {}) => ({ id, season: 2026, week, date, status: "Scheduled", home_team: SEA, visitor_team: SF, ...extra });
+const game = (id, week, date, extra = {}) => ({ id, season: 2026, week, date, status: "Scheduled", season_type: "regular", home_team: SEA, visitor_team: SF, ...extra });
 
 test("normalizes preseason and selects it as the next same-day event", () => {
   const schedule = normalizeSchedule({ season: 2026, games: [
