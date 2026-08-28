@@ -252,8 +252,10 @@ def main() -> int:
 
     schedule_abbrs = read_schedule_abbrs()
     if not schedule_abbrs:
-        print(f"No abbreviations found in {SCHEDULE_JSON}. Nothing to do.")
-        return 0
+        # Generated schedule data is not always present in a clean checkout.
+        # Fetch every current team so pages still receive their local assets.
+        schedule_abbrs = set(ESPN_TEAM_IDS) - {"LA", "WSH"}
+        print(f"No abbreviations found in {SCHEDULE_JSON}. Fetching all NFL teams.")
 
     # 1) ESPN first for exactly what you need
     ensured = 0
