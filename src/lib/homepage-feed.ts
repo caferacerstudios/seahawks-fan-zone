@@ -22,6 +22,7 @@ const readingTime = (article: NewsArticle) => {
     if (typeof block === "string") return block;
     if (block.type === "heading") return block.heading;
     if (block.type === "paragraph") return block.html;
+    if (block.type === "table") return [block.caption, block.note, ...block.columns, ...block.rows.flatMap((row) => row.cells)].join(" ");
     if (block.type === "factbox") return [block.heading, ...block.known, ...block.unknown, block.milestone].join(" ");
     return block.items.flatMap((item) => [item.label, item.html]).join(" ");
   }).join(" ").replace(/<[^>]+>/g, " ").trim().split(/\s+/).filter(Boolean).length;

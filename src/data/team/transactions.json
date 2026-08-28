@@ -1,4 +1,53 @@
 {
   "schemaVersion": 1,
-  "records": []
+  "records": [
+    {
+      "timestamp": "2026-08-27T19:59:00Z",
+      "playerId": "leonard-williams",
+      "playerName": "Leonard Williams",
+      "transactionType": "Extension",
+      "previousStatus": "Under contract through 2026",
+      "newStatus": "Under contract through 2029",
+      "description": "Seattle retained the veteran interior defender who anchors Mike Macdonald's front, accepting late-career risk to preserve the defense's current structure.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/news/seahawks-sign-foundational-player-leonard-williams-to-multi-year-contract-extension",
+      "updateStatus": "Official"
+    },
+    {
+      "timestamp": "2026-08-17T19:44:00Z",
+      "playerId": "devon-witherspoon",
+      "playerName": "Devon Witherspoon",
+      "transactionType": "Extension",
+      "previousStatus": "Under contract through 2027",
+      "newStatus": "Under contract through 2031",
+      "description": "The four-year extension keeps Seattle's versatile outside and nickel corner through his prime and preserves the defense's ability to disguise coverage and pressure.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/news/seahawks-cb-devon-witherspoon-signs-contract-extension",
+      "updateStatus": "Official"
+    },
+    {
+      "timestamp": "2026-06-03T16:29:00Z",
+      "playerId": "derick-hall",
+      "playerName": "Derick Hall",
+      "transactionType": "Extension",
+      "previousStatus": "Under contract through 2026",
+      "newStatus": "Under contract through 2029",
+      "description": "Seattle secured three prime seasons from a power edge defender whose rotation work supports both the pass rush and the run front.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/news/seahawks-sign-outside-linebacker-derick-hall-to-three-year-extension",
+      "updateStatus": "Official"
+    },
+    {
+      "timestamp": "2026-03-25T19:09:00Z",
+      "playerId": "jaxon-smith-njigba",
+      "playerName": "Jaxon Smith-Njigba",
+      "transactionType": "Extension",
+      "previousStatus": "Under contract through 2027",
+      "newStatus": "Under contract through 2031",
+      "description": "The four-year extension layers onto two controlled seasons, keeping the offense's primary receiving option while spreading the cap effect beyond 2026.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/news/seahawks-sign-jaxon-smith-njigba-to-multi-year-extension",
+      "updateStatus": "Official"
+    }
+  ]
 }

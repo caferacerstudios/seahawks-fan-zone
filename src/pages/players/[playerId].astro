@@ -53,6 +53,18 @@ function getRosterLocal(playersData) {
     out.push({ params: { playerId: key } });
   }
 
+  const aliases = new Map([
+    ["jaxon-smith-njigba", "Jaxon Smith-Njigba"],
+    ["derick-hall", "Derick Hall"],
+    ["devon-witherspoon", "Devon Witherspoon"],
+    ["leonard-williams", "Leonard Williams"],
+  ]);
+  for (const [alias, wantedName] of aliases) {
+    const match = roster.find((player) => playerNameFromAny(player).toLowerCase() === wantedName.toLowerCase())
+      ?? statRows.find((row) => playerNameFromAny(row).toLowerCase() === wantedName.toLowerCase());
+    const resolvedPlayerId = match ? pidLocal(match) : null;
+    out.push({ params: { playerId: alias }, props: { resolvedPlayerId, fallbackName: wantedName } });
+  }
   return out;
 }
 
@@ -60,6 +72,8 @@ function getRosterLocal(playersData) {
    Helpers (page render)
    ======================= */
 const { playerId } = Astro.params;
+const { resolvedPlayerId = null, fallbackName = null } = Astro.props;
+const dataPlayerId = resolvedPlayerId ?? playerId;
 
 function getRoster(playersData) {
   if (Array.isArray(playersData?.playerSeasonStats)) return playersData.playerSeasonStats;
@@ -327,10 +341,10 @@ function findHeadshotForName(displayName) {
 /* =======================
    Page data
    ======================= */
-const rosterPlayer = findRosterPlayer(playerId);
-const statRow = bestStatRowForPlayer(playerId);
+const rosterPlayer = findRosterPlayer(dataPlayerId);
+const statRow = bestStatRowForPlayer(dataPlayerId);
 
-const rawProfile = getProfileFor(playerId);
+const rawProfile = getProfileFor(dataPlayerId);
 const profile = normalizeProfile(rawProfile);
 
 const injuryMatches = injuryStatuses.filter((row) => String(row.playerId) === String(playerId));
@@ -342,7 +356,7 @@ const displayName =
     ? playerNameFromAny(rosterPlayer)
     : (playerNameFromAny(statRow?.player) !== "Unknown"
         ? playerNameFromAny(statRow?.player)
-        : (profile?.name || "Player"));
+        : (profile?.name || fallbackName || "Player"));
 
 const position =
   (rosterPlayer?.position_abbreviation ||
