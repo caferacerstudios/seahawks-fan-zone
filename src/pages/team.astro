@@ -3,17 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import SeasonContextView from "../components/SeasonContext.astro";
+import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../lib/season-context";
 import data from "../data/nfl/seahawks.json";
 
 const t = data.team;
-const pageTitle = `Team Stats (${data.season})`;
-
-const fmtUpdatedPT = (iso) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    dateStyle: "short",
-    timeStyle: "medium",
-  }).format(new Date(iso));
+const seasonContext = getSeasonContext(data, "regular season");
+const seasonOptions = getAvailableSeasonContexts(data, "regular season");
+const pageTitle = `Team Stats (${seasonContext.label})`;
 
 const logoRelBase = "/images/nfl/teams";
 const projectRoot = Astro.root ?? process.cwd();
@@ -37,11 +34,12 @@ function n(v) {
   return Number.isFinite(x) ? x : 0;
 }
 function isNum(v) {
+  if (v === null || v === undefined || v === "") return false;
   const x = Number(v);
   return Number.isFinite(x);
 }
 function v(x) {
-  return x === null || x === undefined || x === "" ? "-" : x;
+  return x === null || x === undefined || x === "" ? "—" : x;
 }
 function fixed1(x) {
   return x === null || x === undefined ? null : Number(x.toFixed(1));
@@ -138,10 +136,10 @@ const sFound = findFirstTeamSeasonStats(data);
 // ------------------------------
 // 2) Raw games list
 // ------------------------------
-const rawGames = Array.isArray(data?.games)
-  ? data.games
-  : Array.isArray(data?.gamesRegular) || Array.isArray(data?.gamesPostseason)
-    ? [...(data.gamesRegular || []), ...(data.gamesPostseason || [])]
+const rawGames = Array.isArray(data?.gamesRegular)
+  ? data.gamesRegular
+  : Array.isArray(data?.games)
+    ? data.games.filter((game) => !game?.postseason)
     : [];
 
 // Get scores robustly:
@@ -154,6 +152,7 @@ function scoreFromGameSide(game, side /* "home"|"away" */) {
       : [game?.visitor_team_score, game?.away_team_score, game?.awayScore, game?.away_points, game?.awayPoints];
 
   for (const c of direct) {
+    if (c === null || c === undefined || c === "") continue;
     const x = Number(c);
     if (Number.isFinite(x)) return x;
   }
@@ -216,6 +215,7 @@ function yardsFromPlayerStat(r, kind /* "pass"|"rush"|"rec" */) {
         : [r?.receiving_yards, r?.receivingYards, r?.rec_yards, r?.recYds];
 
   for (const c of direct) {
+    if (c === null || c === undefined || c === "") continue;
     const x = Number(c);
     if (Number.isFinite(x)) return x;
   }
@@ -229,14 +229,18 @@ function yardsFromPlayerStat(r, kind /* "pass"|"rush"|"rec" */) {
         : [/(rec|receiv).*(yd|yard)/i];
 
   const hits = findNumbersByKey(r, regexes, { min: 0, max: 9000 });
-  return hits.length ? hits[0] : 0;
+  return hits.length ? hits[0] : null;
 }
 
-const passing_yards_calc = playerStats.reduce((acc, r) => acc + n(yardsFromPlayerStat(r, "pass")), 0);
-const rushing_yards_calc = playerStats.reduce((acc, r) => acc + n(yardsFromPlayerStat(r, "rush")), 0);
-const receiving_yards_calc = playerStats.reduce((acc, r) => acc + n(yardsFromPlayerStat(r, "rec")), 0);
+function sumAvailable(values) {
+  const available = values.filter((value) => typeof value === "number" && Number.isFinite(value));
+  return available.length ? available.reduce((sum, value) => sum + value, 0) : null;
+}
+const passing_yards_calc = sumAvailable(playerStats.map((r) => yardsFromPlayerStat(r, "pass")));
+const rushing_yards_calc = sumAvailable(playerStats.map((r) => yardsFromPlayerStat(r, "rush")));
+const receiving_yards_calc = sumAvailable(playerStats.map((r) => yardsFromPlayerStat(r, "rec")));
 
-const total_offensive_yards_calc = passing_yards_calc + rushing_yards_calc;
+const total_offensive_yards_calc = passing_yards_calc === null || rushing_yards_calc === null ? null : passing_yards_calc + rushing_yards_calc;
 
 // games played fallback:
 // Prefer sFound.games_played, else use scored games count, else use max player games_played if present.
@@ -254,9 +258,9 @@ const games_played =
   (isNum(games_played_from_players) ? Number(games_played_from_players) : null);
 
 // per-game derived only if we have games_played
-const pass_per_game = games_played ? passing_yards_calc / games_played : null;
-const rush_per_game = games_played ? rushing_yards_calc / games_played : null;
-const off_per_game = games_played ? total_offensive_yards_calc / games_played : null;
+const pass_per_game = games_played && passing_yards_calc !== null ? passing_yards_calc / games_played : null;
+const rush_per_game = games_played && rushing_yards_calc !== null ? rushing_yards_calc / games_played : null;
+const off_per_game = games_played && total_offensive_yards_calc !== null ? total_offensive_yards_calc / games_played : null;
 
 // ------------------------------
 // 4) Build computed + merge with found
@@ -265,18 +269,18 @@ const computed = {
   __computed: true,
   games_played: games_played ?? null,
 
-  total_points: total_points_from_scores > 0 ? total_points_from_scores : null,
+  total_points: games_played_from_scores > 0 ? total_points_from_scores : null,
   total_points_per_game: fixed1(total_points_per_game_from_scores),
 
-  passing_yards: passing_yards_calc > 0 ? passing_yards_calc : null,
+  passing_yards: passing_yards_calc,
   passing_yards_per_game: fixed1(pass_per_game),
 
-  rushing_yards: rushing_yards_calc > 0 ? rushing_yards_calc : null,
+  rushing_yards: rushing_yards_calc,
   rushing_yards_per_game: fixed1(rush_per_game),
 
-  receiving_yards: receiving_yards_calc > 0 ? receiving_yards_calc : null,
+  receiving_yards: receiving_yards_calc,
 
-  total_offensive_yards: total_offensive_yards_calc > 0 ? total_offensive_yards_calc : null,
+  total_offensive_yards: total_offensive_yards_calc,
   total_offensive_yards_per_game: fixed1(off_per_game),
 };
 
@@ -326,6 +330,7 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
 ---
 
 <SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team">
+  <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
   <div class="sfz-team-header">
     {seahawksLogo ? (
       <img class="sfz-team-logo" src={seahawksLogo} alt="SEA logo" loading="lazy" />
@@ -340,14 +345,13 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
         <span class="sfz-dot">•</span>
         <span>{t?.division ?? "West"}</span>
       </div>
-      <div class="sfz-updated">Updated: {fmtUpdatedPT(data.updatedAt)} PT</div>
     </div>
   </div>
 
-  {!s ? (
+  {!seasonContext.hasStatistics || seasonContext.seasonStatus === "upcoming" || !s ? (
     <div class="sfz-empty">
       <strong>No team season stats found.</strong>
-      <div class="sfz-empty-sub">Not enough values in your JSON to compute totals.</div>
+      <div class="sfz-empty-sub">{unavailableMessage(seasonContext)}</div>
     </div>
   ) : (
     <div class="sfz-cards">
@@ -355,7 +359,7 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
         <div class="sfz-computed">
           <strong>Computed totals</strong>
           <div class="sfz-computed-sub">
-            Computed team totals for the most recent season.
+            Computed from available {seasonContext.label} source values.
           </div>
         </div>
       )}
@@ -485,7 +489,4 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
     }
   </style>
 </SeahawksLayout>
-
-
-
 

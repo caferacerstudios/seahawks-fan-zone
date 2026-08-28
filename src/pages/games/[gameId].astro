@@ -1,5 +1,7 @@
 ---
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
+import SeasonContextView from "../../components/SeasonContext.astro";
+import { getAvailableSeasonContexts, getSeasonContext } from "../../lib/season-context";
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
 import rosterData from "../../data/nfl/players.json";
@@ -45,7 +47,7 @@ function fmtPT(dateStr) {
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
-    });
+    }) + " PT";
   } catch {
     return d.toISOString();
   }
@@ -76,8 +78,9 @@ function scoreText(game) {
 function isSeahawksWin(game) {
   const home = teamAbbr(game?.home_team);
   const away = teamAbbr(game?.visitor_team);
-  const hs = Number(game?.home_team_score);
-  const as = Number(game?.visitor_team_score);
+  if (game?.home_team_score == null || game?.visitor_team_score == null) return null;
+  const hs = Number(game.home_team_score);
+  const as = Number(game.visitor_team_score);
 
   if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
 
@@ -149,6 +152,12 @@ const { gameId } = Astro.params;
 const ordered = getRawGamesLocal().slice().sort(sortByDate);
 const idx = ordered.findIndex((g, i) => gameKey(g, i) === String(gameId));
 const game = idx >= 0 ? ordered[idx] : null;
+const gameSeasonType = game && isPlayoffGame(game) ? "postseason" : "regular season";
+const gameContext = getSeasonContext({
+  ...scheduleData,
+  seasonContext: { ...scheduleData?.seasonContext, seasonType: gameSeasonType },
+}, gameSeasonType);
+const seasonOptions = getAvailableSeasonContexts(scheduleData, gameSeasonType);
 
 const prev = idx > 0 ? ordered[idx - 1] : null;
 const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
@@ -372,6 +381,7 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
 ---
 
 <SeahawksLayout title={pageTitle} description="Single game page." activePath="">
+  <SeasonContextView context={gameContext} options={seasonOptions} prefix="Data through" />
   <div class="meta-line">
     <span><strong>Back:</strong> <a href="/weekly-recap">Weekly Recap</a></span>
     <span class="dot">•</span>

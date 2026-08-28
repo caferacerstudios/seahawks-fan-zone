@@ -1,5 +1,7 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import SeasonContextView from "../components/SeasonContext.astro";
+import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../lib/season-context";
 import scheduleData from "../data/nfl/seahawks.json";
 
 // ✅ Optional standings file (safe import)
@@ -10,8 +12,10 @@ try {
   standingsData = null;
 }
 
-const season = scheduleData?.season ?? "";
-const updatedAt = scheduleData?.updatedAt ?? "";
+const contextData = standingsData || scheduleData;
+const seasonContext = getSeasonContext(contextData, "regular season");
+const seasonOptions = getAvailableSeasonContexts(contextData, "regular season");
+const season = seasonContext.seasonYear ?? "";
 
 // Accept both shapes
 const rawGames = Array.isArray(scheduleData?.games)
@@ -57,7 +61,7 @@ function fmtPT(dateStr) {
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
-    });
+    }) + " PT";
   } catch {
     return d.toISOString();
   }
@@ -89,8 +93,9 @@ function scoreText(game) {
 function isSeahawksWin(game) {
   const home = teamAbbr(game?.home_team);
   const away = teamAbbr(game?.visitor_team);
-  const hs = Number(game?.home_team_score);
-  const as = Number(game?.visitor_team_score);
+  if (game?.home_team_score == null || game?.visitor_team_score == null) return null;
+  const hs = Number(game.home_team_score);
+  const as = Number(game.visitor_team_score);
 
   if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
 
@@ -137,10 +142,6 @@ const record = completed.reduce(
 const gamesPlayed = completed.length;
 const winPct = gamesPlayed ? record.w / gamesPlayed : null;
 
-const fmtUpdatedLine = updatedAt
-  ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) + " PT"
-  : "—";
-
 /* =======================
    Standings presence check
    ======================= */
@@ -167,11 +168,9 @@ function safeSeasonFromStandings() {
   description="Seahawks record and remaining schedule for the current season."
   activePath="/standings"
 >
-  <div class="meta-line">
-    <span><strong>Season:</strong> {season || safeSeasonFromStandings() || "—"}</span>
-    <span class="dot">•</span>
-    <span><strong>Updated:</strong> {fmtUpdatedLine}</span>
-  </div>
+  <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
+
+  {!seasonContext.hasData && <div class="empty">{unavailableMessage(seasonContext)}</div>}
 
   <div class="cards-grid">
     <!-- Record card -->
@@ -202,7 +201,7 @@ function safeSeasonFromStandings() {
 
       <div class="card-bottom">
         <div class="status">Games played</div>
-        <div class="score">{gamesPlayed}</div>
+        <div class="score">{gamesPlayed > 0 ? gamesPlayed : "—"}</div>
       </div>
     </article>
 
@@ -229,7 +228,7 @@ function safeSeasonFromStandings() {
   <h3 class="section-title" style="margin-top: 1.25rem;">Remaining regular season</h3>
 
   {remaining.length === 0 ? (
-    <div class="empty">No remaining regular season games found in the current data file.</div>
+    <div class="empty">{seasonContext.seasonStatus === "complete" ? "The regular season is complete." : unavailableMessage(seasonContext)}</div>
   ) : (
     <div class="cards-grid">
       {remaining.map((g) => {
@@ -438,5 +437,3 @@ function safeSeasonFromStandings() {
     .pill--ghost{ background: transparent; }
   </style>
 </SeahawksLayout>
-
-

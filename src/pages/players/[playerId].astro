@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
+import SeasonContextView from "../../components/SeasonContext.astro";
+import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../../lib/season-context";
 import rosterData from "../../data/nfl/players.json";
 import seasonData from "../../data/nfl/seahawks.json";
 import playerProfilesData from "../../data/nfl/playerProfiles.json";
@@ -441,6 +443,8 @@ const experience =
 
 const updatedAtForPage =
   playerProfilesData?.updatedAt ?? seasonData?.updatedAt ?? null;
+const seasonContext = getSeasonContext(seasonData, "regular season");
+const seasonOptions = getAvailableSeasonContexts(seasonData, "regular season");
 
 const pageTitle = `${displayName} — Player Profile`;
 
@@ -451,6 +455,7 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
 ---
 
 <SeahawksLayout title={pageTitle} description="Player profile page." activePath="/players">
+  <SeasonContextView context={{ ...seasonContext, updatedAt: updatedAtForPage }} options={seasonOptions} prefix="Data through" />
   <div class="meta-line">
     <span><strong>Back:</strong> <a href="/players">Players</a></span>
     <span class="dot">•</span>
@@ -478,8 +483,6 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
           <span><strong>Pos:</strong> {String(position).toUpperCase()}</span>
           <span class="dot">•</span>
           <span><strong>Jersey:</strong> {String(jersey)}</span>
-          <span class="dot">•</span>
-          <span><strong>Updated:</strong> {fmtUpdatedPT(updatedAtForPage)} PT</span>
         </div>
       </div>
     </div>
@@ -497,8 +500,8 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
       <div class="panel">
         <div class="panel-title">Season snapshot</div>
 
-        {!statRow ? (
-          <div class="empty">No season stats found for this player in the current file.</div>
+        {!seasonContext.hasStatistics || seasonContext.seasonStatus === "upcoming" || !statRow ? (
+          <div class="empty">{unavailableMessage(seasonContext)}</div>
         ) : (
           <div class="stats">
             <div class="stat"><span class="k">GP</span><span class="v">{dash(statRow?.games_played)}</span></div>
@@ -765,4 +768,3 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
     }
   </style>
 </SeahawksLayout>
-

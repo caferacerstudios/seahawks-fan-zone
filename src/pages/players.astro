@@ -1,24 +1,22 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import SeasonContextView from "../components/SeasonContext.astro";
+import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../lib/season-context";
 import data from "../data/nfl/seahawks.json";
 
-const pageTitle = `Player Stats (${data.season})`;
-
-const fmtUpdatedPT = (iso) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    dateStyle: "short",
-    timeStyle: "medium",
-  }).format(new Date(iso));
+const seasonContext = getSeasonContext(data, "regular season");
+const seasonOptions = getAvailableSeasonContexts(data, "regular season");
+const pageTitle = `Player Stats (${seasonContext.label})`;
 
 function n(v) {
   return typeof v === "number" ? v : 0;
 }
 function dashIfNull(v) {
-  return typeof v === "number" ? v : "-";
+  return typeof v === "number" ? v : "—";
 }
 function tdTriplet(r) {
-  return `${n(r.passing_touchdowns)}/${n(r.rushing_touchdowns)}/${n(r.receiving_touchdowns)}`;
+  const values = [r.passing_touchdowns, r.rushing_touchdowns, r.receiving_touchdowns];
+  return values.every((value) => typeof value !== "number") ? "—" : values.map(dashIfNull).join("/");
 }
 
 function totalYards(r) {
@@ -74,11 +72,10 @@ function playerHref(id) {
 ---
 
 <SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
+  <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
   <div class="sfz-topbar">
     <div class="sfz-meta">
-      <div class="sfz-sub">
-        Season: {data.season} &nbsp; • &nbsp; Updated: {fmtUpdatedPT(data.updatedAt)} PT
-      </div>
+      <div class="sfz-sub">{seasonContext.label}</div>
     </div>
 
     <div class="sfz-controls">
@@ -96,7 +93,7 @@ function playerHref(id) {
     </div>
   </div>
 
-  <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
+  {!seasonContext.hasStatistics || seasonContext.seasonStatus === "upcoming" ? <div class="sfz-note">{unavailableMessage(seasonContext)}</div> : <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
     <table class="sfz-table">
       <thead>
         <tr>
@@ -134,7 +131,7 @@ function playerHref(id) {
         })}
       </tbody>
     </table>
-  </div>
+  </div>}
 
   <!-- ✅ Client-side filter for static Astro -->
   <script is:inline>
@@ -156,6 +153,7 @@ function playerHref(id) {
       }
 
       function applyFilter(pos) {
+        if (!body || !countEl) return;
         const rows = body.querySelectorAll("tr[data-pos]");
         let shown = 0;
 
@@ -171,6 +169,7 @@ function playerHref(id) {
 
       // Init from URL
       const initialPos = getPosFromUrl();
+      if (!select) return;
       select.value = initialPos;
       applyFilter(initialPos);
 
