@@ -105,7 +105,7 @@ const advertisingConfigured = adsEnabled && monetizationEligible && Boolean(vali
     </script>
   </head>
 
-  <body>
+  <body data-page-type={pageType} data-season={season} data-opponent={opponent} data-article-category={articleCategory}>
     <a class="skip-link" href="#main-content">Skip to content</a>
     <slot />
 

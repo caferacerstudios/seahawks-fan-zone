@@ -14,7 +14,7 @@ const { context, options = [context], prefix = "Last updated" } = Astro.props;
 <div class="season-context" aria-label="Season and data context">
   <label>
     <span>Season</span>
-    <select aria-label="Season" disabled={options.length < 2}>
+    <select aria-label="Season" disabled={options.length < 2} data-analytics-event="schedule_filter" data-analytics-filter-type="season">
       {options.map((option) => <option selected={option.label === context.label}>{option.label}</option>)}
     </select>
   </label>

@@ -329,7 +329,7 @@ const rushYdsPerGame = read(s, ["rushing_yards_per_game", "rush_yards_per_game",
 const recYds = read(s, ["receiving_yards", "receivingYards"]);
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team">
+<SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team" pageType="team" season={seasonContext.seasonYear}>
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
   <div class="sfz-team-header">
     {seahawksLogo ? (
@@ -489,4 +489,3 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
     }
   </style>
 </SeahawksLayout>
-

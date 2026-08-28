@@ -536,7 +536,7 @@ const structuredData = articleData ? {
 } : null;
 ---
 
-<SeahawksLayout title={pageTitle} description={pageDescription} pageTitle={pageTitle} pageTagline={pageDescription} activePath="" canonical={canonicalPath} article={articleData} structuredData={structuredData}>
+<SeahawksLayout title={pageTitle} description={pageDescription} pageTitle={pageTitle} pageTagline={pageDescription} activePath="" canonical={canonicalPath} article={articleData} structuredData={structuredData} pageType="game_center" season={game?.season ?? scheduleData?.season} opponent={opp} articleCategory={articleData ? "recap" : undefined}>
   {!game && <div class="empty"><strong>Game unavailable.</strong> This game is not present in the current season schedule. <a href="/schedule">Return to the full schedule →</a></div>}
   {game && <GameCenter
     {game}

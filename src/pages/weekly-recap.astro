@@ -39,7 +39,7 @@ const groups = entries.slice(1).reduce((map, entry) => { const label = `${entry.
       <div class="result-line"><span class="result-badge">{outcome(featured.game)}</span><strong>{seaScore(featured.game)}–{oppScore(featured.game)}</strong><span>Final</span></div>
       <p class="summary">{excerpt(featured.recap)}</p>
       <p class="byline">{featured.category} · Updated {displayDate(featured.updatedAt)}{readingTime(featured.recap) && ` · ${readingTime(featured.recap)} min read`}</p>
-      <a class="primary" href={`/games/${encodeURIComponent(featured.id)}`}>Read the full game center →</a>
+      <a class="primary" href={`/games/${encodeURIComponent(featured.id)}`} data-analytics-event="article_open" data-analytics-article-category={featured.category} data-analytics-season={featured.season} data-analytics-opponent={abbr(opponentTeam(featured.game))}>Read the full game center →</a>
     </div>
     <div class="feature-mark" aria-hidden="true"><span>SEA</span><b>{outcome(featured.game)}</b><span>{abbr(opponentTeam(featured.game))}</span></div>
   </article> : <section class="empty"><h2>Recaps will appear after the final whistle</h2><p>No completed game currently has authored recap text. Scheduled and future weeks are intentionally omitted.</p><a href="/schedule">View the schedule →</a></section>}
@@ -50,7 +50,7 @@ const groups = entries.slice(1).reduce((map, entry) => { const label = `${entry.
       <summary><span>{label}</span><small>{rows.length} {rows.length === 1 ? "story" : "stories"}</small></summary>
       <div class="recap-grid">{rows.map((entry) => <article class="recap-card">
         <div class="card-meta"><span>{entry.category}</span><time datetime={entry.updatedAt}>{displayDate(entry.updatedAt)}</time></div>
-        <h3><a href={`/games/${encodeURIComponent(entry.id)}`}>{week(entry.game)}: {home(entry.game) ? "vs." : "at"} {opponent(entry.game)}</a></h3>
+        <h3><a href={`/games/${encodeURIComponent(entry.id)}`} data-analytics-event="article_open" data-analytics-article-category={entry.category} data-analytics-season={entry.season} data-analytics-opponent={abbr(opponentTeam(entry.game))}>{week(entry.game)}: {home(entry.game) ? "vs." : "at"} {opponent(entry.game)}</a></h3>
         <p class="score"><b>{outcome(entry.game)}</b> Seahawks {seaScore(entry.game)}–{oppScore(entry.game)} · Final</p>
         <p>{excerpt(entry.recap)}</p>
         <footer><span>{entry.season} · {phase(entry.game)}</span>{readingTime(entry.recap) && <span>{readingTime(entry.recap)} min read</span>}</footer>

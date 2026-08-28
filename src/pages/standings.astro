@@ -167,6 +167,8 @@ function safeSeasonFromStandings() {
   title={`Standings & Playoff Picture (${season})`}
   description="Seahawks record and remaining schedule for the current season."
   activePath="/standings"
+  pageType="standings"
+  season={season}
 >
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
 
