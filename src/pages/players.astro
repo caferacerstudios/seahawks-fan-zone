@@ -22,6 +22,9 @@ const score = (r) => Object.values(r || {}).filter((v) => numeric(v) !== null).l
 const byId = new Map();
 for (const row of (data?.playerSeasonStats || [])) { const key = id(row); if (key == null) continue; const old = byId.get(String(key)); if (!old || score(row) > score(old)) byId.set(String(key), row); }
 const rows = [...byId.values()].sort((a,b) => name(a).localeCompare(name(b)));
+const currentRosterCount = Array.isArray(data?.currentRoster)
+  ? new Set(data.currentRoster.map((player) => player?.id ?? player?.player_id).filter((value) => value !== null && value !== undefined)).size
+  : null;
 const positions = [...new Set(rows.map(pos).filter(Boolean))].sort();
 const columnSets = {
   all: [{label:"GP",keys:["games_played"]}],
@@ -36,7 +39,7 @@ const leaders = [
 ].map(([label,keys,suffix]) => { const found = rows.filter((r) => stat(r,keys) !== null).sort((a,b) => stat(b,keys)-stat(a,keys))[0]; return found ? {label,keys,suffix,row:found,value:stat(found,keys)} : null; }).filter(Boolean);
 ---
 <SeahawksLayout pageTitle="Seattle Seahawks Roster" pageTagline="Search the roster and explore position-relevant season statistics." activePath="/players" pageType="players" season={context.seasonYear}>
-  <section class="hub" aria-labelledby="hub-title"><div><p class="eyebrow">Current roster</p><h3 id="hub-title">{rows.length} players</h3><p>{context.label} statistics</p></div><div class="hub-controls"><label>Season<select id="seasonSelect" aria-label="Season" data-analytics-event="schedule_filter" data-analytics-filter-type="season">{seasons.map((s) => <option selected={s.seasonYear===context.seasonYear}>{s.seasonYear}</option>)}</select></label><label>Search roster<input id="search" type="search" placeholder="Name or number" autocomplete="off" /></label></div></section>
+  <section class="hub" aria-labelledby="hub-title"><div><p class="eyebrow">Current roster</p><h3 id="hub-title">{currentRosterCount !== null ? `${currentRosterCount} players` : "Roster directory"}</h3><p>{context.label} statistics</p></div><div class="hub-controls"><label>Season<select id="seasonSelect" aria-label="Season" data-analytics-event="schedule_filter" data-analytics-filter-type="season">{seasons.map((s) => <option selected={s.seasonYear===context.seasonYear}>{s.seasonYear}</option>)}</select></label><label>Search roster<input id="search" type="search" placeholder="Name or number" autocomplete="off" /></label></div></section>
   <SeasonContextView context={context} options={seasons} prefix="Data through" />
   {leaders.length > 0 && <section class="section"><p class="eyebrow">Season snapshot</p><h2>Team Leaders</h2><div class="leader-grid">{leaders.map((lead) => <a class="leader" href={`/players/${encodeURIComponent(String(id(lead.row)))}`}><span>{lead.label}</span><strong>{lead.value}</strong><small>{lead.suffix}</small><b>{name(lead.row)}</b></a>)}</div></section>}
   <section class="section"><div class="section-top"><div><p class="eyebrow">Players</p><h2>Roster directory</h2></div><p id="filter-status" role="status" aria-live="polite" aria-atomic="true"><b id="count">{rows.length}</b> shown</p></div>

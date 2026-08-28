@@ -256,6 +256,7 @@ async function main() {
     gamesRegular,
     gamesPostseason,
     nextGameId,
+    currentRoster: players,
     playerSeasonStats: enriched,
   };
 
@@ -276,6 +277,7 @@ async function main() {
     playerStatsSeason,
     updatedAt,
     team: outCombined.team,
+    currentRoster: players,
     playerSeasonStats: enriched,
   });
   console.log(`wrote ${path.relative(process.cwd(), playersPath)}`);
