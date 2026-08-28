@@ -6,12 +6,22 @@ const description =
   "Advertising and affiliate disclosure for Seahawks Fan Zone.";
 ---
 
-<SeahawksLayout {title} {description} pageTitle="Disclosure">
+<SeahawksLayout {title} {description} activePath="/disclosure" monetizationEligible={false}>
+  <h1>Disclosure</h1>
+
+  <div class="card">
+    <h2>Independent fan site</h2>
+    <p>
+      Seahawks Fan Zone is an independent fan site. It is not affiliated with, endorsed by, or sponsored by the Seattle Seahawks,
+      the National Football League, or their affiliates. Team and league names are used only to identify the subjects covered.
+    </p>
+  </div>
+
   <div class="card">
     <h2>Advertising</h2>
     <p>
-      This site may display ads (for example, through Google AdSense) to help
-      cover operating costs.
+      This site may display advertising, including Google AdSense ads, to help cover operating costs. Advertising is enabled only
+      after production configuration and any applicable consent. An ad's presence is not an endorsement of its advertiser.
     </p>
   </div>
 
