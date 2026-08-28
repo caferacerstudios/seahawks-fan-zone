@@ -173,35 +173,67 @@ async function main() {
   const players = await pagedGet("/players", { "team_ids[]": [team.id] });
   const playersById = new Map(players.map((p) => [p.id, p]));
 
-  // 4) Fetch season stats for this team + season
-  const seasonStatsRegular = await pagedGet("/season_stats", {
-    season: SEASON,
+  // 4) Fetch season stats for this team + season.
+  // Before regular-season stats exist for an upcoming season,
+  // temporarily fall back to the previous season's player stats.
+  let playerStatsSeason = SEASON;
+
+  let seasonStatsRegular = await pagedGet("/season_stats", {
+    season: playerStatsSeason,
     team_id: team.id,
     postseason: false,
   });
 
-  const seasonStatsPostseason = await pagedGet("/season_stats", {
-    season: SEASON,
+  let seasonStatsPostseason = await pagedGet("/season_stats", {
+    season: playerStatsSeason,
     team_id: team.id,
     postseason: true,
   });
 
-  const enrich = (rows, seasonType) => rows.map((row) => {
-    const playerId = row.player_id ?? row.player?.id ?? row.playerId ?? null;
-    const player = playerId ? playersById.get(playerId) : (row.player || null);
+  if (
+    seasonStatsRegular.length === 0 &&
+    seasonStatsPostseason.length === 0
+  ) {
+    playerStatsSeason = SEASON - 1;
+
+    console.warn(
+      `No player stats available for ${SEASON}; falling back to ${playerStatsSeason}.`
+    );
+
+    seasonStatsRegular = await pagedGet("/season_stats", {
+      season: playerStatsSeason,
+      team_id: team.id,
+      postseason: false,
+    });
+
+    seasonStatsPostseason = await pagedGet("/season_stats", {
+      season: playerStatsSeason,
+      team_id: team.id,
+      postseason: true,
+    });
+  }
+
+  const seasonStatsAll = [
+    ...seasonStatsRegular,
+    ...seasonStatsPostseason,
+  ];
+
+  const enriched = seasonStatsAll.map((row) => {
+    const playerId =
+      row.player_id ?? row.player?.id ?? row.playerId ?? null;
+
+    const player = playerId
+      ? playersById.get(playerId)
+      : (row.player || null);
 
     return {
       ...row,
       player: player || null,
       player_id: playerId || row.player_id || null,
       team_id: row.team_id ?? team.id,
-      season: row.season ?? SEASON,
-      seasonType,
+      season: row.season ?? playerStatsSeason,
     };
   });
-  const enrichedRegular = enrich(seasonStatsRegular, "regular season");
-  const enrichedPostseason = enrich(seasonStatsPostseason, "postseason");
-
   // 5) Fetch full league standings for this season
   // Docs: GET /nfl/v1/standings?season=YYYY
   const standingsJson = await apiGet("/standings", { season: SEASON });
@@ -210,10 +242,6 @@ async function main() {
   assertNonEmptyArray("standings", standings);
 
   const updatedAt = new Date().toISOString();
-  const regularFinalCount = gamesRegular.filter((game) =>
-    String(game?.status || "").toLowerCase().includes("final")
-  ).length;
-  const regularStatus = regularFinalCount === 0 ? "upcoming" : regularFinalCount === gamesRegular.length ? "complete" : "active";
 
   const outCombined = {
     team: {
@@ -224,24 +252,11 @@ async function main() {
       division: team.division,
     },
     season: SEASON,
+    playerStatsSeason,
     updatedAt,
-    seasonContext: {
-      seasonYear: SEASON,
-      seasonType: "regular season",
-      seasonStatus: regularStatus,
-      updatedAt,
-      sourceSeason: SEASON,
-    },
-    seasonContexts: [
-      { seasonYear: SEASON, seasonType: "regular season", seasonStatus: regularStatus, updatedAt, sourceSeason: SEASON },
-      ...(gamesPostseason.length || enrichedPostseason.length
-        ? [{ seasonYear: SEASON, seasonType: "postseason", seasonStatus: gamesPostseason.every((game) => String(game?.status || "").toLowerCase().includes("final")) ? "complete" : "active", updatedAt, sourceSeason: SEASON }]
-        : []),
-    ],
     gamesRegular,
     gamesPostseason,
-    playerSeasonStats: enrichedRegular,
-    playerPostseasonStats: enrichedPostseason,
+    playerSeasonStats: enriched,
   };
 
   const outDir = path.resolve(__dirname, "..", "src", "data", "nfl");
@@ -251,27 +266,23 @@ async function main() {
 
   // Safety checks: don't overwrite with obviously broken payloads
   assertNonEmptyArray("gamesRegular", gamesRegular);
-  if (regularFinalCount > 0) assertNonEmptyArray("playerSeasonStats", enrichedRegular);
+  assertNonEmptyArray("playerSeasonStats", enriched);
 
   safeWriteJson(combinedPath, outCombined);
   console.log(`wrote ${path.relative(process.cwd(), combinedPath)}`);
 
   safeWriteJson(playersPath, {
     season: SEASON,
+    playerStatsSeason,
     updatedAt,
     team: outCombined.team,
-    seasonContext: outCombined.seasonContext,
-    seasonContexts: outCombined.seasonContexts,
-    playerSeasonStats: enrichedRegular,
-    playerPostseasonStats: enrichedPostseason,
+    playerSeasonStats: enriched,
   });
   console.log(`wrote ${path.relative(process.cwd(), playersPath)}`);
 
   safeWriteJson(standingsPath, {
     season: SEASON,
     updatedAt,
-    seasonContext: outCombined.seasonContext,
-    seasonContexts: outCombined.seasonContexts,
     data: standings,
   });
   console.log(`wrote ${path.relative(process.cwd(), standingsPath)}`);
