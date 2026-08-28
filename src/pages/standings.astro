@@ -1,166 +1,89 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../components/SeasonContext.astro";
+import NfcWestTable from "../components/NfcWestTable.astro";
 import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../lib/season-context";
 import scheduleData from "../data/nfl/seahawks.json";
 
-// ✅ Optional standings file (safe import)
-let standingsData = null;
-try {
-  standingsData = (await import("../data/nfl/standings.json")).default;
-} catch (e) {
-  standingsData = null;
-}
+let standingsData: any = null;
+try { standingsData = (await import("../data/nfl/standings.json")).default; } catch {}
 
+const WEST = new Set(["SEA", "LAR", "SF", "ARI"]);
+const NAMES: Record<string, string> = { SEA: "Seattle Seahawks", LAR: "Los Angeles Rams", SF: "San Francisco 49ers", ARI: "Arizona Cardinals" };
 const contextData = standingsData || scheduleData;
 const seasonContext = getSeasonContext(contextData, "regular season");
 const seasonOptions = getAvailableSeasonContexts(contextData, "regular season");
-const season = seasonContext.seasonYear ?? "";
+const season = seasonContext.seasonYear ?? standingsData?.season ?? scheduleData?.season ?? "Current";
 
-// Accept both shapes
-const rawGames = Array.isArray(scheduleData?.games)
-  ? scheduleData.games
-  : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
-    ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
-    : [];
-
-function isPlayoffGame(g) {
-  const st = String(g?.seasonType ?? g?.season_type ?? "").toLowerCase();
-  if (st.includes("post") || st.includes("playoff")) return true;
-  if (g?.postseason === true) return true;
-  if (g?.is_postseason === true) return true;
-  return false;
+function first(row: any, keys: string[]) { for (const key of keys) if (row?.[key] !== undefined && row?.[key] !== null && row?.[key] !== "") return row[key]; return null; }
+function team(row: any) { return row?.team ?? row?.team_info ?? row?.teamInfo ?? row; }
+function abbr(value: any) {
+  const raw = first(team(value), ["abbreviation", "abbr", "team_abbreviation", "teamAbbreviation"]) ?? first(value, ["team_abbreviation", "teamAbbreviation", "abbreviation", "abbr"]);
+  const result = String(raw ?? "").toUpperCase().replaceAll(".", "");
+  if (result === "LA" || result === "LA RAMS") return "LAR";
+  if (result === "SFO") return "SF";
+  return result;
 }
-
-function teamAbbr(teamObj, fallback = "") {
-  return String(teamObj?.abbreviation || fallback).toUpperCase();
+function rowsFrom(value: any): any[] { if (Array.isArray(value)) return value; for (const key of ["data", "teams", "standings", "rows"]) if (Array.isArray(value?.[key])) return value[key]; return []; }
+function divisionRows(value: any) {
+  const direct = rowsFrom(value).filter((row) => WEST.has(abbr(row)));
+  if (direct.length) return direct;
+  const divisions = value?.divisions;
+  if (Array.isArray(divisions)) return rowsFrom(divisions.find((item: any) => /nfc\s*west/i.test(String(item?.name ?? item?.division ?? "")))).filter((row) => WEST.has(abbr(row)));
+  const entry = divisions && typeof divisions === "object" ? Object.entries(divisions).find(([key]) => /nfc[_\s-]*west/i.test(key)) : null;
+  return rowsFrom(entry?.[1]).filter((row) => WEST.has(abbr(row)));
 }
-
-function teamLogo(abbr) {
-  return `/images/nfl/teams/${abbr}.png`;
+function priorPayload(value: any) {
+  for (const key of ["previousSeason", "previous_season", "priorSeason", "prior_season", "previous", "prior"]) if (divisionRows(value?.[key]).length) return value[key];
+  const candidates = Array.isArray(value?.seasons) ? value.seasons.filter((item: any) => Number(item?.season ?? item?.year) < Number(season)) : [];
+  return candidates.sort((a: any, b: any) => Number(b?.season ?? b?.year) - Number(a?.season ?? a?.year))[0] ?? null;
 }
-
-function seaIsHome(game) {
-  return teamAbbr(game?.home_team) === "SEA";
+function shown(row: any, keys: string[]) { const value = first(row, keys); return value === null ? "—" : String(value); }
+function num(row: any, keys: string[]) { const value = first(row, keys); const parsed = Number(value); return value === null || !Number.isFinite(parsed) ? null : parsed; }
+function splitRecord(row: any, prefix: "division" | "conference") {
+  const supplied = first(row, [`${prefix}_record`, `${prefix}Record`, prefix === "division" ? "div_record" : "conf_record"]);
+  if (supplied !== null) return String(supplied);
+  const wins = first(row, [`${prefix}_wins`, `${prefix}Wins`]), losses = first(row, [`${prefix}_losses`, `${prefix}Losses`]), ties = first(row, [`${prefix}_ties`, `${prefix}Ties`]);
+  return wins === null || losses === null ? "—" : ties !== null && Number(ties) !== 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
 }
-
-function oppAbbr(game) {
-  const home = teamAbbr(game?.home_team);
-  const away = teamAbbr(game?.visitor_team);
-  return home === "SEA" ? away : home;
+function marker(row: any) {
+  const label = first(row, ["playoff_status", "playoffStatus", "clinched_status", "clinchedStatus", "elimination_status", "eliminationStatus"]);
+  if (label !== null) return String(label);
+  if (first(row, ["clinched", "clinched_playoffs", "clinchedPlayoffs"]) === true) return "Clinched playoff berth";
+  if (first(row, ["eliminated", "eliminated_from_playoffs", "eliminatedFromPlayoffs"]) === true) return "Eliminated";
+  return null;
 }
-
-function fmtPT(dateStr) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  try {
-    return d.toLocaleString("en-US", {
-      timeZone: "America/Los_Angeles",
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }) + " PT";
-  } catch {
-    return d.toISOString();
-  }
+function standingsRows(value: any) {
+  return divisionRows(value).map((row, index) => {
+    const suppliedDiff = num(row, ["point_differential", "pointDifferential", "points_differential", "differential"]);
+    const pf = num(row, ["points_for", "pointsFor", "pf"]), pa = num(row, ["points_against", "pointsAgainst", "pa"]);
+    const diff = suppliedDiff ?? (pf !== null && pa !== null ? pf - pa : null);
+    const pctValue = num(row, ["win_percentage", "winPercentage", "win_pct", "winPct", "percentage", "pct"]);
+    const pct = pctValue === null ? "—" : (pctValue > 1 ? pctValue / 100 : pctValue).toFixed(3).replace(/^0/, "");
+    const code = abbr(row);
+    return { rank: shown(row, ["division_rank", "divisionRank", "rank", "position"]) === "—" ? String(index + 1) : shown(row, ["division_rank", "divisionRank", "rank", "position"]), abbreviation: code, name: first(team(row), ["full_name", "fullName", "name", "display_name", "displayName"]) ?? first(row, ["team_name", "teamName"]) ?? NAMES[code] ?? code, wins: shown(row, ["wins", "win", "w"]), losses: shown(row, ["losses", "loss", "l"]), ties: shown(row, ["ties", "tie", "t"]), percentage: pct, pointsFor: shown(row, ["points_for", "pointsFor", "pf"]), pointsAgainst: shown(row, ["points_against", "pointsAgainst", "pa"]), differential: diff === null ? "—" : diff > 0 ? `+${diff}` : String(diff), division: splitRecord(row, "division"), conference: splitRecord(row, "conference"), streak: shown(row, ["streak", "current_streak", "currentStreak"]), marker: marker(row) };
+  });
 }
+function ordinal(value: any) { const n = Number(value); if (!Number.isFinite(n)) return String(value ?? "—"); const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th"; return `${n}${suffix}`; }
+function playoff(game: any) { const type = String(game?.seasonType ?? game?.season_type ?? "").toLowerCase(); return type.includes("post") || type.includes("playoff") || game?.postseason === true || game?.is_postseason === true; }
+function final(game: any) { return /final|finished|complete/i.test(String(game?.status ?? "")); }
+function opponent(game: any) { const home = abbr(game?.home_team), away = abbr(game?.visitor_team); return home === "SEA" ? away : home; }
+function home(game: any) { return abbr(game?.home_team) === "SEA"; }
+function gameHref(game: any, index: number) { return `/games/${encodeURIComponent(String(game?.id ?? game?.game_id ?? index))}`; }
+function formatDate(value: any) { const date = new Date(String(value ?? "")); return Number.isFinite(date.getTime()) ? `${date.toLocaleString("en-US", { timeZone: "America/Los_Angeles", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} PT` : "Date TBD"; }
+function result(game: any) { const hs = num(game, ["home_team_score", "homeTeamScore"]), as = num(game, ["visitor_team_score", "away_team_score", "visitorTeamScore"]); if (hs === null || as === null) return "Final score unavailable"; const sea = home(game) ? hs : as, opp = home(game) ? as : hs; return `${sea === opp ? "T" : sea > opp ? "W" : "L"} ${sea}–${opp}`; }
 
-function statusText(game) {
-  const s = String(game?.status || "").toLowerCase();
-  if (s.includes("final")) return "Final";
-  if (s.includes("in progress")) return "Live";
-  if (s.includes("scheduled")) return "Scheduled";
-  return game?.status || "";
-}
-
-function scoreText(game) {
-  const hs = game?.home_team_score;
-  const as = game?.visitor_team_score;
-
-  if (hs === null || hs === undefined || as === null || as === undefined) return "TBD";
-
-  const home = teamAbbr(game?.home_team);
-  const away = teamAbbr(game?.visitor_team);
-
-  // SEA score first
-  if (home === "SEA") return `${hs} : ${as}`;
-  if (away === "SEA") return `${as} : ${hs}`;
-  return `${as} : ${hs}`;
-}
-
-function isSeahawksWin(game) {
-  const home = teamAbbr(game?.home_team);
-  const away = teamAbbr(game?.visitor_team);
-  if (game?.home_team_score == null || game?.visitor_team_score == null) return null;
-  const hs = Number(game.home_team_score);
-  const as = Number(game.visitor_team_score);
-
-  if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
-
-  const seaIsHome_ = home === "SEA";
-  const seaIsAway = away === "SEA";
-  if (!seaIsHome_ && !seaIsAway) return null;
-
-  const seaScore = seaIsHome_ ? hs : as;
-  const oppScore = seaIsHome_ ? as : hs;
-
-  if (seaScore === oppScore) return null;
-  return seaScore > oppScore;
-}
-
-function isFinal(game) {
-  const s = String(game?.status || "").toLowerCase();
-  return s.includes("final") || s.includes("finished");
-}
-
-function sortByDate(a, b) {
-  const ad = a?.date ? new Date(a.date).getTime() : 0;
-  const bd = b?.date ? new Date(b.date).getTime() : 0;
-  if (ad !== bd) return ad - bd;
-  const aw = Number(a?.week);
-  const bw = Number(b?.week);
-  if (Number.isFinite(aw) && Number.isFinite(bw)) return aw - bw;
-  return 0;
-}
-
-const regular = rawGames.filter((g) => !isPlayoffGame(g)).slice().sort(sortByDate);
-const completed = regular.filter(isFinal);
-const remaining = regular.filter((g) => !isFinal(g));
-
-const record = completed.reduce(
-  (acc, g) => {
-    const win = isSeahawksWin(g);
-    if (win === true) acc.w++;
-    else if (win === false) acc.l++;
-    return acc;
-  },
-  { w: 0, l: 0 }
-);
-
-const gamesPlayed = completed.length;
-const winPct = gamesPlayed ? record.w / gamesPlayed : null;
-
-/* =======================
-   Standings presence check
-   ======================= */
-// Expect something like:
-// standingsData = { season: 2025, updatedAt: "...", nfc: {...}, divisions: {...}, seeds: {...} }
-const HAS_STANDINGS =
-  !!standingsData &&
-  (
-    Array.isArray(standingsData?.teams) ||
-    Array.isArray(standingsData?.nfc) ||
-    Array.isArray(standingsData?.divisions) ||
-    Array.isArray(standingsData?.seeds)
-  );
-
-// Tiny helpers if/when you wire up a real shape
-function safeSeasonFromStandings() {
-  const s = standingsData?.season;
-  return s === null || s === undefined ? "" : String(s);
-}
+const currentRows = standingsRows(standingsData);
+const priorData = priorPayload(standingsData);
+const previousRows = standingsRows(priorData);
+const previousSeason = priorData?.season ?? priorData?.year ?? (Number(season) ? Number(season) - 1 : "Previous");
+const seattle = currentRows.find((row) => row.abbreviation === "SEA");
+const rawGames = Array.isArray(scheduleData?.games) ? scheduleData.games : [...(scheduleData?.gamesRegular ?? []), ...(scheduleData?.gamesPostseason ?? [])];
+const divisionalGames = rawGames.filter((game: any) => !playoff(game) && WEST.has(opponent(game)) && opponent(game) !== "SEA").sort((a: any, b: any) => new Date(a?.date ?? 0).getTime() - new Date(b?.date ?? 0).getTime());
+const upcoming = divisionalGames.filter((game: any) => !final(game));
+const completed = divisionalGames.filter(final);
+const hasStarted = seasonContext.seasonStatus !== "upcoming" || currentRows.some((row) => Number(row.wins) + Number(row.losses) > 0);
+const hasMarkers = [...currentRows, ...previousRows].some((row) => row.marker);
 ---
 
 <SeahawksLayout
@@ -279,162 +202,6 @@ function safeSeasonFromStandings() {
   )}
 
   <style>
-    /* same as your schedule page */
-    .meta-line,
-    .cards-grid,
-    .card,
-    .card-top,
-    .matchup,
-    .team,
-    .card-bottom,
-    .week,
-    .date,
-    .status,
-    .score,
-    .links-row {
-      min-width: 0;
-      max-width: 100%;
-      box-sizing: border-box;
-    }
-
-    .meta-line,
-    .week,
-    .date,
-    .status,
-    .score,
-    .empty,
-    .section-title {
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
-
-    .meta-line {
-      display: flex;
-      align-items: center;
-      gap: .5rem;
-      color: rgba(15,23,32,.65);
-      margin: .35rem 0 1rem;
-      flex-wrap: wrap;
-    }
-
-    .dot { opacity: .5; }
-
-    .section-title {
-      color: var(--navy);
-      margin: 0.75rem 0 0.7rem;
-    }
-
-    .empty {
-      padding: .9rem 1rem;
-      border-radius: 14px;
-      border: 1px solid rgba(0,34,68,0.14);
-      background: rgba(165,172,175,0.18);
-      color: rgba(15,23,32,0.85);
-      font-weight: 800;
-    }
-
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: .85rem;
-      align-items: start;
-    }
-
-    .cards-grid > *:last-child:nth-child(odd) {
-      grid-column: 1 / -1;
-      justify-self: center;
-      width: min(520px, 100%);
-    }
-
-    @media (max-width: 820px) {
-      .cards-grid { grid-template-columns: 1fr; }
-      .cards-grid > *:last-child:nth-child(odd) {
-        grid-column: auto;
-        justify-self: stretch;
-        width: 100%;
-      }
-    }
-
-    .card {
-      border-radius: 14px;
-      border: 1px solid rgba(0,34,68,0.16);
-      background: #fff;
-      padding: .85rem .9rem;
-      box-shadow: 0 10px 22px rgba(0,0,0,.08);
-      overflow: hidden;
-    }
-
-    .card-top {
-      display: flex;
-      justify-content: space-between;
-      gap: .75rem;
-      padding-bottom: .55rem;
-      border-bottom: 1px solid rgba(0,34,68,.10);
-      margin-bottom: .6rem;
-    }
-
-    .week { font-weight: 900; color: var(--navy); }
-    .date { color: rgba(15,23,32,.65); font-weight: 700; }
-
-    .matchup {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: .55rem;
-      padding: .2rem 0 .65rem;
-    }
-
-    .team {
-      display: flex;
-      align-items: center;
-      gap: .55rem;
-      justify-content: center;
-    }
-
-    .logo {
-      width: 28px;
-      height: 28px;
-      object-fit: contain;
-      display: block;
-      flex: 0 0 auto;
-    }
-
-    .abbr { font-weight: 900; color: var(--navy); }
-    .ha { font-size: .78rem; color: rgba(15,23,32,.55); font-weight: 800; }
-    .at { font-weight: 900; color: rgba(0,34,68,.55); text-align: center; }
-
-    .card-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: .75rem;
-      margin-top: .25rem;
-    }
-
-    .status { font-weight: 900; color: rgba(0,34,68,.80); }
-    .score { font-weight: 900; color: rgba(0,34,68,.90); }
-
-    .links-row{
-      display:flex;
-      gap:.5rem;
-      margin-top:.65rem;
-      justify-content:flex-end;
-      flex-wrap:wrap;
-    }
-
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap:.35rem;
-      padding:.38rem .6rem;
-      border-radius: 999px;
-      border: 1px solid rgba(0,34,68,.16);
-      background: rgba(0,34,68,.04);
-      color: rgba(0,34,68,.86);
-      font-weight: 900;
-      text-decoration: none;
-    }
-    .pill:hover{ background: rgba(0,34,68,.07); }
-    .pill--ghost{ background: transparent; }
+    .eyebrow{margin:0 0:.25rem;color:var(--slate-700);font:900 .72rem var(--font-display);letter-spacing:.1em;text-transform:uppercase}.race-header{padding:clamp(1.1rem,4vw,2rem);border-top:7px solid var(--action-green);background:var(--navy-950);color:#fff;box-shadow:var(--shadow-lg)}.race-header .eyebrow{color:var(--action-green)}.race-header h1{margin:0;font:900 clamp(2rem,7vw,4rem)/1 var(--font-display)}.sea-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;margin-top:1.25rem;background:#ffffff24;border:1px solid #ffffff24}.sea-summary div{padding:.8rem;background:var(--navy-900)}.sea-summary span{display:block;color:var(--slate-300);font-size:.68rem;font-weight:800;text-transform:uppercase}.sea-summary strong{display:block;margin-top:.15rem;font:900 clamp(1.1rem,3vw,1.55rem) var(--font-display)}.race-empty{margin:1rem 0 0;color:var(--slate-300)}.season-notice,.archive-label,.marker-note,.empty{padding:.8rem 1rem;border:var(--border-crisp);background:var(--slate-100);color:var(--navy-900)}.season-notice{margin-top:1rem;border-left:5px solid var(--action-green)}.standings-section,.division-grid{margin-top:1.25rem}.section-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem;margin-bottom:.7rem}.section-heading h2,.module h2{margin:0;color:var(--navy-900);font:900 1.55rem var(--font-display)}.tabs{display:flex;gap:.35rem}.tabs button{padding:.55rem .7rem;border:var(--border-crisp);background:#fff;color:var(--navy-900);font-weight:800;cursor:pointer}.tabs button[aria-selected="true"]{border-color:var(--navy-900);background:var(--navy-900);color:#fff;box-shadow:inset 0 -3px var(--action-green)}.archive-label,.marker-note{margin:.65rem 0;font-size:.85rem}.division-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:1rem}.module{min-width:0;padding:1rem;border:var(--border-crisp);background:#fff;box-shadow:var(--shadow-sm)}.game-list,.series-list{margin:.8rem 0 0;padding:0;list-style:none}.game-list li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 0;border-top:var(--border-crisp)}.game-list li div{display:grid;gap:.1rem}.game-list span,.game-list small{color:var(--slate-700);font-size:.72rem}.game-list a{flex:0 0 auto;color:var(--navy-900);font-weight:900}.series-list li{display:grid;grid-template-columns:minmax(9rem,1fr) 1fr;gap:.75rem;padding:.7rem 0;border-top:var(--border-crisp)}.series-list span{color:var(--slate-700)}@media(max-width:760px){.sea-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.section-heading{align-items:stretch;flex-direction:column}.division-grid{grid-template-columns:1fr}}@media(max-width:420px){.race-header{margin-inline:-.6rem}.game-list li{align-items:flex-start;flex-direction:column}.series-list li{grid-template-columns:1fr}.tabs{width:100%}.tabs button{flex:1}}
   </style>
 </SeahawksLayout>
