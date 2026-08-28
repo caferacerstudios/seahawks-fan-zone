@@ -2,6 +2,8 @@
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../../components/SeasonContext.astro";
 import GameCenter from "../../components/GameCenter.astro";
+import TopicChips from "../../components/TopicChips.astro";
+import ContinueFanZone from "../../components/ContinueFanZone.astro";
 import { getAvailableSeasonContexts, getGameState, getSeasonContext, isFinalGame } from "../../lib/season-context";
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
@@ -543,10 +545,22 @@ const structuredData = articleData ? {
   publisher: { "@type": "Organization", name: "Seahawks Fan Zone", logo: { "@type": "ImageObject", url: new URL("/favicon.svg", Astro.site ?? Astro.url).toString() } },
   about: { "@type": "SportsEvent", name: `Seattle Seahawks vs ${opponentName}`, startDate: game?.date },
 } : null;
+const sameOpponentGames = ordered.filter((row) => row !== game && oppAbbr(row) === opp).sort((a, b) => new Date(b?.date ?? 0).getTime() - new Date(a?.date ?? 0).getTime()).slice(0, 2);
+const gameTopics = ["Game Week", "Opponents", ...(isPlayoffGame(game) ? ["Championship"] : []), ...(divisionContext ? ["NFC West"] : [])];
+const relatedPlayers = [...seaLeaders, ...seaSeasonLeaders].filter((leader, leaderIndex, all) => leader?.id && canLinkPlayer(leader.id) && all.findIndex((other) => String(other?.id) === String(leader.id)) === leaderIndex).slice(0, 3);
+const continueGroups = game ? [
+  { title: `${weekLabel} and ${opponentName}`, links: [
+    { href: "/schedule", label: "Schedule entry" },
+    ...sameOpponentGames.map((row) => ({ href: `/games/${encodeURIComponent(gameKey(row, ordered.indexOf(row)))}`, label: `${isFinal(row) ? "Recap" : "Game center"}: ${teamName(seaIsHome(row) ? row?.visitor_team : row?.home_team, oppAbbr(row))}` })),
+  ] },
+  { title: "Season context", links: [{ href: "/standings", label: "NFC West standings" }, { href: "/team", label: "Team stats" }, { href: "/weekly-recap", label: "Recap archive" }] },
+  ...(relatedPlayers.length ? [{ title: "Players in this game", links: relatedPlayers.map((leader) => ({ href: playerHref(leader.id), label: `${leader.name} stats` })) }] : []),
+] : [];
 ---
 
-<SeahawksLayout title={pageTitle} description={pageDescription} pageTitle={pageTitle} pageTagline={pageDescription} activePath="" canonical={canonicalPath} article={articleData} structuredData={structuredData} pageType="game_center" season={game?.season ?? scheduleData?.season} opponent={opp} articleCategory={articleData ? "recap" : undefined}>
+<SeahawksLayout title={pageTitle} description={pageDescription} pageTitle={pageTitle} pageTagline={pageDescription} activePath="" canonical={canonicalPath} article={articleData} structuredData={structuredData} pageType="game_center" season={game?.season ?? scheduleData?.season} opponent={opp} articleCategory={articleData ? "recap" : undefined} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Schedule", href: "/schedule" }, { name: `${weekLabel}: ${opponentName}`, href: canonicalPath }]}>
   {!game && <div class="empty"><strong>Game unavailable.</strong> This game is not present in the current season schedule. <a href="/schedule">Return to the full schedule →</a></div>}
+  {game && <TopicChips topics={gameTopics} />}
   {game && <GameCenter
     {game}
     context={gameContext}
@@ -580,6 +594,7 @@ const structuredData = articleData ? {
     sourceLabel={completed && recap ? "Schedule results and generated recap from repository game data" : "Schedule and season data maintained in this repository"}
     updatedAt={completed && recap ? recap?.updatedAt ?? gameRecaps?.updatedAt ?? scheduleData?.updatedAt : scheduleData?.updatedAt}
   />}
+  {game && <ContinueFanZone groups={continueGroups} />}
   <div class="legacy-game-page">
   <SeasonContextView context={gameContext} options={seasonOptions} prefix="Data through" />
   <div class="meta-line">
