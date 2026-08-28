@@ -188,7 +188,7 @@ function playoffRoundLabel(g, i, allPlayoffs) {
 >
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
 
-  <h3 class="section-title">Regular season</h3>
+  <h2 class="section-title">Regular season</h2>
 
   {regular.length === 0 ? (
     <div class="empty">{unavailableMessage(seasonContext)}</div>
@@ -228,7 +228,7 @@ function playoffRoundLabel(g, i, allPlayoffs) {
             </div>
 
             <div class="card-bottom">
-              <div class="status">{statusText(g)}</div>
+              <div class="status">{win === true ? "Win · " : win === false ? "Loss · " : ""}{statusText(g)}</div>
               <div class="score">{scoreText(g)}</div>
             </div>
 
@@ -243,10 +243,10 @@ function playoffRoundLabel(g, i, allPlayoffs) {
 
   {playoffs.length > 0 && (
     <>
-      <h3 class="section-title playoffs-title" style="margin-top: 1.5rem;">
+      <h2 class="section-title playoffs-title" style="margin-top: 1.5rem;">
         Playoffs
         <span class="playoffs-subtitle"> — road to the Super Bowl</span>
-      </h3>
+      </h2>
 
       <div class="cards-grid cards-grid--playoffs">
         {playoffs.map((g, i) => {
@@ -291,7 +291,7 @@ function playoffRoundLabel(g, i, allPlayoffs) {
               </div>
 
               <div class="card-bottom">
-                <div class={`status ${isSB ? "status--sb" : ""}`}>{statusText(g)}</div>
+                <div class={`status ${isSB ? "status--sb" : ""}`}>{win === true ? "Win · " : win === false ? "Loss · " : ""}{statusText(g)}</div>
                 <div class={`score ${isSB ? "score--sb" : ""}`}>{scoreText(g)}</div>
               </div>
 
