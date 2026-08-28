@@ -136,6 +136,11 @@ function seaIsHome(game) {
   return teamAbbr(game?.home_team) === "SEA";
 }
 
+function isPlayoffGame(game) {
+  const type = String(game?.season_type ?? game?.seasonType ?? "").toLowerCase();
+  return game?.postseason === true || game?.is_postseason === true || type.includes("post") || type.includes("playoff");
+}
+
 function pickKeyPlays(plays, limit = 10) {
   if (!Array.isArray(plays) || plays.length === 0) return [];
   const scoring = plays.filter((p) => p?.scoring_play === true);
@@ -329,6 +334,24 @@ async function main() {
   const recaps = existing?.recaps && typeof existing.recaps === "object" ? existing.recaps : {};
   let wrote = 0;
 
+  // Backfill the editorial fields on existing entries without replacing authored content.
+  for (let i = 0; i < rawGames.length; i++) {
+    const game = rawGames[i];
+    const id = gameKey(game, i);
+    const current = recaps[id];
+    if (!current) continue;
+    const firstPublished = current.publishedAt ?? current.createdAt ?? existing?.updatedAt ?? null;
+    recaps[id] = {
+      season: current.season ?? season,
+      week: current.week ?? game?.week ?? null,
+      phase: current.phase ?? (isPlayoffGame(game) ? "Postseason" : "Regular season"),
+      category: current.category ?? "Recap",
+      publishedAt: firstPublished,
+      updatedAt: current.updatedAt ?? firstPublished,
+      ...current,
+    };
+  }
+
   for (let i = 0; i < rawGames.length; i++) {
     const g = rawGames[i];
     const id = gameKey(g, i);
@@ -353,6 +376,12 @@ async function main() {
 
     recaps[id] = {
       gameId: id,
+      season,
+      week: g?.week ?? null,
+      phase: isPlayoffGame(g) ? "Postseason" : "Regular season",
+      category: "Recap",
+      publishedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       ...recap,
     };
@@ -377,4 +406,3 @@ main().catch((err) => {
   console.error(err?.stack || String(err));
   process.exit(1);
 });
-

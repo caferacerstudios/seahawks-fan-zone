@@ -4,8 +4,10 @@ import { formatPacificTime } from "../lib/season-context";
 
 let nfl: any = null;
 let standings: any = null;
+let recapData: any = null;
 try { nfl = (await import("../data/nfl/seahawks.json")).default; } catch {}
 try { standings = (await import("../data/nfl/standings.json")).default; } catch {}
+try { recapData = (await import("../data/nfl/gameRecaps.json")).default; } catch {}
 
 const now = Date.now();
 const abbr = (team: any) => String(team?.abbreviation ?? team?.abbr ?? "").toUpperCase();
@@ -45,6 +47,7 @@ const completed = games.filter(final);
 const upcoming = games.filter((game) => !final(game) && !live(game) && (time(game) ?? 0) > now);
 const featured = games.find(trustworthyLive) ?? upcoming[0] ?? completed.at(-1) ?? null;
 const latest = completed.at(-1) ?? null;
+const latestRecap = completed.filter((game, i) => recapData?.recaps?.[id(game, games.indexOf(game))]).at(-1) ?? null;
 const latestScored = completed.filter((game) => score(game, true) !== null && score(game, false) !== null).at(-1) ?? null;
 const nextThree = upcoming.slice(0, 3);
 const result = (game: any) => score(game, true) === score(game, false) ? "T" : score(game, true)! > score(game, false)! ? "W" : "L";
@@ -114,7 +117,7 @@ const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank ||
     {nextThree.length > 0 && <article class="card"><p class="label">Next three games</p><ol>{nextThree.map((game) => <li><a href={href(game, games.indexOf(game))}><strong>{home(game) ? "vs." : "at"} {opp(game)}</strong><span>{week(game)} · {formatPacificTime(game?.date ?? game?.start_time)}</span></a></li>)}</ol><a href="/schedule">Full schedule →</a></article>}
     {divisionRank && <article class="card standing"><p class="label">NFC West position</p><h3>{ordinal(Number(divisionRank))}</h3><p>{division}</p><a href="/standings">View standings →</a></article>}
     {leaders.length > 0 && <article class="card leaders"><p class="label">Team leaders</p><div class="leader-list">{leaders.map(([label, metric, item]: any) => <a href={playerHref(item.row)}><span>{label}</span><strong>{playerName(item.row)}</strong><small>{item.value.toLocaleString()} {metric}</small></a>)}</div><div class="stat-links"><a href="/players">All player stats →</a><a href="/team">Team stats →</a></div></article>}
-    {latest && <article class="card"><p class="label">Latest weekly recap</p><h3>{week(latest)}: {home(latest) ? "vs." : "at"} {opp(latest)}</h3><p>Review the latest result and what comes next for Seattle.</p><a href="/weekly-recap">Read weekly recap →</a></article>}
+    {latestRecap && <article class="card"><p class="label">Latest game recap</p><h3>{week(latestRecap)}: {home(latestRecap) ? "vs." : "at"} {opp(latestRecap)}</h3><p>{result(latestRecap)} {score(latestRecap, true)}–{score(latestRecap, false)} · Read the authored recap and available game data.</p><a href={href(latestRecap, games.indexOf(latestRecap))}>Read latest recap →</a></article>}
     {!hasDashboard && <p class="dashboard-empty">Season details will appear as schedule, standings, and statistics become available.</p>}
   </section>
 
