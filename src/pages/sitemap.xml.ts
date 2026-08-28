@@ -2,6 +2,8 @@ import type { APIRoute } from "astro";
 import { absoluteUrl, PUBLIC_PAGES } from "../lib/seo";
 import { NEWS_CATEGORIES, categorySlug, publishedArticles } from "../lib/news";
 
+const SUBSTANTIVE_TOPIC_PATHS = ["/topics/players", "/topics/roster", "/topics/injuries", "/topics/opponents", "/topics/game-week", "/topics/nfc-west", "/topics/position-groups", "/topics/championship"];
+
 const escapeXml = (value: unknown) => String(value).replace(/[<>&'\"]/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[character]!);
 const validDate = (value: unknown) => value && Number.isFinite(new Date(String(value)).getTime()) ? new Date(String(value)).toISOString() : undefined;
 
@@ -42,6 +44,7 @@ export const GET: APIRoute = async () => {
     ...NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category)).map((category) => ({ loc: `/news/category/${categorySlug(category)}`, lastmod: validDate(publishedArticles.find((article) => article.category === category)?.updatedAt) })),
     ...games.map((game) => ({ loc: `/games/${encodeURIComponent(String(gameId(game)))}`, lastmod: validDate(recaps?.recaps?.[String(gameId(game))]?.updatedAt ?? recaps?.updatedAt ?? nfl?.updatedAt) })),
     ...[...playerIds].map((id) => ({ loc: `/players/${encodeURIComponent(id)}`, lastmod: validDate(profiles?.updatedAt ?? nfl?.updatedAt) })),
+    ...SUBSTANTIVE_TOPIC_PATHS.map((loc) => ({ loc, lastmod: undefined })),
   ];
   const urls = pages.map(({ loc, lastmod }) => `<url><loc>${escapeXml(absoluteUrl(loc))}</loc>${lastmod ? `<lastmod>${escapeXml(lastmod)}</lastmod>` : ""}</url>`).join("");
   return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`, { headers: { "Content-Type": "application/xml; charset=utf-8" } });
