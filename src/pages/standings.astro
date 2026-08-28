@@ -166,6 +166,8 @@ function safeSeasonFromStandings() {
 <SeahawksLayout
   seo={{ title: `${seasonContext.label} Seattle Seahawks Standings | Seahawks Fan Zone`, description: `Seattle Seahawks position in the NFC West and conference standings for the ${seasonContext.label}.`, canonicalPath: "/standings" }}
   activePath="/standings"
+  pageType="standings"
+  season={season}
 >
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
 
@@ -181,7 +183,7 @@ function safeSeasonFromStandings() {
 
       <div class="matchup">
         <div class="team">
-          <img class="logo" src={teamLogo("SEA")} alt="Seattle Seahawks logo" loading="lazy" />
+          <img class="logo" src={teamLogo("SEA")} alt="Seattle Seahawks logo" width="28" height="28" loading="lazy" decoding="async" />
           <div class="abbr">SEA</div>
           <div class="ha">—</div>
         </div>
@@ -224,7 +226,7 @@ function safeSeasonFromStandings() {
     ) : null}
   </div>
 
-  <h3 class="section-title" style="margin-top: 1.25rem;">Remaining regular season</h3>
+  <h2 class="section-title" style="margin-top: 1.25rem;">Remaining regular season</h2>
 
   {remaining.length === 0 ? (
     <div class="empty">{seasonContext.seasonStatus === "complete" ? "The regular season is complete." : unavailableMessage(seasonContext)}</div>
@@ -244,7 +246,7 @@ function safeSeasonFromStandings() {
 
             <div class="matchup">
               <div class="team">
-                <img class="logo" src={teamLogo("SEA")} alt="Seattle Seahawks logo" loading="lazy" />
+                <img class="logo" src={teamLogo("SEA")} alt="Seattle Seahawks logo" width="28" height="28" loading="lazy" decoding="async" />
                 <div class="abbr">SEA</div>
                 <div class="ha">{seaIsHome(g) ? "H" : "A"}</div>
               </div>
@@ -252,7 +254,7 @@ function safeSeasonFromStandings() {
               <div class="at">@</div>
 
               <div class="team">
-                <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
+                <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} width="28" height="28" loading="lazy" decoding="async" />
                 <div class="abbr">{opp}</div>
                 <div class="ha">{seaIsHome(g) ? "A" : "H"}</div>
               </div>

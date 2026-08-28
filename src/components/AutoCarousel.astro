@@ -24,11 +24,11 @@ const id = `carousel_${Math.random().toString(36).slice(2)}`;
 ---
 
 {images.length === 0 ? null : (
-  <div class="rgf-carousel" id={id} style={`--h:${height}px;`}>
+  <div class="rgf-carousel" id={id} style={`--h:${height}px;--w:${width}px;`}>
     <div class="rgf-track">
       {images.map((src, i) => (
         <div class="rgf-slide" key={src}>
-          <img src={src} alt={`Carousel image ${i + 1}`} loading={i === 0 ? "eager" : "lazy"} />
+          <img src={src} alt={`Carousel image ${i + 1}`} width={width} height={height} loading={i === 0 ? "eager" : "lazy"} fetchpriority={i === 0 ? "high" : "auto"} decoding={i === 0 ? "sync" : "async"} />
         </div>
       ))}
     </div>
@@ -54,12 +54,17 @@ const id = `carousel_${Math.random().toString(36).slice(2)}`;
 
 <style>
   .rgf-carousel {
-    width: 100%;
-    height: var(--h);
+    width: min(100%, var(--w));
+    aspect-ratio: var(--w) / var(--h);
+    max-height: var(--h);
     overflow: hidden;
     border-radius: 12px;
     margin: 0 0 1rem 0;
     background: #000; /* keeps letterboxing clean */
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rgf-track { transition: none; }
   }
 
   .rgf-track {
