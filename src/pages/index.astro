@@ -1,5 +1,6 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import AdSlot from "../components/AdSlot.astro";
 import { formatPacificTime } from "../lib/season-context";
 
 let nfl: any = null;
@@ -120,6 +121,12 @@ const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank ||
     {latestRecap && <article class="card"><p class="label">Latest game recap</p><h3>{week(latestRecap)}: {home(latestRecap) ? "vs." : "at"} {opp(latestRecap)}</h3><p>{result(latestRecap)} {score(latestRecap, true)}–{score(latestRecap, false)} · Read the authored recap and available game data.</p><a href={href(latestRecap, games.indexOf(latestRecap))}>Read latest recap →</a></article>}
     {!hasDashboard && <p class="dashboard-empty">Season details will appear as schedule, standings, and statistics become available.</p>}
   </section>
+
+  <AdSlot
+    pageType="homepage"
+    placement="feed-break"
+    contentUnits={[featured, regularFinals.length > 0, latestScored, nextThree.length > 0, divisionRank, leaders.length > 0, latestRecap].filter(Boolean).length}
+  />
 
   <aside class="history-teaser" aria-labelledby="history-teaser-title">
     <div class="teaser-number" aria-hidden="true">12</div>
