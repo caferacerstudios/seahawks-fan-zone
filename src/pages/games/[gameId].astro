@@ -1,10 +1,16 @@
 ---
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../../components/SeasonContext.astro";
+import GameCenter from "../../components/GameCenter.astro";
 import { getAvailableSeasonContexts, getSeasonContext } from "../../lib/season-context";
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
 import rosterData from "../../data/nfl/players.json";
+
+let standingsData = null;
+try {
+  standingsData = (await import("../../data/nfl/standings.json")).default;
+} catch {}
 
 /* =======================
    Helpers for page render
@@ -59,6 +65,110 @@ function statusText(game) {
   if (s.includes("in progress")) return "Live";
   if (s.includes("scheduled")) return "Scheduled";
   return game?.status || "";
+}
+
+function isFinal(game) {
+  return /final|finished|complete/i.test(String(game?.status || ""));
+}
+
+function teamName(team, fallback) {
+  return String(team?.full_name ?? team?.fullName ?? team?.name ?? fallback);
+}
+
+function venueName(game) {
+  return game?.venue?.name ?? game?.venue ?? game?.stadium?.name ?? game?.stadium ?? null;
+}
+
+function recordBefore(target, abbreviation) {
+  const targetTime = new Date(target?.date ?? 0).getTime();
+  return ordered.reduce((record, row) => {
+    if (!isFinal(row) || new Date(row?.date ?? 0).getTime() >= targetTime) return record;
+    const home = teamAbbr(row?.home_team);
+    const away = teamAbbr(row?.visitor_team);
+    if (home !== abbreviation && away !== abbreviation) return record;
+    const own = Number(home === abbreviation ? row?.home_team_score : row?.visitor_team_score);
+    const other = Number(home === abbreviation ? row?.visitor_team_score : row?.home_team_score);
+    if (!Number.isFinite(own) || !Number.isFinite(other)) return record;
+    if (own === other) record.t += 1;
+    else if (own > other) record.w += 1;
+    else record.l += 1;
+    return record;
+  }, { w: 0, l: 0, t: 0 });
+}
+
+function recordText(record) {
+  return `${record.w}-${record.l}${record.t ? `-${record.t}` : ""}`;
+}
+
+function standingsRows() {
+  return Array.isArray(standingsData?.data) ? standingsData.data : Array.isArray(standingsData?.teams) ? standingsData.teams : [];
+}
+
+function standingFor(abbreviation) {
+  return standingsRows().find((row) => teamAbbr(row?.team ?? row) === abbreviation) ?? null;
+}
+
+function standingRecord(row) {
+  if (!row) return null;
+  if (row?.record) return String(row.record);
+  const wins = row?.wins ?? row?.win;
+  const losses = row?.losses ?? row?.loss;
+  return wins != null && losses != null ? `${wins}-${losses}${row?.ties ? `-${row.ties}` : ""}` : null;
+}
+
+function recentForm(target, abbreviation) {
+  const targetTime = new Date(target?.date ?? 0).getTime();
+  return ordered.filter((row) => {
+    const teams = [teamAbbr(row?.home_team), teamAbbr(row?.visitor_team)];
+    return isFinal(row) && new Date(row?.date ?? 0).getTime() < targetTime && teams.includes(abbreviation);
+  }).slice(-5).map((row) => {
+    const home = teamAbbr(row?.home_team);
+    const own = Number(home === abbreviation ? row?.home_team_score : row?.visitor_team_score);
+    const other = Number(home === abbreviation ? row?.visitor_team_score : row?.home_team_score);
+    return own === other ? "T" : own > other ? "W" : "L";
+  });
+}
+
+function quarterScores(game) {
+  const raw = game?.quarter_scores ?? game?.quarterScores ?? game?.line_score ?? game?.lineScore;
+  if (Array.isArray(raw)) return raw.map((row, index) => ({ label: row?.label ?? row?.quarter ?? `Q${index + 1}`, home: row?.home ?? row?.home_score, away: row?.away ?? row?.visitor ?? row?.away_score }));
+  if (!raw || typeof raw !== "object") return [];
+  return Object.entries(raw).map(([label, row]) => ({ label, home: row?.home ?? row?.home_score, away: row?.away ?? row?.visitor ?? row?.away_score }));
+}
+
+function comparisonStats(game) {
+  const raw = game?.team_stats ?? game?.teamStats ?? game?.statistics?.teams;
+  if (Array.isArray(raw)) return raw.filter((row) => row?.label && (row?.home != null || row?.away != null));
+  if (!raw || typeof raw !== "object") return [];
+  return Object.entries(raw).map(([label, row]) => ({ label, home: row?.home, away: row?.away ?? row?.visitor })).filter((row) => row.home != null || row.away != null);
+}
+
+function officialLinks(game) {
+  const raw = game?.official_links ?? game?.officialLinks ?? game?.broadcast_links ?? game?.broadcastLinks ?? game?.watch_listen ?? [];
+  if (Array.isArray(raw)) return raw.filter((link) => link?.url && link?.label);
+  return Object.entries(raw ?? {}).map(([label, url]) => ({ label, url })).filter((link) => typeof link.url === "string");
+}
+
+function leaders(rows, abbreviation) {
+  const categories = [
+    ["Passing", ["passing_yards", "passingYards", "pass_yards"], "yards"],
+    ["Rushing", ["rushing_yards", "rushingYards", "rush_yards"], "yards"],
+    ["Receiving", ["receiving_yards", "receivingYards", "rec_yards"], "yards"],
+    ["Tackles", ["tackles", "total_tackles", "totalTackles"], "tackles"],
+    ["Sacks", ["sacks"], "sacks"],
+    ["Interceptions", ["interceptions", "defensive_interceptions"], "INT"],
+  ];
+  return categories.map(([label, keys, unit]) => {
+    const ranked = (Array.isArray(rows) ? rows : []).filter((row) => {
+      const team = teamAbbr(row?.team ?? row?.player?.team, row?.team_abbreviation ?? row?.teamAbbr ?? "");
+      return !team || team === abbreviation;
+    }).map((row) => ({ row, value: keys.map((key) => row?.[key]).find((value) => value != null && Number.isFinite(Number(value))) })).filter((item) => item.value != null).sort((a, b) => Number(b.value) - Number(a.value));
+    const best = ranked[0];
+    if (!best) return null;
+    const player = best.row?.player ?? best.row;
+    const name = player?.full_name ?? player?.fullName ?? player?.name ?? [player?.first_name, player?.last_name].filter(Boolean).join(" ");
+    return name ? { label, unit, name, value: Number(best.value), id: player?.id ?? best.row?.player_id } : null;
+  }).filter(Boolean);
 }
 
 function scoreText(game) {
@@ -166,10 +276,6 @@ const opp = game ? oppAbbr(game) : "";
 
 const win = game ? isSeahawksWin(game) : null;
 const cardClass = win === true ? "card card--win" : win === false ? "card card--loss" : "card";
-
-const pageTitle = game
-  ? `${isPlayoffGame(game) ? "Playoffs" : (Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game")} — SEA vs ${opp}`
-  : "Game not found";
 
 const recap = gameRecaps?.recaps?.[String(gameId)] || null;
 
@@ -378,9 +484,78 @@ function renderBulletHtml(b) {
 
 const recapHtml = recap ? renderRecapHtml(recap) : "";
 const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
+const completed = Boolean(game && isFinal(game));
+const opponentTeam = game ? (seaIsHome(game) ? game?.visitor_team : game?.home_team) : null;
+const opponentName = teamName(opponentTeam, opp);
+const rawSeaScore = game ? (seaIsHome(game) ? game?.home_team_score : game?.visitor_team_score) : null;
+const rawOpponentScore = game ? (seaIsHome(game) ? game?.visitor_team_score : game?.home_team_score) : null;
+const seaScore = rawSeaScore == null ? null : Number(rawSeaScore);
+const opponentScore = rawOpponentScore == null ? null : Number(rawOpponentScore);
+const validSeaScore = Number.isFinite(seaScore) ? seaScore : null;
+const validOpponentScore = Number.isFinite(opponentScore) ? opponentScore : null;
+const weekLabel = game ? (isPlayoffGame(game) ? "Playoffs" : Number.isFinite(Number(game?.week)) ? `Week ${game.week}` : "Game") : "Game";
+const pageTitle = !game ? "Game not found" : completed
+  ? `Seahawks ${validSeaScore ?? "—"}, ${opponentName} ${validOpponentScore ?? "—"} — ${weekLabel} Recap`
+  : `Seahawks vs ${opponentName} — ${weekLabel} Preview`;
+const pageDescription = !game ? "The requested Seahawks game could not be found." : completed
+  ? `Final score, recap, and available statistics for Seattle's ${weekLabel} game against ${opponentName}.`
+  : `Matchup information for Seattle's ${weekLabel} game against ${opponentName}.`;
+const seaStanding = standingFor("SEA");
+const opponentStanding = standingFor(opp);
+const seaRecord = standingRecord(seaStanding) ?? (game ? recordText(recordBefore(game, "SEA")) : "—");
+const opponentRecord = standingRecord(opponentStanding) ?? "Unavailable";
+const divisionRank = seaStanding?.division_rank ?? seaStanding?.divisionRank ?? seaStanding?.division_place;
+const divisionContext = divisionRank ? `Seattle is ${divisionRank} in the NFC West in the latest available standings.` : null;
+const rawOpponentForm = opponentStanding?.recent_form ?? opponentStanding?.recentForm;
+const opponentForm = Array.isArray(rawOpponentForm) ? rawOpponentForm : [];
+const quarters = game ? quarterScores(game) : [];
+const comparison = game ? comparisonStats(game) : [];
+const gamePlayerRows = game?.player_stats ?? game?.playerStats ?? game?.statistics?.players ?? [];
+const seaLeaders = leaders(gamePlayerRows, "SEA");
+const currentSeasonRows = Number(scheduleData?.playerStatsSeason ?? scheduleData?.season) === Number(scheduleData?.season) && Array.isArray(scheduleData?.playerSeasonStats) ? scheduleData.playerSeasonStats : [];
+const seaSeasonLeaders = leaders(currentSeasonRows, "SEA").slice(0, 3);
+const opponentLeaderRows = game?.opponent_player_season_stats ?? game?.opponentPlayerSeasonStats ?? [];
+const opponentLeaders = leaders(opponentLeaderRows, opp).slice(0, 3);
+const turningPoints = game?.turning_points ?? game?.turningPoints ?? game?.scoring_plays ?? game?.scoringPlays ?? recap?.turningPoints ?? [];
+const recapText = recap?.text ?? (Array.isArray(recap?.segments) ? recap.segments.map((segment) => segment?.name ?? segment?.v ?? "").join("") : "");
 ---
 
-<SeahawksLayout title={pageTitle} description="Single game page." activePath="">
+<SeahawksLayout title={pageTitle} description={pageDescription} pageTitle={pageTitle} pageTagline={pageDescription} activePath="">
+  {!game && <div class="empty"><strong>Game unavailable.</strong> This game is not present in the current season schedule. <a href="/schedule">Return to the full schedule →</a></div>}
+  {game && <GameCenter
+    {game}
+    context={gameContext}
+    options={seasonOptions}
+    previous={prev}
+    {next}
+    previousHref={prev ? `/games/${encodeURIComponent(gameKey(prev, idx - 1))}` : null}
+    nextHref={next ? `/games/${encodeURIComponent(gameKey(next, idx + 1))}` : null}
+    opponent={opponentTeam}
+    opponentAbbr={opp}
+    {completed}
+    outcome={win === true ? "W" : win === false ? "L" : null}
+    {weekLabel}
+    seaScore={validSeaScore}
+    opponentScore={validOpponentScore}
+    {recapText}
+    recapBullets={recap?.bullets ?? []}
+    {quarters}
+    {comparison}
+    {seaLeaders}
+    {seaSeasonLeaders}
+    {opponentLeaders}
+    {seaRecord}
+    {opponentRecord}
+    seaForm={recentForm(game, "SEA")}
+    {opponentForm}
+    {divisionContext}
+    venue={venueName(game)}
+    links={officialLinks(game)}
+    turningPoints={Array.isArray(turningPoints) ? turningPoints : []}
+    sourceLabel={completed && recap ? "Schedule results and generated recap from repository game data" : "Schedule and season data maintained in this repository"}
+    updatedAt={gameRecaps?.updatedAt ?? scheduleData?.updatedAt}
+  />}
+  <div class="legacy-game-page">
   <SeasonContextView context={gameContext} options={seasonOptions} prefix="Data through" />
   <div class="meta-line">
     <span><strong>Back:</strong> <a href="/weekly-recap">Weekly Recap</a></span>
@@ -458,7 +633,9 @@ const bulletHtml = recap?.bullets?.map(renderBulletHtml) || [];
     </>
   )}
 
+  </div>
   <style>
+    .legacy-game-page { display: none; }
     .meta-line,
     .card,
     .card-top,
