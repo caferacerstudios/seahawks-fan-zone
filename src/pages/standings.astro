@@ -2,7 +2,7 @@
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import NfcWestTable from "../components/NfcWestTable.astro";
 import { formatPacificTime } from "../lib/season-context";
-import { activeStandingsPhase, STANDINGS_PHASES, validateStandings } from "../lib/standings.mjs";
+import { activeStandingsPhase, buildPhasedStandings, STANDINGS_PHASES, validateStandings } from "../lib/standings.mjs";
 import { formatKickoff, normalizeSchedule } from "../lib/schedule.mjs";
 import scheduleData from "../data/nfl/seahawks.json";
 
@@ -13,6 +13,12 @@ const WEST = new Set(["SEA", "LAR", "SF", "ARI"]);
 const NAMES: Record<string, string> = { SEA: "Seattle Seahawks", LAR: "Los Angeles Rams", SF: "San Francisco 49ers", ARI: "Arizona Cardinals" };
 const schedule = normalizeSchedule(scheduleData, scheduleData?.season);
 const season = schedule.season;
+const hasPhasedStandings = STANDINGS_PHASES.every((phase) => standingsData?.phases?.[phase]?.phase === phase);
+if (!hasPhasedStandings) {
+  const teams = Object.entries(NAMES).map(([abbreviation, full_name]) => ({ abbreviation, full_name, conference: "NFC" }));
+  standingsData = buildPhasedStandings({ season, updatedAt: schedule.updatedAt, games: schedule.games, teams });
+  standingsData.refreshedDuringBuild = false;
+}
 validateStandings(standingsData, schedule.games);
 const defaultPhase = activeStandingsPhase(schedule.games);
 const phaseLabels: Record<string, string> = { preseason: "Preseason", regular: "Regular Season", postseason: "Postseason" };
