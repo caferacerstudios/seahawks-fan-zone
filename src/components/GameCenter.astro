@@ -38,12 +38,12 @@ const rowOpponent = (row) => String((String(row?.home_team?.abbreviation).toUppe
   <section class="panel full"><h2>What comes next</h2>{next ? <p>Seattle’s next scheduled game is {gameLabel(next)} against {rowOpponent(next)}. <a href={nextHref}>Open the next game center →</a></p> : <p>This is the last game currently present in the schedule data. <a href="/schedule">View the full schedule →</a></p>}</section>
 </div>}
 
-{completed && recapText && <div class="share-actions" aria-label="Share this recap"><strong>Share recap</strong><button type="button" data-share>Share</button><button type="button" data-copy>Copy link</button><span data-share-status aria-live="polite"></span></div>}
+{completed && recapText && <div class="share-actions" aria-label="Share this recap"><strong>Share recap</strong><button type="button" data-share data-analytics-event="share_action" data-analytics-share-method="native">Share</button><button type="button" data-copy data-analytics-event="share_action" data-analytics-share-method="copy_link">Copy link</button><span data-share-status aria-live="polite"></span></div>}
 
 <nav class="game-navigation" aria-label="Game navigation">
   {previous ? <a href={previousHref}><span>Previous game</span><strong>← {gameLabel(previous)} vs {rowOpponent(previous)}</strong></a> : <span class="nav-empty">First game on the schedule</span>}
   <a class="schedule" href="/schedule">Full schedule</a>
-  {next ? <a class="next" href={nextHref}><span>Next game</span><strong>{gameLabel(next)} vs {rowOpponent(next)} →</strong></a> : <span class="nav-empty next">Last game on the schedule</span>}
+  {next ? <a class="next" href={nextHref} data-analytics-event="next_game_click" data-analytics-opponent={rowOpponent(next)}><span>Next game</span><strong>{gameLabel(next)} vs {rowOpponent(next)} →</strong></a> : <span class="nav-empty next">Last game on the schedule</span>}
 </nav>
 <p class="source-line"><strong>Source:</strong> {sourceLabel}. <strong>Updated:</strong> {formatPacificTime(updatedAt)}. <a href="/sources">Data notes</a></p>
 

@@ -85,7 +85,7 @@ const action = state === "live" ? "View Game Center" : state === "final" ? "Read
 const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank || leaders.length || latest);
 ---
 
-<SeahawksLayout title={`${nfl?.season ?? "Current"} Seattle Seahawks season hub`} description="Current Seahawks games, standings, leaders, and recaps." activePath="/" showPageHeader={false}>
+<SeahawksLayout title={`${nfl?.season ?? "Current"} Seattle Seahawks season hub`} description="Current Seahawks games, standings, leaders, and recaps." activePath="/" showPageHeader={false} pageType="home" season={nfl?.season}>
   <p class="home-value">The current Seahawks season—game context, standings, leaders, and recaps in one fast read.</p>
 
   {featured ? <section class={`scoreboard scoreboard--${state}`} aria-labelledby="featured-title">

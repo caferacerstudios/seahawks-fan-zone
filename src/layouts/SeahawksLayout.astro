@@ -13,6 +13,10 @@ const {
   canonical,
   article,
   structuredData,
+  pageType,
+  season,
+  opponent,
+  articleCategory,
 } = Astro.props;
 
 let latestRecapHref = "/weekly-recap";
@@ -36,7 +40,7 @@ const navPages = [
 ];
 ---
 
-<BaseLayout {title} {description} {canonical} {article} {structuredData}>
+<BaseLayout {title} {description} {canonical} {article} {structuredData} {pageType} {season} {opponent} {articleCategory}>
   <header class="lr-header seahawks-header">
     <div class="lr-header-bg seahawks-header-bg" aria-hidden="true"></div>
 

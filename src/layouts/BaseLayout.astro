@@ -1,6 +1,8 @@
 ---
-const { title = "Seahawks Fan Zone", description = "", canonical, article, structuredData } = Astro.props;
+const { title = "Seahawks Fan Zone", description = "", canonical, article, structuredData, pageType, season, opponent, articleCategory } = Astro.props;
 const canonicalUrl = canonical ? new URL(canonical, Astro.site ?? Astro.url).toString() : null;
+const analyticsExcludedHosts = String(import.meta.env.PUBLIC_ANALYTICS_EXCLUDE_HOSTS || "").split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
+const analyticsProduction = import.meta.env.PROD;
 ---
 
 <!DOCTYPE html>
@@ -34,17 +36,21 @@ const canonicalUrl = canonical ? new URL(canonical, Astro.site ?? Astro.url).toS
     ></script>
   </head>
 
-  <body>
+  <body data-page-type={pageType} data-season={season} data-opponent={opponent} data-article-category={articleCategory}>
     <a class="skip-link" href="#main-content">Skip to content</a>
     <slot />
 
-    <!-- Cloudflare Insights beacon -->
-    <script
-      defer
-      src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015"
-      integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ=="
-      data-cf-beacon='{"version":"2024.11.0","token":"801357a12d58445c9921f3793c929ed9","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}'
-      crossorigin="anonymous"
-    ></script>
+    <script src="../lib/analytics.ts"></script>
+    <script is:inline define:vars={{ analyticsExcludedHosts, analyticsProduction }}>
+      (() => {
+        const consent = () => window.sfzConsent?.analytics === true || (() => { try { const value = JSON.parse(localStorage.getItem('sfz-consent') || localStorage.getItem('sfz_consent') || 'false'); return value === true || value?.analytics === true; } catch { return false; } })();
+        const load = () => {
+          const host = location.hostname.toLowerCase();
+          if (!analyticsProduction || !consent() || document.querySelector('[data-cf-beacon]') || /^(localhost|127\.0\.0\.1|::1)$/.test(host) || analyticsExcludedHosts.some((entry) => host === entry || host.endsWith(`.${entry}`))) return;
+          const script = document.createElement('script'); script.defer = true; script.src = 'https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015'; script.integrity = 'sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ=='; script.crossOrigin = 'anonymous'; script.dataset.cfBeacon = JSON.stringify({ version: '2024.11.0', token: '801357a12d58445c9921f3793c929ed9', r: 1 }); document.body.append(script);
+        };
+        load(); window.addEventListener('sfz:consent-change', (event) => { if (typeof event.detail?.analytics === 'boolean') window.sfzConsent = { ...(window.sfzConsent || {}), analytics: event.detail.analytics }; load(); });
+      })();
+    </script>
   </body>
 </html>
