@@ -633,7 +633,14 @@ a:hover { filter: none; }
 .lr-panel-title { margin: 0; padding: .7rem .5rem .45rem; color: var(--slate-300); font-size: .72rem; }
 .lr-nav a { padding: .5rem; border-radius: 0; color: var(--slate-100); font-size: .83rem; border-bottom: 1px solid rgba(184,194,200,.14); }
 .lr-nav a:hover { background: rgba(112,201,52,.09); border-left: 3px solid var(--action-green); }
-.lr-main { min-width: 0; scroll-margin-top: 7rem; }
+.lr-main {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  scroll-margin-top: 7rem;
+}
 .lr-paper { padding: clamp(1.25rem,4vw,3.25rem); border: 0; border-radius: 0; background: var(--off-white); color: #15232d; box-shadow: var(--shadow-lg); }
 .seahawks-paper::before { content: ""; display: block; width: 72px; height: 7px; margin: calc(clamp(1.25rem,4vw,3.25rem) * -1) 0 2rem; background: var(--action-green); transform: skewX(-28deg); }
 .lr-post-header { padding-bottom: 1.5rem; margin-bottom: 2rem; border-bottom: 1px solid var(--slate-300); }
