@@ -1,7 +1,9 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import AdSlot from "../components/AdSlot.astro";
+import ArticleCard from "../components/ArticleCard.astro";
 import TrendingNow from "../components/TrendingNow.astro";
+import { publishedArticles } from "../lib/news";
 import { formatPacificTime } from "../lib/season-context";
 import { formatUpdateDate, playerPath as movementPlayerPath, transactions } from "../lib/team-updates";
 
