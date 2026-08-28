@@ -2,7 +2,7 @@
 /**
  * Build-time player profiles (Seahawks):
  * - reads src/data/nfl/seahawks.json (season stats)
- * - derives "roster" from seahawks.json playerSeasonStats (deduped)
+ * - reads current membership from src/data/team/roster.json
  * - fetches BDL player_injuries (best-effort; endpoint/tier may vary)
  * - filters injuries down to ONLY the derived Seahawks playerIds
  * - calls OpenAI to generate:
@@ -40,6 +40,7 @@ const FORCE = String(process.env.FORCE || "").toLowerCase() === "1";
 
 const projectRoot = process.cwd();
 const seahawksPath = path.join(projectRoot, "src", "data", "nfl", "seahawks.json");
+const rosterPath = path.join(projectRoot, "src", "data", "team", "roster.json");
 
 const outProfilesPath = path.join(projectRoot, "src", "data", "nfl", "playerProfiles.json");
 const outInjuriesPath = path.join(projectRoot, "src", "data", "nfl", "injuries.json");
@@ -387,7 +388,10 @@ async function main() {
   const season = seahawksData?.season ?? null;
   const statRows = Array.isArray(seahawksData?.playerSeasonStats) ? seahawksData.playerSeasonStats : [];
 
-  const roster = deriveRosterFromStats(statRows);
+  const rosterStore = readJson(rosterPath);
+  const roster = (rosterStore?.players || []).filter((player) => player.status === "Active").map((player) => ({
+    ...player, full_name: player.name, position_abbreviation: player.position, jersey_number: player.number,
+  }));
   if (roster.length === 0) {
     console.warn("No players derived from seahawks.json playerSeasonStats. Writing empty profiles.");
   }

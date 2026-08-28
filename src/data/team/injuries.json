@@ -1,4 +1,6 @@
-{
-  "schemaVersion": 1,
-  "records": []
-}
+{"schemaVersion":1,"asOf":"2026-08-28","records":[
+  {"date":"2026-08-25T13:04:00-07:00","playerId":"bud-clark","playerName":"Bud Clark","status":"Reserve/Injured","description":"Clark broke his ankle in the August 23 preseason game. Mike Macdonald said he would be out multiple months; the club placed him on injured reserve.","sourcePublisher":"Seattle Seahawks","sourceUrl":"https://www.seahawks.com/news/seahawks-sign-three-free-agents-place-bud-clark-mason-richman-on-injured-reserve","updateStatus":"Official"},
+  {"date":"2026-08-25T13:03:00-07:00","playerId":"mason-richman","playerName":"Mason Richman","status":"Reserve/Injured","description":"Richman suffered what the club described as a serious injury in the August 23 preseason game and was placed on injured reserve. No diagnosis is listed here because the cited announcement did not provide one.","sourcePublisher":"Seattle Seahawks","sourceUrl":"https://www.seahawks.com/news/seahawks-sign-three-free-agents-place-bud-clark-mason-richman-on-injured-reserve","updateStatus":"Official"},
+  {"date":"2026-08-22T10:00:00-07:00","playerId":"jake-bobo","playerName":"Jake Bobo","status":"Reserve/Injured","description":"Bobo suffered a knee injury in the August 21 joint practice. The club placed him on injured reserve and said he will miss the 2026 season.","sourcePublisher":"Seattle Seahawks","sourceUrl":"https://www.seahawks.com/news/seahawks-place-wr-jake-bobo-on-injured-reserve-sign-wr-julian-hicks","updateStatus":"Official"},
+  {"date":"2026-08-11T12:00:00-07:00","playerId":"robbie-ouzts","playerName":"Robbie Ouzts","status":"Reserve/Injured","description":"Ouzts was placed on injured reserve after being sidelined in camp. Mike Macdonald had not disclosed the nature of the current injury in the cited announcement.","sourcePublisher":"Seattle Seahawks","sourceUrl":"https://www.seahawks.com/news/seahawks-sign-lb-aaron-smith-place-fb-robbie-ouzts-on-ir","updateStatus":"Official"}
+]}

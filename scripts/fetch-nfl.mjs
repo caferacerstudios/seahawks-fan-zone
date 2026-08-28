@@ -166,8 +166,12 @@ async function main() {
   const { games, gamesPreseason, gamesRegular, gamesPostseason, nextGameId } = normalizedSchedule;
 
   // 3) Fetch team player list (names/positions)
+  // This endpoint is a player directory, not an authoritative current roster.
+  // Keep it only for enriching statistical records.
   const players = await pagedGet("/players", { "team_ids[]": [team.id] });
   const playersById = new Map(players.map((p) => [p.id, p]));
+  const rosterStore = JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", "src", "data", "team", "roster.json"), "utf8"));
+  const currentRoster = (rosterStore.players || []).filter((player) => player.status === "Active");
 
   // 4) Fetch season stats for this team + season.
   // Before regular-season stats exist for an upcoming season,
@@ -256,7 +260,7 @@ async function main() {
     gamesRegular,
     gamesPostseason,
     nextGameId,
-    currentRoster: players,
+    currentRoster,
     playerSeasonStats: enriched,
   };
 
@@ -277,7 +281,7 @@ async function main() {
     playerStatsSeason,
     updatedAt,
     team: outCombined.team,
-    currentRoster: players,
+    currentRoster,
     playerSeasonStats: enriched,
   });
   console.log(`wrote ${path.relative(process.cwd(), playersPath)}`);

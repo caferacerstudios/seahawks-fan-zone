@@ -1,5 +1,6 @@
 import injuriesStore from "../data/team/injuries.json";
 import transactionsStore from "../data/team/transactions.json";
+import { newestFirst } from "./team-updates-core.mjs";
 
 export const TRANSACTION_TYPES = [
   "Signed", "Waived", "Released", "Claimed", "Injured Reserve", "PUP",
@@ -59,10 +60,6 @@ export function isInjuryStatusRecord(value: unknown): value is InjuryStatusRecor
   return Boolean(row && validDate(row.date) && playerId(row.playerId) && text(row.status)
     && text(row.description) && text(row.sourcePublisher) && sourceUrl(row.sourceUrl)
     && UPDATE_STATUSES.includes(row.updateStatus));
-}
-
-function newestFirst<T>(rows: T[], dateOf: (row: T) => string) {
-  return rows.slice().sort((a, b) => Date.parse(dateOf(b)) - Date.parse(dateOf(a)));
 }
 
 export const transactions = newestFirst(
