@@ -28,23 +28,28 @@ const canonicalUrl = canonical ? new URL(canonical, Astro.site ?? Astro.url).toS
     <!-- Site CSS -->
     <link rel="stylesheet" href="/styles/main.css" />
 
-    <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6319637311271773"
-     crossorigin="anonymous"
-    ></script>
   </head>
 
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
     <slot />
 
-    <!-- Cloudflare Insights beacon -->
-    <script
-      defer
-      src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015"
-      integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ=="
-      data-cf-beacon='{"version":"2024.11.0","token":"801357a12d58445c9921f3793c929ed9","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}'
-      crossorigin="anonymous"
-    ></script>
+    <!-- Keep analytics off the critical path. Field data still loads after page load. -->
+    <script is:inline>
+      (() => {
+        const loadInsights = () => {
+          const script = document.createElement('script');
+          script.src = 'https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015';
+          script.integrity = 'sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==';
+          script.crossOrigin = 'anonymous';
+          script.dataset.cfBeacon = '{"version":"2024.11.0","token":"801357a12d58445c9921f3793c929ed9","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}';
+          document.body.append(script);
+        };
+        addEventListener('load', () => {
+          if ('requestIdleCallback' in window) requestIdleCallback(loadInsights, { timeout: 3000 });
+          else setTimeout(loadInsights, 0);
+        }, { once: true });
+      })();
+    </script>
   </body>
 </html>

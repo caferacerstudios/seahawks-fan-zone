@@ -72,7 +72,10 @@ const ebayListings = ebayData?.items ?? [];
                       class="lr-sale-img"
                       src={item.img}
                       alt={item.title}
+                      width="640"
+                      height="480"
                       loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <div
