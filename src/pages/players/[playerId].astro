@@ -492,6 +492,8 @@ const abbr = teamAbbrFromAny(rosterPlayer, statRow);
 const fallbackImg = teamLogoUrl(abbr);
 const headshotImg = findHeadshotForName(displayName);
 const currentStatus = injuryMatches[0]?.status ? String(injuryMatches[0].status) : null;
+const canonicalPath = `/players/${encodeURIComponent(String(playerId))}`;
+const pageDescription = `${displayName} ${String(position).toUpperCase()} profile, roster information, and ${seasonContext.label} statistics for Seattle.`;
 ---
 
 <SeahawksLayout title={pageTitle} description="Player profile page." activePath="/players" pageType="player" season={seasonContext.seasonYear}>

@@ -16,6 +16,7 @@ const adsTxtIntegration = {
 };
 
 export default defineConfig({
+  site: "https://seahawksfanzone.com",
   server: { port: 4322, host: true },
   integrations: [adsTxtIntegration],
 });

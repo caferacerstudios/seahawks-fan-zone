@@ -521,7 +521,8 @@ const recapText = recap?.text ?? (Array.isArray(recap?.segments) ? recap.segment
 const canonicalPath = `/games/${encodeURIComponent(String(gameId))}`;
 const publishedTime = recap?.publishedAt ?? recap?.createdAt ?? gameRecaps?.updatedAt ?? null;
 const modifiedTime = recap?.updatedAt ?? gameRecaps?.updatedAt ?? publishedTime;
-const articleData = completed && recapText ? { publishedTime, modifiedTime } : null;
+const articleImage = teamLogo("SEA");
+const articleData = completed && recapText && publishedTime ? { headline: pageTitle, author: "Seahawks Fan Zone", publishedTime, modifiedTime, image: articleImage, section: "Game Recaps" } : null;
 const structuredData = articleData ? {
   "@context": "https://schema.org",
   "@type": "NewsArticle",
@@ -530,8 +531,9 @@ const structuredData = articleData ? {
   datePublished: publishedTime,
   dateModified: modifiedTime,
   mainEntityOfPage: new URL(canonicalPath, Astro.site ?? Astro.url).toString(),
+  image: new URL(articleImage, Astro.site ?? Astro.url).toString(),
   author: { "@type": "Organization", name: "Seahawks Fan Zone" },
-  publisher: { "@type": "Organization", name: "Seahawks Fan Zone" },
+  publisher: { "@type": "Organization", name: "Seahawks Fan Zone", logo: { "@type": "ImageObject", url: new URL("/favicon.svg", Astro.site ?? Astro.url).toString() } },
   about: { "@type": "SportsEvent", name: `Seattle Seahawks vs ${opponentName}`, startDate: game?.date },
 } : null;
 ---

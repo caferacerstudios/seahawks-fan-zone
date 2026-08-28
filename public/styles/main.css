@@ -710,3 +710,4 @@ a:hover { filter: none; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.seo-breadcrumbs{display:flex;gap:.45rem;margin:0 0 1rem;padding:0;list-style:none;color:var(--slate-700);font-size:.78rem}.seo-breadcrumbs li+li::before{content:"/";margin-right:.45rem;color:var(--slate-500)}
