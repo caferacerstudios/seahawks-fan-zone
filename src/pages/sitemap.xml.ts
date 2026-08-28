@@ -20,8 +20,10 @@ export const GET: APIRoute = async () => {
   try { standings = (await import("../data/nfl/standings.json")).default; } catch {}
 
   const gameId = (game: any) => game?.id ?? game?.game_id;
-  const games = [...(nfl?.gamesPreseason ?? []), ...(nfl?.gamesRegular ?? []), ...(nfl?.gamesPostseason ?? []), ...(nfl?.games ?? [])]
+  const sourceGames = Array.isArray(nfl?.games) ? nfl.games : [...(nfl?.gamesPreseason ?? []), ...(nfl?.gamesRegular ?? []), ...(nfl?.gamesPostseason ?? [])];
+  const games = sourceGames
     .filter((game, index, all) => gameId(game) != null && all.findIndex((other) => String(gameId(other)) === String(gameId(game))) === index)
+    .filter((game) => game?.state !== "bye" && game?.bye !== true)
     .filter((game) => !/scheduled|tbd|postponed|cancelled/i.test(String(game?.status ?? "")) || recaps?.recaps?.[String(gameId(game))]);
   const roster = Array.isArray(players?.data) ? players.data : Array.isArray(players?.players) ? players.players : Array.isArray(players) ? players : [];
   const hasRecaps = Object.values(recaps?.recaps ?? {}).some((recap: any) => String(recap?.summary ?? recap?.excerpt ?? recap?.text ?? "").trim());

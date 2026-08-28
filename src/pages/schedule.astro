@@ -3,47 +3,53 @@ import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../components/SeasonContext.astro";
 import ScheduleScoreboard from "../components/ScheduleScoreboard.astro";
 import TeamMark from "../components/TeamMark.astro";
-import { getAvailableSeasonContexts, getSeasonContext, formatPacificTime } from "../lib/season-context";
-import scheduleData from "../data/nfl/seahawks.json";
+import { getAvailableSeasonContexts, getSeasonContext } from "../lib/season-context";
+import { formatScheduleDate, nextScheduleEvent, selectScheduleSeason } from "../lib/schedule.mjs";
+import rawScheduleData from "../data/nfl/seahawks.json";
 
+const scheduleRoot: any = rawScheduleData;
+const requestedSeason = Astro.url.searchParams.get("season") ?? scheduleRoot?.season;
+const scheduleData = selectScheduleSeason(scheduleRoot, requestedSeason);
 const context = getSeasonContext(scheduleData, "regular season");
-const options = getAvailableSeasonContexts(scheduleData, "regular season");
+const options = Array.isArray(scheduleRoot?.seasons)
+  ? scheduleRoot.seasons.map((record) => getSeasonContext(selectScheduleSeason(scheduleRoot, record.season), "regular season"))
+  : getAvailableSeasonContexts(scheduleData, "regular season");
 const season = context.seasonYear ?? "";
 const names = { ARI:"Arizona Cardinals", ATL:"Atlanta Falcons", BAL:"Baltimore Ravens", BUF:"Buffalo Bills", CAR:"Carolina Panthers", CHI:"Chicago Bears", CIN:"Cincinnati Bengals", CLE:"Cleveland Browns", DAL:"Dallas Cowboys", DEN:"Denver Broncos", DET:"Detroit Lions", GB:"Green Bay Packers", HOU:"Houston Texans", IND:"Indianapolis Colts", JAX:"Jacksonville Jaguars", KC:"Kansas City Chiefs", LAC:"Los Angeles Chargers", LAR:"Los Angeles Rams", LV:"Las Vegas Raiders", MIA:"Miami Dolphins", MIN:"Minnesota Vikings", NE:"New England Patriots", NO:"New Orleans Saints", NYG:"New York Giants", NYJ:"New York Jets", PHI:"Philadelphia Eagles", PIT:"Pittsburgh Steelers", SF:"San Francisco 49ers", TB:"Tampa Bay Buccaneers", TEN:"Tennessee Titans", WAS:"Washington Commanders" };
 const divisionTeams = new Set(["ARI", "LAR", "SF"]);
 const abbr = (team) => String(team?.abbreviation ?? team?.abbr ?? "").toUpperCase();
-const opponent = (game) => abbr(game?.home_team) === "SEA" ? game?.visitor_team : game?.home_team;
+const opponent = (game) => game?.opponent;
 const opponentAbbr = (game) => abbr(opponent(game));
-const opponentName = (game) => opponent(game)?.full_name ?? opponent(game)?.fullName ?? opponent(game)?.name ?? names[opponentAbbr(game)] ?? opponentAbbr(game) ?? "Opponent TBD";
-const isHome = (game) => abbr(game?.home_team) === "SEA";
-const isFinal = (game) => /final|finished|complete/i.test(String(game?.status ?? ""));
+const opponentName = (game) => (opponent(game)?.full_name ?? opponent(game)?.fullName ?? opponent(game)?.name ?? names[opponentAbbr(game)] ?? opponentAbbr(game)) || "Opponent TBD";
+const isHome = (game) => game?.isHome === true;
+const isFinal = (game) => game?.state === "completed";
 const now = Date.now();
 const dataUpdatedAt = new Date(scheduleData?.updatedAt ?? scheduleData?.seasonContext?.updatedAt ?? "").getTime();
-const isLive = (game) => /in progress|live|halftime|quarter/i.test(String(game?.status ?? "")) && Number.isFinite(dataUpdatedAt) && now-dataUpdatedAt >= 0 && now-dataUpdatedAt < 15*60_000;
-const isBye = (game) => Boolean(game?.bye) || /bye/i.test(String(game?.status ?? game?.week ?? game?.type ?? ""));
+const isLive = (game) => game?.state === "in_progress" && Number.isFinite(dataUpdatedAt) && now-dataUpdatedAt >= 0 && now-dataUpdatedAt < 15*60_000;
+const isBye = (game) => game?.state === "bye";
 const gameKey = (game, index) => String(game?.id ?? game?.game_id ?? index);
 const href = (game, index) => `/games/${encodeURIComponent(gameKey(game, index))}`;
-const dateValue = (game) => game?.date ?? game?.start_time ?? game?.kickoff;
-const venue = (game) => game?.venue?.name ?? game?.venue ?? game?.stadium?.name ?? game?.stadium ?? null;
-const network = (game) => game?.network ?? game?.tv_network ?? game?.tvNetwork ?? game?.broadcast ?? null;
+const dateValue = (game) => game?.startsAt ?? game?.date;
+const venue = (game) => game?.venue;
+const network = (game) => game?.network;
 const prime = (game) => Boolean(game?.prime_time ?? game?.primeTime ?? game?.is_primetime);
-const typeOf = (game) => { const value=String(game?.seasonType ?? game?.season_type ?? "").toLowerCase(); return value.includes("pre") ? "preseason" : value.includes("post") || value.includes("playoff") || game?.postseason ? "postseason" : "regular"; };
-const rawGames = Array.isArray(scheduleData?.games) ? scheduleData.games : [...(scheduleData?.gamesPreseason ?? []), ...(scheduleData?.gamesRegular ?? []), ...(scheduleData?.gamesPostseason ?? [])];
-const games = [...rawGames].sort((a,b) => new Date(dateValue(a) ?? 0).getTime() - new Date(dateValue(b) ?? 0).getTime());
+const typeOf = (game) => game?.phase ?? "regular";
+const games = scheduleData.games;
 const sections = [
   { id:"preseason", label:"Preseason", games:games.filter((game) => typeOf(game) === "preseason") },
   { id:"regular", label:"Regular Season", games:games.filter((game) => typeOf(game) === "regular") },
   { id:"postseason", label:"Postseason", games:games.filter((game) => typeOf(game) === "postseason") },
 ];
-const nextGame = games.find((game) => !isBye(game) && (isLive(game) || (!isFinal(game) && new Date(dateValue(game) ?? 0).getTime() >= now))) ?? games.find((game) => !isBye(game) && !isFinal(game));
+const nextGame = nextScheduleEvent(games, new Date(now));
 const activeTab = typeOf(nextGame ?? {}) === "preseason" ? "preseason" : typeOf(nextGame ?? {}) === "postseason" ? "postseason" : "regular";
 const result = (game) => { if(!isFinal(game)) return null; const home=Number(game?.home_team_score), away=Number(game?.visitor_team_score); if(!Number.isFinite(home)||!Number.isFinite(away)) return null; const sea=isHome(game)?home:away, opp=isHome(game)?away:home; return { outcome:sea===opp?"T":sea>opp?"W":"L", sea, opp }; };
-const month = (game) => { const date=new Date(dateValue(game)); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("en-US",{month:"long",year:"numeric",timeZone:"America/Los_Angeles"}).format(date) : "Date to be announced"; };
+const stateLabel = (game) => ({ canceled:"Canceled", postponed:"Postponed", in_progress:"In progress", tbd:"Details TBD", upcoming:"Upcoming" })[game?.state] ?? "Upcoming";
+const month = (game) => { if(isBye(game)) return "Bye week"; const value=dateValue(game); if(!value) return "Date to be announced"; const date=new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("en-US",{month:"long",year:"numeric",timeZone:"America/Los_Angeles"}).format(date) : "Date to be announced"; };
 const groups = (rows) => rows.reduce((all,game) => { const label=month(game), found=all.find((group)=>group.label===label); found ? found.games.push(game) : all.push({label,games:[game]}); return all; }, []);
 ---
 
-<SeahawksLayout title={`Seahawks Schedule (${season})`} description="Seattle Seahawks season schedule, results, and upcoming games" activePath="/schedule">
-  <SeasonContextView context={context} options={options} prefix="Data through" />
+<SeahawksLayout title={`Seahawks Schedule (${season})`} pageTitle={`Seahawks Schedule (${season})`} description={`Seattle Seahawks ${season} season schedule, results, and upcoming games`} seo={{ title: `Seahawks Schedule (${season}) | Seahawks Fan Zone`, description: `Seattle Seahawks ${season} season schedule, results, and upcoming games`, canonicalPath: `/schedule${scheduleRoot?.seasons?.length ? `?season=${season}` : ""}` }} activePath="/schedule" pageType="schedule" season={season}>
+  <SeasonContextView context={context} options={options} freshnessIndicator seasonNavigation />
   {nextGame ? <ScheduleScoreboard game={nextGame} href={href(nextGame,games.indexOf(nextGame))} opponentName={opponentName(nextGame)} opponentAbbr={opponentAbbr(nextGame)} home={isHome(nextGame)} venue={venue(nextGame)} network={network(nextGame)} live={isLive(nextGame)} /> : <section class="next-empty"><p>Next game</p><h1>Schedule awaiting kickoff details</h1><span>The next Seahawks matchup will be featured here when it is available.</span></section>}
 
   <div class="schedule-controls">
@@ -57,10 +63,10 @@ const groups = (rows) => rows.reduce((all,game) => { const label=month(game), fo
       const filterValues=[away?"away":"home",division&&"division",gamePrime&&"prime"].filter(Boolean).join(" ");
       return isBye(game) ? <article class="game-card game-card--bye" data-filters=""><div class="week">{game?.week?`Week ${game.week}`:"Season break"}</div><div><h3>Bye week</h3><p>No game scheduled</p></div></article> : <article class:list={["game-card",isLive(game)&&"game-card--live",gameResult?.outcome==="W"&&"game-card--win",gameResult?.outcome==="L"&&"game-card--loss"]} data-filters={filterValues}>
         <div class="week"><span>{game?.week?`Week ${game.week}`:section.label}</span>{isLive(game)&&<strong>Live</strong>}{gameResult&&<strong class={`result result--${gameResult.outcome.toLowerCase()}`}>{gameResult.outcome}</strong>}</div>
-        <div class="opponent"><TeamMark abbreviation={opponentAbbr(game)} name={opponentName(game)} decorative /><div><p>{isHome(game)?"Home":"Away"}</p><h3>{isHome(game)?"vs":"at"} {opponentName(game)}</h3><span>{formatPacificTime(dateValue(game))}</span></div></div>
+        <div class="opponent"><TeamMark abbreviation={opponentAbbr(game)} name={opponentName(game)} decorative /><div><p>{isHome(game)?"Home":"Away"}</p><h3>{isHome(game)?"vs":"at"} {opponentName(game)}</h3><span>{formatScheduleDate(game)}</span></div></div>
         <div class="badges">{division&&<span>Division</span>}{gamePrime&&<span>Prime time</span>}</div>
-        <dl><div><dt>Venue</dt><dd>{venue(game)??"To be announced"}</dd></div>{networkName&&<div><dt>TV</dt><dd>{networkName}</dd></div>}</dl>
-        <div class="game-action">{gameResult?<strong>{gameResult.outcome} · SEA {gameResult.sea}, {opponentAbbr(game)} {gameResult.opp}</strong>:<strong>{isLive(game)?"In progress":"Upcoming"}</strong>}<a href={href(game,games.indexOf(game))}>{gameResult?"Recap":isLive(game)?"Game Center":"Preview"} →</a></div>
+        <dl><div><dt>Venue</dt><dd>{venue(game)??"Venue TBD"}</dd></div><div><dt>TV</dt><dd>{networkName??"Network TBD"}</dd></div></dl>
+        <div class="game-action">{gameResult?<strong>{gameResult.outcome} · SEA {gameResult.sea}, {opponentAbbr(game)} {gameResult.opp}</strong>:<strong>{stateLabel(game)}</strong>}<a href={href(game,games.indexOf(game))}>{gameResult?"Recap":isLive(game)?"Game Center":"Preview"} →</a></div>
       </article>;
     })}</div></div>) : <div class="empty-state"><span>{section.label}</span><h2>{section.id==="postseason"?"The playoff picture is still taking shape":`No ${section.label.toLowerCase()} games are available`}</h2><p>{section.id==="postseason"?"Qualifying matchups will appear here once they are confirmed.":"Games will appear here when schedule data is available."}</p></div>}
   </section>)}

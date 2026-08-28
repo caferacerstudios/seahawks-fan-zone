@@ -8,6 +8,7 @@ import { getAvailableSeasonContexts, getGameState, getSeasonContext, isFinalGame
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
 import rosterData from "../../data/nfl/players.json";
+const scheduleArchive: any = scheduleData;
 
 let standingsData = null;
 try {
@@ -218,11 +219,11 @@ function sortByDate(a, b) {
 }
 
 function getRawGamesLocal() {
-  return Array.isArray(scheduleData?.games)
-    ? scheduleData.games
-    : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
-      ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
-      : [];
+  const records = Array.isArray(scheduleArchive?.seasons) ? scheduleArchive.seasons : [scheduleArchive];
+  return records.flatMap((record) => Array.isArray(record?.games)
+    ? record.games
+    : [...(record?.gamesPreseason || []), ...(record?.gamesRegular || []), ...(record?.gamesPostseason || [])])
+    .filter((game) => game?.state !== "bye" && game?.bye !== true);
 }
 
 function gameKey(g, idx) {
@@ -233,11 +234,12 @@ function gameKey(g, idx) {
    getStaticPaths (SELF-CONTAINED)
    ======================= */
 export function getStaticPaths() {
-  const rawGames = Array.isArray(scheduleData?.games)
-    ? scheduleData.games
-    : Array.isArray(scheduleData?.gamesRegular) || Array.isArray(scheduleData?.gamesPostseason)
-      ? [...(scheduleData.gamesRegular || []), ...(scheduleData.gamesPostseason || [])]
-      : [];
+  const archive: any = scheduleData;
+  const records = Array.isArray(archive?.seasons) ? archive.seasons : [archive];
+  const rawGames = records.flatMap((record) => Array.isArray(record?.games)
+    ? record.games
+    : [...(record?.gamesPreseason || []), ...(record?.gamesRegular || []), ...(record?.gamesPostseason || [])])
+    .filter((game) => game?.state !== "bye" && game?.bye !== true);
 
   function sortByDateLocal(a, b) {
     const ad = a?.date ? new Date(a.date).getTime() : 0;
@@ -261,15 +263,19 @@ export function getStaticPaths() {
    ======================= */
 const { gameId } = Astro.params;
 
-const ordered = getRawGamesLocal().slice().sort(sortByDate);
-const idx = ordered.findIndex((g, i) => gameKey(g, i) === String(gameId));
-const game = idx >= 0 ? ordered[idx] : null;
+const allGames = getRawGamesLocal();
+const game = allGames.find((g, i) => gameKey(g, i) === String(gameId)) ?? null;
+const ordered = allGames.filter((row) => Number(row?.season) === Number(game?.season)).sort(sortByDate);
+const idx = game ? ordered.findIndex((row) => String(row?.id ?? row?.game_id) === String(game?.id ?? game?.game_id)) : -1;
+const gameSeasonData = Array.isArray(scheduleArchive?.seasons)
+  ? scheduleArchive.seasons.find((record) => Number(record?.season) === Number(game?.season)) ?? scheduleArchive
+  : scheduleArchive;
 const gameSeasonType = game && isPlayoffGame(game) ? "postseason" : "regular season";
 const gameContext = getSeasonContext({
-  ...scheduleData,
-  seasonContext: { ...scheduleData?.seasonContext, seasonType: gameSeasonType },
+  ...gameSeasonData,
+  seasonContext: { ...gameSeasonData?.seasonContext, seasonType: gameSeasonType },
 }, gameSeasonType);
-const seasonOptions = getAvailableSeasonContexts(scheduleData, gameSeasonType);
+const seasonOptions = getAvailableSeasonContexts(gameSeasonData, gameSeasonType);
 
 const prev = idx > 0 ? ordered[idx - 1] : null;
 const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;

@@ -62,10 +62,14 @@ function statsFor(data: any, seasonType: SeasonType): any[] {
 }
 
 function sourceYear(data: any, rows: any[]): number | null {
+  // Player statistics may intentionally lag an upcoming schedule by one year.
+  // They must not redefine the source season of the schedule itself.
+  const declared = year(data?.seasonContext?.sourceSeason ?? data?.sourceSeason ?? data?.season);
+  if (declared !== null) return declared;
   const rowYears = new Set(rows.map((row) => year(row?.season)).filter((value): value is number => value !== null));
   if (rowYears.size === 1) return [...rowYears][0];
   if (rowYears.size > 1) return null;
-  return year(data?.seasonContext?.sourceSeason ?? data?.sourceSeason ?? data?.season);
+  return null;
 }
 
 export function getSeasonContext(data: any, requestedType: SeasonType = "regular season"): SeasonContext {
