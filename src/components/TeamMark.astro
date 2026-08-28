@@ -4,25 +4,25 @@ interface Props {
   name?: string;
   size?: number;
   decorative?: boolean;
+  loading?: "eager" | "lazy";
 }
+
+import { nflTeamLogoUrl, normalizeNflTeamAbbreviation } from "../lib/team-logos.mjs";
 
 const {
   abbreviation = "",
   name = "",
   size = 44,
   decorative = false,
+  loading = "eager",
 } = Astro.props;
-const abbr = String(abbreviation).trim().toUpperCase() || "NFL";
-const logos = new Map(
-  Object.keys(import.meta.glob("../../public/images/nfl/teams/*.{png,svg,webp,jpg,jpeg}"))
-    .map((path) => [path.split("/").pop()?.split(".")[0]?.toUpperCase(), path.replace("../../public", "")]),
-);
-const src = logos.get(abbr);
+const abbr = normalizeNflTeamAbbreviation(abbreviation) || "NFL";
+const src = nflTeamLogoUrl(abbr);
 const label = name ? `${name} logo` : `${abbr} team logo`;
 ---
 
 {src
-  ? <img class="team-mark" style={`--team-mark-size:${size}px`} src={src} alt={decorative ? "" : label} width={size} height={size} loading="lazy" decoding="async" />
+  ? <img class="team-mark" style={`--team-mark-size:${size}px`} src={src} alt={decorative ? "" : label} width={size} height={size} loading={loading} decoding="async" />
   : <span
       class="team-mark team-mark--fallback"
       style={`--team-mark-size:${size}px`}
