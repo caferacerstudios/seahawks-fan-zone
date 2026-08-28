@@ -153,12 +153,12 @@ async function main() {
   console.log(`Using season year: ${SEASON}`);
 
   // 2) Fetch games for that season
-  const games = await pagedGet("/games", {
+  const fetchedGames = await pagedGet("/games", {
     "team_ids[]": [team.id],
     "seasons[]": [SEASON],
   });
 
-  const gamesFiltered = games.filter((g) => Number(g.season) === Number(SEASON));
+  const gamesFiltered = fetchedGames.filter((g) => Number(g.season) === Number(SEASON));
 
   // Normalize once at the ingestion boundary. In particular, `postseason:
   // false` does not mean regular season: the API also uses it for preseason.
