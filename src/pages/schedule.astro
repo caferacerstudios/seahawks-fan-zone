@@ -2,8 +2,9 @@
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../components/SeasonContext.astro";
 import ScheduleList from "../components/ScheduleList.astro";
+import UpNext from "../components/UpNext.astro";
 import { getAvailableSeasonContexts, getSeasonContext } from "../lib/season-context";
-import { nextScheduleEvent, selectScheduleSeason } from "../lib/schedule.mjs";
+import { featuredScheduleEvent, nextScheduleEvent, selectScheduleSeason } from "../lib/schedule.mjs";
 import rawScheduleData from "../data/nfl/seahawks.json";
 
 const scheduleRoot: any = rawScheduleData;
@@ -22,9 +23,11 @@ const sections = [
   { id:"postseason", label:"Postseason", games:games.filter((game) => typeOf(game) === "postseason") },
 ];
 const nextGame = nextScheduleEvent(games, new Date());
+const featuredGame = featuredScheduleEvent(games, new Date());
 ---
 
 <SeahawksLayout title={`Seahawks Schedule (${season})`} pageTitle={`Seahawks Schedule (${season})`} description={`Seattle Seahawks ${season} season schedule, results, and upcoming games`} seo={{ title: `Seahawks Schedule (${season}) | Seahawks Fan Zone`, description: `Seattle Seahawks ${season} season schedule, results, and upcoming games`, canonicalPath: `/schedule${scheduleRoot?.seasons?.length ? `?season=${season}` : ""}` }} activePath="/schedule" pageType="schedule" season={season}>
   <SeasonContextView context={context} options={options} freshnessIndicator seasonNavigation />
+  <UpNext game={featuredGame} canonicalBase={Astro.site ?? Astro.url} />
   <ScheduleList sections={sections} nextGameId={nextGame?.id} />
 </SeahawksLayout>
