@@ -96,110 +96,54 @@ const hasMarkers = [...currentRows, ...previousRows].some((row) => row.marker);
 
   {!seasonContext.hasData && <div class="empty">{unavailableMessage(seasonContext)}</div>}
 
-  <div class="cards-grid">
-    <!-- Record card -->
-    <article class="card">
-      <div class="card-top">
-        <div class="week">Seahawks record</div>
-        <div class="date">Regular season</div>
+  <header class="race-header">
+    <p class="eyebrow">NFC West race</p>
+    <h1>{seasonContext.label} standings</h1>
+    {seattle ? (
+      <div class="sea-summary">
+        <div><span>Division rank</span><strong>{ordinal(seattle.rank)}</strong></div>
+        <div><span>Record</span><strong>{seattle.wins}-{seattle.losses}{seattle.ties !== "0" && seattle.ties !== "—" ? `-${seattle.ties}` : ""}</strong></div>
+        <div><span>Win pct.</span><strong>{seattle.percentage}</strong></div>
+        <div><span>Point diff.</span><strong>{seattle.differential}</strong></div>
+        <div><span>Division</span><strong>{seattle.division}</strong></div>
       </div>
+    ) : <p class="race-empty">Seattle's standings row is not available yet.</p>}
+  </header>
 
-      <div class="matchup">
-        <div class="team">
-          <img class="logo" src={teamLogo("SEA")} alt="Seattle Seahawks logo" width="28" height="28" loading="lazy" decoding="async" />
-          <div class="abbr">SEA</div>
-          <div class="ha">—</div>
-        </div>
+  {!hasStarted && <p class="season-notice">The season has not started. Standings will update after games are played.</p>}
 
-        <div class="at">•</div>
-
-        <div class="team" style="justify-content:center;">
-          <div class="abbr">
-            {gamesPlayed ? `${record.w}-${record.l}` : "—"}
-          </div>
-          <div class="ha">
-            {winPct === null ? "—" : `${Math.round(winPct * 1000) / 10}% win%`}
-          </div>
-        </div>
-      </div>
-
-      <div class="card-bottom">
-        <div class="status">Games played</div>
-        <div class="score">{gamesPlayed > 0 ? gamesPlayed : "—"}</div>
-      </div>
-    </article>
-
-    {/* ✅ Only render playoff card when real standings data exists */}
-    {HAS_STANDINGS ? (
-      <article class="card">
-        <div class="card-top">
-          <div class="week">Playoff picture</div>
-          <div class="date">NFC</div>
-        </div>
-
-        <div class="empty" style="margin-top:.6rem;">
-          Standings are available, but this section hasn’t been wired up to display them yet.
-        </div>
-
-        <div class="card-bottom" style="margin-top:.7rem;">
-          <div class="status">Status</div>
-          <div class="score">Available</div>
-        </div>
-      </article>
-    ) : null}
-  </div>
-
-  <h2 class="section-title" style="margin-top: 1.25rem;">Remaining regular season</h2>
-
-  {remaining.length === 0 ? (
-    <div class="empty">{seasonContext.seasonStatus === "complete" ? "The regular season is complete." : unavailableMessage(seasonContext)}</div>
-  ) : (
-    <div class="cards-grid">
-      {remaining.map((g) => {
-        const opp = oppAbbr(g);
-        const gid = String(g?.id ?? g?.game_id ?? "");
-        return (
-          <article class="card">
-            <div class="card-top">
-              <div class="week">
-                {Number.isFinite(Number(g?.week)) ? `Week ${g.week}` : String(g?.week || "")}
-              </div>
-              <div class="date">{fmtPT(g?.date)}</div>
-            </div>
-
-            <div class="matchup">
-              <div class="team">
-                <img class="logo" src={teamLogo("SEA")} alt="Seattle Seahawks logo" width="28" height="28" loading="lazy" decoding="async" />
-                <div class="abbr">SEA</div>
-                <div class="ha">{seaIsHome(g) ? "H" : "A"}</div>
-              </div>
-
-              <div class="at">@</div>
-
-              <div class="team">
-                <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} width="28" height="28" loading="lazy" decoding="async" />
-                <div class="abbr">{opp}</div>
-                <div class="ha">{seaIsHome(g) ? "A" : "H"}</div>
-              </div>
-            </div>
-
-            <div class="card-bottom">
-              <div class="status">{statusText(g)}</div>
-              <div class="score">{scoreText(g)}</div>
-            </div>
-
-            {gid ? (
-              <div class="links-row">
-                <a class="pill pill--ghost" href={`/games/${encodeURIComponent(gid)}`}>
-                  Game page →
-                </a>
-              </div>
-            ) : null}
-          </article>
-        );
-      })}
+  <section class="standings-section" aria-labelledby="standings-heading">
+    <div class="section-heading">
+      <h2 id="standings-heading">NFC West standings</h2>
     </div>
+    {currentRows.length ? <NfcWestTable rows={currentRows} label={`${seasonContext.label} NFC West standings`} /> : <div class="empty">Standings are not available for this season yet.</div>}
+    {hasMarkers && <p class="marker-note">Clinching and elimination status appears beneath each team when supplied by the standings source.</p>}
+  </section>
+
+  {previousRows.length > 0 && (
+    <section class="standings-section" aria-labelledby="previous-standings-heading">
+      <div class="section-heading"><h2 id="previous-standings-heading">{previousSeason} final standings</h2></div>
+      <p class="archive-label">Previous season reference</p>
+      <NfcWestTable rows={previousRows} label={`${previousSeason} final NFC West standings`} />
+    </section>
   )}
+
+  <div class="division-grid">
+    <section class="module" aria-labelledby="upcoming-heading">
+      <h2 id="upcoming-heading">Upcoming division games</h2>
+      {upcoming.length ? <ul class="game-list">{upcoming.map((game, index) => <li>
+        <div><strong>{home(game) ? "vs." : "at"} {NAMES[opponent(game)] ?? opponent(game)}</strong><span>{formatDate(game?.date)}</span></div>
+        <a href={gameHref(game, index)}>Game page →</a>
+      </li>)}</ul> : <p class="empty">No upcoming NFC West games are scheduled.</p>}
+    </section>
+
+    <section class="module" aria-labelledby="completed-heading">
+      <h2 id="completed-heading">Division results</h2>
+      {completed.length ? <ul class="series-list">{completed.map((game) => <li>
+        <strong>{home(game) ? "vs." : "at"} {opponent(game)}</strong><span>{result(game)}</span>
+      </li>)}</ul> : <p class="empty">No NFC West results are available yet.</p>}
+    </section>
+  </div>
 
   <style>
     .eyebrow{margin:0 0:.25rem;color:var(--slate-700);font:900 .72rem var(--font-display);letter-spacing:.1em;text-transform:uppercase}.race-header{padding:clamp(1.1rem,4vw,2rem);border-top:7px solid var(--action-green);background:var(--navy-950);color:#fff;box-shadow:var(--shadow-lg)}.race-header .eyebrow{color:var(--action-green)}.race-header h1{margin:0;font:900 clamp(2rem,7vw,4rem)/1 var(--font-display)}.sea-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;margin-top:1.25rem;background:#ffffff24;border:1px solid #ffffff24}.sea-summary div{padding:.8rem;background:var(--navy-900)}.sea-summary span{display:block;color:var(--slate-300);font-size:.68rem;font-weight:800;text-transform:uppercase}.sea-summary strong{display:block;margin-top:.15rem;font:900 clamp(1.1rem,3vw,1.55rem) var(--font-display)}.race-empty{margin:1rem 0 0;color:var(--slate-300)}.season-notice,.archive-label,.marker-note,.empty{padding:.8rem 1rem;border:var(--border-crisp);background:var(--slate-100);color:var(--navy-900)}.season-notice{margin-top:1rem;border-left:5px solid var(--action-green)}.standings-section,.division-grid{margin-top:1.25rem}.section-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem;margin-bottom:.7rem}.section-heading h2,.module h2{margin:0;color:var(--navy-900);font:900 1.55rem var(--font-display)}.tabs{display:flex;gap:.35rem}.tabs button{padding:.55rem .7rem;border:var(--border-crisp);background:#fff;color:var(--navy-900);font-weight:800;cursor:pointer}.tabs button[aria-selected="true"]{border-color:var(--navy-900);background:var(--navy-900);color:#fff;box-shadow:inset 0 -3px var(--action-green)}.archive-label,.marker-note{margin:.65rem 0;font-size:.85rem}.division-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:1rem}.module{min-width:0;padding:1rem;border:var(--border-crisp);background:#fff;box-shadow:var(--shadow-sm)}.game-list,.series-list{margin:.8rem 0 0;padding:0;list-style:none}.game-list li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 0;border-top:var(--border-crisp)}.game-list li div{display:grid;gap:.1rem}.game-list span,.game-list small{color:var(--slate-700);font-size:.72rem}.game-list a{flex:0 0 auto;color:var(--navy-900);font-weight:900}.series-list li{display:grid;grid-template-columns:minmax(9rem,1fr) 1fr;gap:.75rem;padding:.7rem 0;border-top:var(--border-crisp)}.series-list span{color:var(--slate-700)}@media(max-width:760px){.sea-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.section-heading{align-items:stretch;flex-direction:column}.division-grid{grid-template-columns:1fr}}@media(max-width:420px){.race-header{margin-inline:-.6rem}.game-list li{align-items:flex-start;flex-direction:column}.series-list li{grid-template-columns:1fr}.tabs{width:100%}.tabs button{flex:1}}
