@@ -164,18 +164,53 @@ export function normalizeSchedule(raw, expectedSeason = raw?.season) {
 }
 
 export function nextScheduleEvent(games, now = new Date()) {
-  // Status is authoritative: an unfinished event remains next even if its
-  // scheduled instant has passed (stale feeds and postponements are common).
-  // Sorting by phase/week also keeps a same-day preseason game ahead of Week 1.
-  void now;
-  const eligible = sortSchedule(games).filter((game) => !["bye", "canceled", "completed"].includes(game.state));
-  return eligible[0] ?? null;
+  const selected = selectFeaturedGame(games, { now });
+  return ["live", "upcoming"].includes(selected.state) ? selected.game : null;
 }
 
 export function featuredScheduleEvent(games, now = new Date()) {
-  const next = nextScheduleEvent(games, now);
-  if (next) return next;
-  return sortSchedule(games).filter((game) => game.state === "completed").at(-1) ?? null;
+  return selectFeaturedGame(games, { now }).game;
+}
+
+function chronologicalTime(game, fallback = Number.MAX_SAFE_INTEGER) {
+  if (game?.startsAt) {
+    const value = new Date(game.startsAt).getTime();
+    if (Number.isFinite(value)) return value;
+  }
+  if (game?.date) {
+    const value = new Date(`${game.date}T23:59:59-07:00`).getTime();
+    if (Number.isFinite(value)) return value;
+  }
+  return fallback;
+}
+
+/** Canonical featured-game selector used by every above-the-fold game surface. */
+export function selectFeaturedGame(games, { now = new Date(), offseason = null, finalMaxAgeDays = 45 } = {}) {
+  const rows = Array.isArray(games) ? games : [];
+  const nowTime = now.getTime();
+  const live = rows
+    .filter((game) => game.state === "in_progress")
+    .sort((a, b) => chronologicalTime(a) - chronologicalTime(b))[0];
+  if (live) return { state: "live", game: live, offseason: null };
+
+  const future = rows
+    .filter((game) => !["bye", "canceled", "completed", "in_progress"].includes(game.state))
+    .filter((game) => chronologicalTime(game) >= nowTime)
+    .sort((a, b) => chronologicalTime(a) - chronologicalTime(b))[0];
+  if (future) return { state: "upcoming", game: future, offseason: null };
+
+  const completed = rows
+    .filter((game) => game.state === "completed")
+    .sort((a, b) => chronologicalTime(a, Number.MIN_SAFE_INTEGER) - chronologicalTime(b, Number.MIN_SAFE_INTEGER))
+    .at(-1);
+  const completedAge = completed ? nowTime - chronologicalTime(completed, Number.MIN_SAFE_INTEGER) : Number.POSITIVE_INFINITY;
+  if (completed && (completedAge < 0 || completedAge <= finalMaxAgeDays * 86_400_000)) return { state: "final", game: completed, offseason: null };
+
+  return {
+    state: "offseason",
+    game: null,
+    offseason: offseason && typeof offseason === "object" ? offseason : { label: "Season overview", detail: "The next Seahawks game will appear when the schedule is available.", href: "/schedule" },
+  };
 }
 
 export function validateSchedule(schedule, displaySeason = schedule?.season) {
@@ -194,9 +229,7 @@ export function validateSchedule(schedule, displaySeason = schedule?.season) {
     if (game.timeConfirmed && /T00:00:00(?:\.000)?Z$/.test(game.startsAt ?? "")) errors.push(`placeholder timestamp marked confirmed: ${game.id}`);
   }
   if (schedule?.byeWeek != null && !games.some((game) => game.state === "bye" && game.week === integer(schedule.byeWeek))) errors.push(`missing supplied bye week: ${schedule.byeWeek}`);
-  const unfinished = sortSchedule(games).filter((game) => !["bye", "canceled", "completed"].includes(game.state));
-  const next = nextScheduleEvent(games, new Date(0));
-  if (unfinished.length && next?.id !== unfinished[0].id) errors.push(`next game skips earlier unfinished event: ${unfinished[0].id}`);
+  const next = nextScheduleEvent(games);
   if (schedule?.nextGameId != null && String(schedule.nextGameId) !== String(next?.id ?? "")) errors.push(`published next game skips earlier unfinished event: ${next?.id ?? "none"}`);
   if (errors.length) throw new Error(`Schedule validation failed:\n- ${errors.join("\n- ")}`);
   return true;
@@ -211,13 +244,21 @@ export function selectScheduleSeason(data, requestedSeason) {
 }
 
 export function formatScheduleDate(game) {
-  if (!game?.dateConfirmed || !game?.date) return "Date TBD";
+  return formatKickoff(game, "short");
+}
+
+export function formatKickoff(game, style = "full") {
+  if (!game?.dateConfirmed || !game?.date) return style === "time" ? "Time TBD" : "Date TBD";
   const value = game.startsAt ?? `${game.date}T12:00:00Z`;
   const date = new Date(value);
-  const day = new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, weekday: "short", month: "short", day: "numeric" }).format(date);
-  if (!game.timeConfirmed || !game.startsAt) return `${day} · Time TBD`;
-  const time = new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, hour: "numeric", minute: "2-digit" }).format(date);
-  return `${day} · ${time} PT`;
+  const dateText = new Intl.DateTimeFormat("en-US", {
+    timeZone: PACIFIC, weekday: style === "full" ? "long" : "short", month: style === "full" ? "long" : "short", day: "numeric", year: style === "full" ? "numeric" : undefined,
+  }).format(date);
+  if (!game.timeConfirmed || !game.startsAt) return style === "time" ? "Time TBD" : `${dateText} · Time TBD`;
+  const timeText = `${new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, hour: "numeric", minute: "2-digit" }).format(date)} PT`;
+  if (style === "date") return dateText;
+  if (style === "time") return timeText;
+  return `${dateText} · ${timeText}`;
 }
 
 export function scheduleFreshness(updatedAt, now = new Date()) {

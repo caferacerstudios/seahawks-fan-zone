@@ -4,7 +4,8 @@ import AdSlot from "../components/AdSlot.astro";
 import ArticleCard from "../components/ArticleCard.astro";
 import TrendingNow from "../components/TrendingNow.astro";
 import { publishedArticles } from "../lib/news";
-import { formatPacificTime } from "../lib/season-context";
+import { formatKickoff, normalizeSchedule, scheduleFreshness, selectFeaturedGame } from "../lib/schedule.mjs";
+import { gameDayView } from "../lib/game-day.mjs";
 import { formatUpdateDate, playerPath as movementPlayerPath, transactions } from "../lib/team-updates";
 
 let nfl: any = null;
@@ -14,17 +15,11 @@ try { nfl = (await import("../data/nfl/seahawks.json")).default; } catch {}
 try { standings = (await import("../data/nfl/standings.json")).default; } catch {}
 try { recapData = (await import("../data/nfl/gameRecaps.json")).default; } catch {}
 
-const now = Date.now();
+const now = new Date();
 const abbr = (team: any) => String(team?.abbreviation ?? team?.abbr ?? "").toUpperCase();
 const id = (game: any, i = 0) => String(game?.id ?? game?.game_id ?? i);
 const href = (game: any, i = 0) => `/games/${encodeURIComponent(id(game, i))}`;
-const time = (game: any) => { const n = new Date(game?.date ?? game?.start_time ?? game?.kickoff ?? "").getTime(); return Number.isFinite(n) ? n : null; };
-const rawStatus = (game: any) => String(game?.status ?? "").trim();
-const lowerStatus = (game: any) => rawStatus(game).toLowerCase();
-const final = (game: any) => ["final", "finished", "complete"].some((x) => lowerStatus(game).includes(x));
-const live = (game: any) => ["in progress", "live", "halftime", "q1", "q2", "q3", "q4", "overtime"].some((x) => lowerStatus(game).includes(x));
-const dataTime = new Date(nfl?.updatedAt ?? "").getTime();
-const trustworthyLive = (game: any) => live(game) && Number.isFinite(dataTime) && now - dataTime >= 0 && now - dataTime < 15 * 60_000;
+const time = (game: any) => { const n = new Date(game?.startsAt ?? game?.date ?? game?.start_time ?? game?.kickoff ?? "").getTime(); return Number.isFinite(n) ? n : null; };
 const home = (game: any) => abbr(game?.home_team) === "SEA";
 const opponent = (game: any) => home(game) ? game?.visitor_team : game?.home_team;
 const opp = (game: any) => abbr(opponent(game));
@@ -41,17 +36,16 @@ const phase = (game: any) => {
   return "Regular season";
 };
 const week = (game: any) => game?.week !== null && game?.week !== undefined && String(game.week).trim() ? `Week ${game.week}` : "Game day";
-const venue = (game: any) => game?.venue?.name ?? game?.venue ?? game?.stadium?.name ?? game?.stadium ?? null;
 const marks = new Map(Object.keys(import.meta.glob("../../public/images/nfl/teams/*.{png,svg,webp}"))
   .map((path) => [path.split("/").pop()?.split(".")[0]?.toUpperCase(), path.replace("../../public", "")]));
 
-const sourceGames = Array.isArray(nfl?.games) ? nfl.games : [...(nfl?.gamesPreseason ?? []), ...(nfl?.gamesRegular ?? []), ...(nfl?.gamesPostseason ?? [])];
-const games = sourceGames
-  .filter((game, i, all) => all.findIndex((other, j) => id(other, j) === id(game, i)) === i)
-  .sort((a, b) => (time(a) ?? Number.MAX_SAFE_INTEGER) - (time(b) ?? Number.MAX_SAFE_INTEGER));
-const completed = games.filter(final);
-const upcoming = games.filter((game) => !final(game) && !live(game) && (time(game) ?? 0) > now);
-const featured = games.find(trustworthyLive) ?? upcoming[0] ?? completed.at(-1) ?? null;
+const schedule = nfl?.season ? normalizeSchedule(nfl, nfl.season) : null;
+const games = schedule?.games ?? [];
+const completed = games.filter((game) => game.state === "completed");
+const upcoming = games.filter((game) => !["completed", "canceled", "bye", "in_progress"].includes(game.state) && (time(game) ?? Number.MAX_SAFE_INTEGER) >= now.getTime());
+const selection = selectFeaturedGame(games, { now, offseason: nfl?.offseasonMilestone });
+const featured = selection.game;
+const featuredView = gameDayView(featured, now);
 const latest = completed.at(-1) ?? null;
 const latestRecap = completed.filter((game, i) => recapData?.recaps?.[id(game, games.indexOf(game))]).at(-1) ?? null;
 const latestScored = completed.filter((game) => score(game, true) !== null && score(game, false) !== null).at(-1) ?? null;
@@ -73,7 +67,7 @@ const division = String(seaStanding?.division ?? standingTeam(seaStanding)?.divi
 const divisionRank = seaStanding?.division_rank ?? seaStanding?.divisionRank ?? null;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 
-const stats = Number(nfl?.playerStatsSeason ?? nfl?.season) === Number(nfl?.season) && Array.isArray(nfl?.playerSeasonStats) ? nfl.playerSeasonStats : [];
+const stats = Array.isArray(nfl?.playerSeasonStats) ? nfl.playerSeasonStats : [];
 const leader = (keys: string[]) => stats.map((row: any) => ({ row, value: keys.map((key) => row?.[key]).find((v) => typeof v === "number" && Number.isFinite(v)) }))
   .filter((x: any) => x.value > 0).sort((a: any, b: any) => b.value - a.value)[0];
 const playerName = (row: any) => `${row?.player?.first_name ?? ""} ${row?.player?.last_name ?? ""}`.trim();
@@ -86,29 +80,32 @@ const leaders = [
   ["Receiving leader", "Rec. yards", leader(["receiving_yards", "receivingYards"])],
   ["Defensive leader", tacklesLeader ? "Tackles" : "Sacks", tacklesLeader ?? sacksLeader],
 ].filter(([, , item]: any) => item?.row && playerName(item.row));
-const state = featured ? trustworthyLive(featured) ? "live" : final(featured) ? "final" : "upcoming" : "empty";
+const state = selection.state;
 const action = state === "live" ? "View Game Center" : state === "final" ? "Read Recap" : "View Preview";
+const freshness = scheduleFreshness(nfl?.updatedAt, now);
+const statsSeason = Number(nfl?.playerStatsSeason ?? nfl?.season);
+const leaderHeading = statsSeason === Number(nfl?.season) ? "Team leaders" : `${statsSeason} season leaders`;
 const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank || leaders.length || latest);
 ---
 
 <SeahawksLayout title={`${nfl?.season ?? "Current"} Seattle Seahawks season hub`} description="Current Seahawks games, standings, leaders, and recaps." activePath="/" showPageHeader={false} monetizationEligible={Boolean(featured || hasDashboard)}>
   <p class="home-value">The current Seahawks season—game context, standings, leaders, and recaps in one fast read.</p>
 
-  {featured ? <section class={`scoreboard scoreboard--${state}`} aria-labelledby="featured-title">
-    <div class="topline"><span>{nfl?.season ?? featured?.season} {phase(featured)}</span><span>{week(featured)}</span><span class="state">{state === "live" ? rawStatus(featured) : state === "final" ? "Final" : "Kickoff"}</span></div>
+  {featured && featuredView ? <section class={`scoreboard scoreboard--${state}`} aria-labelledby="featured-title">
+    <div class="topline"><span>{featured.season} {phase(featured)}</span><span>{featuredView.phaseWeek}</span><span class="state">{state === "live" ? "LIVE" : state === "final" ? "Final" : "Upcoming"}</span></div>
     <div class="scorebody">
       <div><p class="location">{home(featured) ? "Home · vs." : "Away · at"}</p><h1 id="featured-title">{teamName(opponent(featured), opp(featured) || "Opponent")}</h1>
-        {(nfl?.team?.record || opponent(featured)?.record) && <p class="records">SEA {nfl?.team?.record ?? "record unavailable"} · {opp(featured)} {opponent(featured)?.record ?? "record unavailable"}</p>}</div>
+        {(featuredView.seaRecord || featuredView.opponentRecord) && <p class="records">{featuredView.seaRecord && <>SEA {featuredView.seaRecord}</>}{featuredView.seaRecord && featuredView.opponentRecord && <> · </>}{featuredView.opponentRecord && <>{opp(featured)} {featuredView.opponentRecord}</>}</p>}</div>
       {marks.has("SEA") && marks.has(opp(featured)) && <div class="marks" aria-hidden="true"><img src={marks.get("SEA")} alt="" width="78" height="78" decoding="async"/><span>{home(featured) ? "VS" : "AT"}</span><img src={marks.get(opp(featured))} alt="" width="78" height="78" decoding="async"/></div>}
       <div class="main-result">
         {state === "final" && score(featured, true) !== null && score(featured, false) !== null ? <><span>{result(featured)} · Final</span><strong>{score(featured, true)}–{score(featured, false)}</strong></>
-          : state === "live" ? <><span>Source status · Updated {formatPacificTime(nfl?.updatedAt)}</span><strong>{rawStatus(featured)}</strong></>
-          : <><span>Countdown to kickoff</span><strong class="countdown" data-kickoff={new Date(time(featured)!).toISOString()}>Calculating…</strong></>}
+          : state === "live" ? <><span>{[featuredView.quarter, featuredView.clock].filter(Boolean).join(" · ") || "Game in progress"}</span><strong>{featuredView.liveScore ? `${featuredView.liveScore.seahawks}–${featuredView.liveScore.opponent}` : "LIVE"}</strong></>
+          : <><span>Countdown to kickoff</span><strong class="countdown" data-kickoff={featured.startsAt}>{formatKickoff(featured)}</strong></>}
       </div>
     </div>
-    <div class="details"><span>{formatPacificTime(featured?.date ?? featured?.start_time ?? featured?.kickoff)}</span>{venue(featured) && <span>{venue(featured)}</span>}</div>
+    <div class="details"><span>{formatKickoff(featured)}</span>{featured.venue && <span>{featured.venue}</span>}{featured.network && <span>Watch: {featured.network}</span>}<span><a href="/methodology">{freshness.label}</a></span></div>
     <div class="actions"><a class="button primary" href={href(featured, games.indexOf(featured))}>{action} →</a><a class="button" href="/schedule">Full Schedule</a></div>
-  </section> : <section class="scoreboard empty"><p class="location">Season hub</p><h1 id="featured-title">The next Seahawks game will appear here</h1><p>Schedule data is not available in this build yet.</p><a class="button primary" href="/schedule">Full Schedule</a></section>}
+  </section> : <section class="scoreboard empty"><p class="location">Offseason</p><h1 id="featured-title">{selection.offseason?.label ?? "Season overview"}</h1><p>{selection.offseason?.detail}</p><p>{freshness.label}</p><a class="button primary" href={selection.offseason?.href ?? "/schedule"}>Full Schedule</a></section>}
 
   <TrendingNow />
 
@@ -127,9 +124,9 @@ const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank ||
 
   <section class="dashboard" aria-labelledby="dashboard-title"><h2 id="dashboard-title">Season dashboard</h2>
     {latestScored && <article class="card"><p class="label">Latest result</p><h3>{result(latestScored)} {score(latestScored, true)}–{score(latestScored, false)} <small>{home(latestScored) ? "vs." : "at"} {opp(latestScored)}</small></h3><p>{week(latestScored)} · {phase(latestScored)}</p><a href={href(latestScored, games.indexOf(latestScored))}>Read recap →</a></article>}
-    {nextThree.length > 0 && <article class="card"><p class="label">Next three games</p><ol>{nextThree.map((game) => <li><a href={href(game, games.indexOf(game))}><strong>{home(game) ? "vs." : "at"} {opp(game)}</strong><span>{week(game)} · {formatPacificTime(game?.date ?? game?.start_time)}</span></a></li>)}</ol><a href="/schedule">Full schedule →</a></article>}
+    {nextThree.length > 0 && <article class="card"><p class="label">Next three games</p><ol>{nextThree.map((game) => <li><a href={href(game, games.indexOf(game))}><strong>{home(game) ? "vs." : "at"} {opp(game)}</strong><span>{week(game)} · {formatKickoff(game)}</span></a></li>)}</ol><a href="/schedule">Full schedule →</a></article>}
     {divisionRank && <article class="card standing"><p class="label">NFC West position</p><h3>{ordinal(Number(divisionRank))}</h3><p>{division}</p><a href="/standings">View standings →</a></article>}
-    {leaders.length > 0 && <article class="card leaders"><p class="label">Team leaders</p><div class="leader-list">{leaders.map(([label, metric, item]: any) => <a href={playerHref(item.row)}><span>{label}</span><strong>{playerName(item.row)}</strong><small>{item.value.toLocaleString()} {metric}</small></a>)}</div><div class="stat-links"><a href="/players">All player stats →</a><a href="/team">Team stats →</a></div></article>}
+    {leaders.length > 0 && <article class="card leaders"><p class="label">{leaderHeading}</p><div class="leader-list">{leaders.map(([label, metric, item]: any) => <a href={playerHref(item.row)}><span>{label}</span><strong>{playerName(item.row)}</strong><small>{item.value.toLocaleString()} {metric}</small></a>)}</div><div class="stat-links"><a href="/players">All player stats →</a><a href="/team">Team stats →</a></div></article>}
     {latestRecap && <article class="card"><p class="label">Latest game recap</p><h3>{week(latestRecap)}: {home(latestRecap) ? "vs." : "at"} {opp(latestRecap)}</h3><p>{result(latestRecap)} {score(latestRecap, true)}–{score(latestRecap, false)} · Read the authored recap and available game data.</p><a href={href(latestRecap, games.indexOf(latestRecap))}>Read latest recap →</a></article>}
     {!hasDashboard && <p class="dashboard-empty">Season details will appear as schedule, standings, and statistics become available.</p>}
   </section>

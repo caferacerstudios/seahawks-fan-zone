@@ -3,7 +3,7 @@ import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import ScheduleList from "../components/ScheduleList.astro";
 import UpNext from "../components/UpNext.astro";
 import { getAvailableSeasonContexts, getSeasonContext } from "../lib/season-context";
-import { featuredScheduleEvent, nextScheduleEvent, scheduleFreshness, selectScheduleSeason } from "../lib/schedule.mjs";
+import { scheduleFreshness, selectFeaturedGame, selectScheduleSeason } from "../lib/schedule.mjs";
 import { normalizeScheduleFilters, scheduleGameMatches } from "../lib/schedule-display.mjs";
 import rawScheduleData from "../data/nfl/seahawks.json";
 
@@ -22,8 +22,9 @@ const sections = [
   { id:"regular", label:"Regular Season", games:games.filter((game) => typeOf(game) === "regular") },
   { id:"postseason", label:"Postseason", games:games.filter((game) => typeOf(game) === "postseason") },
 ];
-const nextGame = nextScheduleEvent(games, new Date());
-const featuredGame = featuredScheduleEvent(games, new Date());
+const featuredSelection = selectFeaturedGame(games, { now: new Date(), offseason: scheduleData?.offseasonMilestone });
+const featuredGame = featuredSelection.game;
+const nextGame = ["upcoming", "live"].includes(featuredSelection.state) ? featuredGame : null;
 const requestedStatus = Astro.url.searchParams.get("status") ?? "all";
 const status = ["all", "upcoming", "completed"].includes(requestedStatus) ? requestedStatus : "all";
 const filters = normalizeScheduleFilters(Astro.url.searchParams.getAll("filter"));

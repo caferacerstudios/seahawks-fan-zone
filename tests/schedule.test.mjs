@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   formatScheduleDate,
+  formatKickoff,
   featuredScheduleEvent,
   nextScheduleEvent,
   normalizeSchedule,
   selectScheduleSeason,
+  selectFeaturedGame,
   validateSchedule,
 } from "../src/lib/schedule.mjs";
 import { groupScheduleMonths, normalizeScheduleFilters, scheduleGameMatches, scheduleRow } from "../src/lib/schedule-display.mjs";
@@ -153,6 +155,47 @@ test("featured game stays on an unfinished live or postponed event until final",
   assert.equal(featuredScheduleEvent(schedule.games).id, "later");
   schedule.games[1].state = "completed";
   assert.equal(featuredScheduleEvent(schedule.games).id, "later");
+});
+
+test("canonical featured selector covers live, upcoming preseason, final, and offseason", () => {
+  const schedule = normalizeSchedule({ season: 2026, games: [
+    game("pre", 2, "2026-08-28T19:20:00-07:00", { season_type: "preseason" }),
+    game("opener", 1, "2026-09-13T17:20:00-07:00", { season_type: "regular" }),
+  ] });
+  const clock = new Date("2026-08-28T12:00:00-07:00");
+  assert.deepEqual(selectFeaturedGame(schedule.games, { now: clock }), { state: "upcoming", game: schedule.gamesPreseason[0], offseason: null });
+
+  schedule.gamesRegular[0].state = "in_progress";
+  assert.equal(selectFeaturedGame(schedule.games, { now: clock }).game.id, "opener");
+  assert.equal(selectFeaturedGame(schedule.games, { now: clock }).state, "live");
+
+  schedule.gamesRegular[0].state = "completed";
+  schedule.gamesPreseason[0].state = "completed";
+  assert.equal(selectFeaturedGame(schedule.games, { now: new Date("2026-10-01T12:00:00-07:00") }).state, "final");
+  assert.equal(selectFeaturedGame([], { now: clock }).state, "offseason");
+  assert.equal(selectFeaturedGame(schedule.games, { now: new Date("2027-03-01T12:00:00-08:00") }).state, "offseason");
+});
+
+test("preseason, regular-season, and postseason labels remain distinct", () => {
+  for (const [seasonType, label] of [["preseason", "Preseason"], ["regular", "Regular Season"], ["postseason", "Postseason"]]) {
+    const normalized = normalizeSchedule({ season: 2026, games: [game(seasonType, 1, "2026-09-13T17:20:00-07:00", { season_type: seasonType })] }).games[0];
+    assert.match(gameDayView(normalized).phaseWeek, new RegExp(`^${label}`));
+  }
+});
+
+test("all game surfaces preserve an exact 5:20 PM Pacific kickoff", () => {
+  const normalized = normalizeSchedule({ season: 2026, games: [game("prime", 1, "2026-09-13T17:20:00-07:00")] }).games[0];
+  assert.equal(formatKickoff(normalized, "time"), "5:20 PM PT");
+  assert.equal(scheduleRow(normalized).kickoff, "5:20 PM PT");
+  assert.equal(gameDayView(normalized).kickoff, "5:20 PM PT");
+  assert.match(formatScheduleDate(normalized), /5:20 PM PT$/);
+});
+
+test("featured view cleanly omits unavailable broadcast and venue", () => {
+  const normalized = normalizeSchedule({ season: 2026, games: [game("minimal", 1, "2026-09-13T17:20:00-07:00")] }).games[0];
+  const view = gameDayView(normalized);
+  assert.equal(view.network, null);
+  assert.equal(view.venue, null);
 });
 
 test("game-day view handles today, live, final scores, phase labels, and optional metadata", () => {

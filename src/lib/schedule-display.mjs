@@ -1,3 +1,5 @@
+import { formatKickoff } from "./schedule.mjs";
+
 const TEAM_NAMES = {
   ARI: "Arizona Cardinals", ATL: "Atlanta Falcons", BAL: "Baltimore Ravens", BUF: "Buffalo Bills",
   CAR: "Carolina Panthers", CHI: "Chicago Bears", CIN: "Cincinnati Bengals", CLE: "Cleveland Browns",
@@ -53,12 +55,8 @@ export function scheduleRow(game, { nextGameId = null, index = 0, now = new Date
     : game?.state === "in_progress" || gameDay ? "Game center"
     : game?.previewAvailable ? "Preview"
     : "Game details";
-  const date = game?.dateConfirmed && game?.date
-    ? new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, weekday: "short", month: "short", day: "numeric" }).format(validStart ? startsAt : new Date(`${game.date}T12:00:00Z`))
-    : "Date TBD";
-  const kickoff = game?.timeConfirmed && validStart
-    ? `${new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, hour: "numeric", minute: "2-digit" }).format(startsAt)} PT`
-    : "Time TBD";
+  const date = formatKickoff(game, "date");
+  const kickoff = formatKickoff(game, "time");
 
   return {
     kind: "game", id: String(game?.id ?? game?.game_id ?? index), state, stateLabel, result,
