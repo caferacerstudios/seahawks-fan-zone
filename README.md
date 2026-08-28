@@ -8,6 +8,8 @@ Astro site for independent Seattle football coverage. These controls do not impl
 - `npm run build` refreshes NFL data and builds the site; the refresh scripts contact their configured upstream services.
 - `npx astro build` builds from repository data without running the refresh scripts.
 
+The homepage story feed treats stories published or materially updated within 14 days as current. Set `HOMEPAGE_STORY_FRESHNESS_DAYS` at build time to change that window; editors pin a current lead with the existing article `featured` field. `HOMEPAGE_FEED_NOW` is an optional ISO date override for deterministic previews of quiet-period fallback behavior.
+
 ## Advertising, analytics, and consent
 
 Advertising defaults off. Production must explicitly set the applicable values:
