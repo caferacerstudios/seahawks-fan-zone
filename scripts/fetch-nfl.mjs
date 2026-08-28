@@ -186,9 +186,7 @@ async function main() {
     postseason: true,
   });
 
-  const seasonStatsAll = [...seasonStatsRegular, ...seasonStatsPostseason];
-
-  const enriched = seasonStatsAll.map((row) => {
+  const enrich = (rows, seasonType) => rows.map((row) => {
     const playerId = row.player_id ?? row.player?.id ?? row.playerId ?? null;
     const player = playerId ? playersById.get(playerId) : (row.player || null);
 
@@ -198,8 +196,11 @@ async function main() {
       player_id: playerId || row.player_id || null,
       team_id: row.team_id ?? team.id,
       season: row.season ?? SEASON,
+      seasonType,
     };
   });
+  const enrichedRegular = enrich(seasonStatsRegular, "regular season");
+  const enrichedPostseason = enrich(seasonStatsPostseason, "postseason");
 
   // 5) Fetch full league standings for this season
   // Docs: GET /nfl/v1/standings?season=YYYY
@@ -209,6 +210,10 @@ async function main() {
   assertNonEmptyArray("standings", standings);
 
   const updatedAt = new Date().toISOString();
+  const regularFinalCount = gamesRegular.filter((game) =>
+    String(game?.status || "").toLowerCase().includes("final")
+  ).length;
+  const regularStatus = regularFinalCount === 0 ? "upcoming" : regularFinalCount === gamesRegular.length ? "complete" : "active";
 
   const outCombined = {
     team: {
@@ -220,9 +225,23 @@ async function main() {
     },
     season: SEASON,
     updatedAt,
+    seasonContext: {
+      seasonYear: SEASON,
+      seasonType: "regular season",
+      seasonStatus: regularStatus,
+      updatedAt,
+      sourceSeason: SEASON,
+    },
+    seasonContexts: [
+      { seasonYear: SEASON, seasonType: "regular season", seasonStatus: regularStatus, updatedAt, sourceSeason: SEASON },
+      ...(gamesPostseason.length || enrichedPostseason.length
+        ? [{ seasonYear: SEASON, seasonType: "postseason", seasonStatus: gamesPostseason.every((game) => String(game?.status || "").toLowerCase().includes("final")) ? "complete" : "active", updatedAt, sourceSeason: SEASON }]
+        : []),
+    ],
     gamesRegular,
     gamesPostseason,
-    playerSeasonStats: enriched,
+    playerSeasonStats: enrichedRegular,
+    playerPostseasonStats: enrichedPostseason,
   };
 
   const outDir = path.resolve(__dirname, "..", "src", "data", "nfl");
@@ -232,7 +251,7 @@ async function main() {
 
   // Safety checks: don't overwrite with obviously broken payloads
   assertNonEmptyArray("gamesRegular", gamesRegular);
-  assertNonEmptyArray("playerSeasonStats", enriched);
+  if (regularFinalCount > 0) assertNonEmptyArray("playerSeasonStats", enrichedRegular);
 
   safeWriteJson(combinedPath, outCombined);
   console.log(`wrote ${path.relative(process.cwd(), combinedPath)}`);
@@ -241,13 +260,18 @@ async function main() {
     season: SEASON,
     updatedAt,
     team: outCombined.team,
-    playerSeasonStats: enriched,
+    seasonContext: outCombined.seasonContext,
+    seasonContexts: outCombined.seasonContexts,
+    playerSeasonStats: enrichedRegular,
+    playerPostseasonStats: enrichedPostseason,
   });
   console.log(`wrote ${path.relative(process.cwd(), playersPath)}`);
 
   safeWriteJson(standingsPath, {
     season: SEASON,
     updatedAt,
+    seasonContext: outCombined.seasonContext,
+    seasonContexts: outCombined.seasonContexts,
     data: standings,
   });
   console.log(`wrote ${path.relative(process.cwd(), standingsPath)}`);

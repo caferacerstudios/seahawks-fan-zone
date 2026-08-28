@@ -1,0 +1,35 @@
+---
+import type { SeasonContext } from "../lib/season-context";
+import { formatPacificTime } from "../lib/season-context";
+
+interface Props {
+  context: SeasonContext;
+  options?: SeasonContext[];
+  prefix?: "Data through" | "Last updated";
+}
+
+const { context, options = [context], prefix = "Last updated" } = Astro.props;
+---
+
+<div class="season-context" aria-label="Season and data context">
+  <label>
+    <span>Season</span>
+    <select aria-label="Season" disabled={options.length < 2}>
+      {options.map((option) => <option selected={option.label === context.label}>{option.label}</option>)}
+    </select>
+  </label>
+  <span class="season-status">{context.seasonStatus}</span>
+  <span class="season-updated">{prefix}: {formatPacificTime(context.updatedAt)}</span>
+  {context.sourceSeason !== null && context.sourceSeason !== context.seasonYear && (
+    <span class="season-warning">Source season: {context.sourceSeason}</span>
+  )}
+</div>
+
+<style>
+  .season-context { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:1rem; color:rgba(15,23,32,.68); font-size:.9rem; font-weight:700; }
+  label { display:inline-flex; align-items:center; gap:.45rem; }
+  select { border:1px solid rgba(0,34,68,.18); border-radius:9px; background:#fff; color:var(--navy); padding:.4rem .55rem; font:inherit; font-weight:800; }
+  select:disabled { opacity:1; cursor:default; }
+  .season-status { text-transform:capitalize; padding:.2rem .45rem; border-radius:999px; background:rgba(0,34,68,.07); }
+  .season-warning { color:#8a4b08; }
+</style>

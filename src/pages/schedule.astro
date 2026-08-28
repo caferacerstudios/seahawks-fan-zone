@@ -1,9 +1,12 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import SeasonContextView from "../components/SeasonContext.astro";
+import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../lib/season-context";
 import scheduleData from "../data/nfl/seahawks.json";
 
-const season = scheduleData?.season ?? "";
-const updatedAt = scheduleData?.updatedAt ?? "";
+const seasonContext = getSeasonContext(scheduleData, "regular season");
+const seasonOptions = getAvailableSeasonContexts(scheduleData, "regular season");
+const season = seasonContext.seasonYear ?? "";
 
 // Accept both shapes:
 // 1) { games: [...] }
@@ -42,8 +45,9 @@ function teamLogo(abbr) {
 function isSeahawksWin(game) {
   const home = teamAbbr(game?.home_team);
   const away = teamAbbr(game?.visitor_team);
-  const hs = Number(game?.home_team_score);
-  const as = Number(game?.visitor_team_score);
+  if (game?.home_team_score == null || game?.visitor_team_score == null) return null;
+  const hs = Number(game.home_team_score);
+  const as = Number(game.visitor_team_score);
 
   if (!Number.isFinite(hs) || !Number.isFinite(as)) return null;
 
@@ -69,7 +73,7 @@ function fmtPT(dateStr) {
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
-    });
+    }) + " PT";
   } catch {
     return d.toISOString();
   }
@@ -129,10 +133,6 @@ function sortByDate(a, b) {
 regular.sort(sortByDate);
 playoffs.sort(sortByDate);
 
-const fmtUpdatedLine = updatedAt
-  ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) + " PT"
-  : "—";
-
 /* =======================
    Playoff labeling (FIXED)
    ======================= */
@@ -182,16 +182,12 @@ function playoffRoundLabel(g, i, allPlayoffs) {
   description="Season results and upcoming games"
   activePath="/schedule"
 >
-  <div class="meta-line">
-    <span><strong>Season:</strong> {season}</span>
-    <span class="dot">•</span>
-    <span><strong>Updated:</strong> {fmtUpdatedLine}</span>
-  </div>
+  <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
 
   <h3 class="section-title">Regular season</h3>
 
   {regular.length === 0 ? (
-    <div class="empty">No regular season games found in the current data file.</div>
+    <div class="empty">{unavailableMessage(seasonContext)}</div>
   ) : (
     <div class="cards-grid cards-grid--regular">
       {regular.map((g, i) => {

@@ -60,7 +60,7 @@ function fmtPT(dateStr) {
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
-    });
+    }) + " PT";
   } catch {
     return d.toISOString();
   }
