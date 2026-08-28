@@ -1,6 +1,7 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import AdSlot from "../components/AdSlot.astro";
+import TrendingNow from "../components/TrendingNow.astro";
 import { formatPacificTime } from "../lib/season-context";
 import ArticleCard from "../components/ArticleCard.astro";
 import { publishedArticles } from "../lib/news";
@@ -106,6 +107,8 @@ const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank ||
     <div class="details"><span>{formatPacificTime(featured?.date ?? featured?.start_time ?? featured?.kickoff)}</span>{venue(featured) && <span>{venue(featured)}</span>}</div>
     <div class="actions"><a class="button primary" href={href(featured, games.indexOf(featured))}>{action} →</a><a class="button" href="/schedule">Full Schedule</a></div>
   </section> : <section class="scoreboard empty"><p class="location">Season hub</p><h1 id="featured-title">The next Seahawks game will appear here</h1><p>Schedule data is not available in this build yet.</p><a class="button primary" href="/schedule">Full Schedule</a></section>}
+
+  <TrendingNow />
 
   {regularFinals.length > 0 && <section class="glance" aria-label="Season at a glance"><h2>Season at a glance</h2>
     <a href="/standings"><span>Record</span><strong>{recordText(record(regularFinals))}</strong></a>
