@@ -518,9 +518,25 @@ const opponentLeaderRows = game?.opponent_player_season_stats ?? game?.opponentP
 const opponentLeaders = leaders(opponentLeaderRows, opp).slice(0, 3);
 const turningPoints = game?.turning_points ?? game?.turningPoints ?? game?.scoring_plays ?? game?.scoringPlays ?? recap?.turningPoints ?? [];
 const recapText = recap?.text ?? (Array.isArray(recap?.segments) ? recap.segments.map((segment) => segment?.name ?? segment?.v ?? "").join("") : "");
+const canonicalPath = `/games/${encodeURIComponent(String(gameId))}`;
+const publishedTime = recap?.publishedAt ?? recap?.createdAt ?? gameRecaps?.updatedAt ?? null;
+const modifiedTime = recap?.updatedAt ?? gameRecaps?.updatedAt ?? publishedTime;
+const articleData = completed && recapText ? { publishedTime, modifiedTime } : null;
+const structuredData = articleData ? {
+  "@context": "https://schema.org",
+  "@type": "NewsArticle",
+  headline: pageTitle,
+  description: pageDescription,
+  datePublished: publishedTime,
+  dateModified: modifiedTime,
+  mainEntityOfPage: new URL(canonicalPath, Astro.site ?? Astro.url).toString(),
+  author: { "@type": "Organization", name: "Seahawks Fan Zone" },
+  publisher: { "@type": "Organization", name: "Seahawks Fan Zone" },
+  about: { "@type": "SportsEvent", name: `Seattle Seahawks vs ${opponentName}`, startDate: game?.date },
+} : null;
 ---
 
-<SeahawksLayout title={pageTitle} description={pageDescription} pageTitle={pageTitle} pageTagline={pageDescription} activePath="">
+<SeahawksLayout title={pageTitle} description={pageDescription} pageTitle={pageTitle} pageTagline={pageDescription} activePath="" canonical={canonicalPath} article={articleData} structuredData={structuredData}>
   {!game && <div class="empty"><strong>Game unavailable.</strong> This game is not present in the current season schedule. <a href="/schedule">Return to the full schedule →</a></div>}
   {game && <GameCenter
     {game}

@@ -10,12 +10,24 @@ const {
   quickLinks = [],
   rightLinks = [],
   showPageHeader = true,
+  canonical,
+  article,
+  structuredData,
 } = Astro.props;
+
+let latestRecapHref = "/weekly-recap";
+try {
+  const schedule = (await import("../data/nfl/seahawks.json")).default;
+  const recaps = (await import("../data/nfl/gameRecaps.json")).default?.recaps ?? {};
+  const games = [...(schedule?.gamesPreseason ?? []), ...(schedule?.gamesRegular ?? []), ...(schedule?.gamesPostseason ?? []), ...(schedule?.games ?? [])];
+  const latest = games.filter((game) => /final|finished|complete/i.test(String(game?.status ?? "")) && recaps[String(game?.id ?? game?.game_id)]).sort((a, b) => new Date(b?.date ?? 0).getTime() - new Date(a?.date ?? 0).getTime())[0];
+  if (latest) latestRecapHref = `/games/${encodeURIComponent(String(latest?.id ?? latest?.game_id))}`;
+} catch {}
 
 const navPages = [
   { href: "/", label: "Home" },
   { href: "/schedule", label: "Schedule" },
-  { href: "/weekly-recap", label: "Weekly Recap" },
+  { href: latestRecapHref, label: "Latest Recap", activeHref: "/weekly-recap" },
   { href: "/standings", label: "Standings" },
   { href: "/team", label: "Team Stats" },
   { href: "/players", label: "Players" },
@@ -23,7 +35,7 @@ const navPages = [
 ];
 ---
 
-<BaseLayout {title} {description}>
+<BaseLayout {title} {description} {canonical} {article} {structuredData}>
   <header class="lr-header seahawks-header">
     <div class="lr-header-bg seahawks-header-bg" aria-hidden="true"></div>
 
@@ -42,7 +54,7 @@ const navPages = [
           <a
             class="top-nav-link"
             href={p.href}
-            aria-current={activePath === p.href ? "page" : undefined}
+            aria-current={activePath === (p.activeHref ?? p.href) ? "page" : undefined}
           >
             {p.label}
           </a>
@@ -57,6 +69,7 @@ const navPages = [
         <h3 class="lr-panel-title">Quick links</h3>
         <ul class="lr-nav lr-subnav">
           {(quickLinks.length ? quickLinks : [
+            { href: "/weekly-recap", label: "Recap archive" },
             { href: "/schedule", label: "Schedule" },
             { href: "/team", label: "Team Stats" },
             { href: "/players", label: "Player Stats" },
