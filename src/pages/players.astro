@@ -1,308 +1,54 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../components/SeasonContext.astro";
-import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../lib/season-context";
+import { getAvailableSeasonContexts, getSeasonContext } from "../lib/season-context";
 import data from "../data/nfl/seahawks.json";
 
-const seasonContext = getSeasonContext(data, "regular season");
-const seasonOptions = getAvailableSeasonContexts(data, "regular season");
-const pageTitle = `Player Stats (${seasonContext.label})`;
-
-function n(v) {
-  return typeof v === "number" ? v : 0;
-}
-function dashIfNull(v) {
-  return typeof v === "number" ? v : "—";
-}
-function tdTriplet(r) {
-  const values = [r.passing_touchdowns, r.rushing_touchdowns, r.receiving_touchdowns];
-  return values.every((value) => typeof value !== "number") ? "—" : values.map(dashIfNull).join("/");
-}
-
-function totalYards(r) {
-  return n(r.passing_yards) + n(r.rushing_yards) + n(r.receiving_yards);
-}
-
-// Deduplicate rows by player id, keeping the “best” stat line (most total yards)
-const byPlayer = new Map();
-
-for (const r of (data.playerSeasonStats || [])) {
-  const pid = r?.player?.id ?? r?.player_id ?? null;
-  if (!pid) continue;
-
-  const existing = byPlayer.get(pid);
-  if (!existing) {
-    byPlayer.set(pid, r);
-    continue;
-  }
-
-  if (totalYards(r) > totalYards(existing)) byPlayer.set(pid, r);
-}
-
-const deduped = Array.from(byPlayer.values());
-
-// Positions for dropdown
-const positions = Array.from(
-  new Set(
-    deduped
-      .map((r) => (r?.player?.position_abbreviation || "").toUpperCase())
-      .filter(Boolean)
-  )
-).sort();
-
-// ✅ Always render ALL rows (static build). Filter happens in browser.
-const rows = deduped.slice().sort((a, b) => totalYards(b) - totalYards(a));
-
-function playerName(r) {
-  const p = r?.player;
-  if (!p) return "Unknown";
-  const first = p.first_name || "";
-  const last = p.last_name || "";
-  const full = `${first} ${last}`.trim();
-  return full || "Unknown";
-}
-
-function playerIdFromRow(r) {
-  return r?.player?.id ?? r?.player_id ?? null;
-}
-
-function playerHref(id) {
-  return `/players/${encodeURIComponent(String(id))}`;
-}
+const context = getSeasonContext(data, "regular season");
+const seasons = getAvailableSeasonContexts(data, "regular season");
+const GROUP = {
+  offense: new Set(["QB","RB","FB","WR","TE","OT","T","OG","G","C","OL"]),
+  defense: new Set(["DE","DT","DL","NT","LB","OLB","ILB","MLB","CB","DB","S","FS","SS"]),
+  special: new Set(["K","P","LS","KR","PR"]),
+};
+const numeric = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+const stat = (r, keys) => { for (const key of keys) if (numeric(r?.[key]) !== null) return r[key]; return null; };
+const id = (r) => r?.player?.id ?? r?.player_id;
+const name = (r) => r?.player?.full_name || `${r?.player?.first_name || ""} ${r?.player?.last_name || ""}`.trim() || "Unknown player";
+const pos = (r) => String(r?.player?.position_abbreviation || r?.player?.position || "").toUpperCase();
+const jersey = (r) => r?.player?.jersey_number ?? r?.player?.jersey ?? r?.player?.number ?? null;
+const group = (p) => GROUP.offense.has(p) ? "offense" : GROUP.defense.has(p) ? "defense" : GROUP.special.has(p) ? "special" : "other";
+const score = (r) => Object.values(r || {}).filter((v) => numeric(v) !== null).length;
+const byId = new Map();
+for (const row of (data?.playerSeasonStats || [])) { const key = id(row); if (key == null) continue; const old = byId.get(String(key)); if (!old || score(row) > score(old)) byId.set(String(key), row); }
+const rows = [...byId.values()].sort((a,b) => name(a).localeCompare(name(b)));
+const positions = [...new Set(rows.map(pos).filter(Boolean))].sort();
+const columnSets = {
+  all: [{label:"GP",keys:["games_played"]}],
+  offense: [{label:"GP",keys:["games_played"]},{label:"Pass Yds",keys:["passing_yards"]},{label:"Pass TD",keys:["passing_touchdowns"]},{label:"Rush Yds",keys:["rushing_yards"]},{label:"Rec",keys:["receptions"]},{label:"Rec Yds",keys:["receiving_yards"]},{label:"TD",keys:["total_touchdowns","touchdowns"]}],
+  defense: [{label:"GP",keys:["games_played"]},{label:"Tackles",keys:["total_tackles","tackles"]},{label:"Sacks",keys:["sacks"]},{label:"INT",keys:["defensive_interceptions","interceptions"]},{label:"PD",keys:["passes_defended","passes_defensed"]},{label:"FF",keys:["forced_fumbles"]}],
+  special: [{label:"GP",keys:["games_played"]},{label:"FGM",keys:["field_goals_made"]},{label:"FGA",keys:["field_goals_attempted"]},{label:"XP",keys:["extra_points_made"]},{label:"Punts",keys:["punts"]},{label:"Punt Avg",keys:["punt_average","punting_average"]}],
+};
+const columns = Object.fromEntries(Object.entries(columnSets).map(([unit, defs]) => [unit, defs.filter((def) => rows.some((r) => (unit === "all" || group(pos(r)) === unit) && stat(r, def.keys) !== null))]));
+const leaders = [
+  ["Passing",["passing_yards"],"YDS"],["Rushing",["rushing_yards"],"YDS"],["Receiving",["receiving_yards"],"YDS"],
+  ["Tackles",["total_tackles","tackles"],"TACKLES"],["Sacks",["sacks"],"SACKS"],["Interceptions",["defensive_interceptions","interceptions"],"INT"],["Kicking",["field_goals_made"],"FG"],
+].map(([label,keys,suffix]) => { const found = rows.filter((r) => stat(r,keys) !== null).sort((a,b) => stat(b,keys)-stat(a,keys))[0]; return found ? {label,keys,suffix,row:found,value:stat(found,keys)} : null; }).filter(Boolean);
 ---
-
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Sortable season stats by player" activePath="/players">
-  <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
-  <div class="sfz-topbar">
-    <div class="sfz-meta">
-      <div class="sfz-sub">{seasonContext.label}</div>
-    </div>
-
-    <div class="sfz-controls">
-      <label class="sfz-label" for="pos">Position</label>
-
-      <!-- ✅ value is just the code; JS updates URL + filters -->
-      <select id="pos" class="sfz-select">
-        <option value="ALL">All</option>
-        {positions.map((p) => (
-          <option value={p}>{p}</option>
-        ))}
-      </select>
-
-      <div class="sfz-count"><span id="playerCount">{rows.length}</span> players</div>
-    </div>
-  </div>
-
-  {!seasonContext.hasStatistics || seasonContext.seasonStatus === "upcoming" ? <div class="sfz-note">{unavailableMessage(seasonContext)}</div> : <div class="sfz-table-wrap" role="region" aria-label="Player stats table">
-    <table class="sfz-table">
-      <thead>
-        <tr>
-          <th class="sticky">Player</th>
-          <th class="sticky">Pos</th>
-          <th class="sticky num">GP</th>
-          <th class="sticky num">Pass Yds</th>
-          <th class="sticky num">Rush Yds</th>
-          <th class="sticky num">Rec Yds</th>
-          <th class="sticky num">TD P/R/Rec</th>
-        </tr>
-      </thead>
-
-      <tbody id="playersBody">
-        {rows.map((r) => {
-          const pos = (r?.player?.position_abbreviation || "").toUpperCase();
-          const pid = playerIdFromRow(r);
-          return (
-            <tr data-pos={pos}>
-              <td class="name">
-                {pid ? (
-                  <a class="player-link" href={playerHref(pid)}>{playerName(r)}</a>
-                ) : (
-                  playerName(r)
-                )}
-              </td>
-              <td class="pos">{r?.player?.position_abbreviation || "-"}</td>
-              <td class="num">{dashIfNull(r.games_played)}</td>
-              <td class="num">{dashIfNull(r.passing_yards)}</td>
-              <td class="num">{dashIfNull(r.rushing_yards)}</td>
-              <td class="num">{dashIfNull(r.receiving_yards)}</td>
-              <td class="num">{tdTriplet(r)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>}
-
-  <!-- ✅ Client-side filter for static Astro -->
+<SeahawksLayout pageTitle="Seattle Seahawks Roster" pageTagline="Search the roster and explore position-relevant season statistics." activePath="/players">
+  <section class="hub" aria-labelledby="hub-title"><div><p class="eyebrow">Current roster</p><h3 id="hub-title">{rows.length} players</h3><p>{context.label} statistics</p></div><div class="hub-controls"><label>Season<select id="seasonSelect" aria-label="Season">{seasons.map((s) => <option selected={s.seasonYear===context.seasonYear}>{s.seasonYear}</option>)}</select></label><label>Search roster<input id="search" type="search" placeholder="Name or number" autocomplete="off" /></label></div></section>
+  <SeasonContextView context={context} options={seasons} prefix="Data through" />
+  {leaders.length > 0 && <section class="section"><p class="eyebrow">Season snapshot</p><h3>Team Leaders</h3><div class="leader-grid">{leaders.map((lead) => <a class="leader" href={`/players/${encodeURIComponent(String(id(lead.row)))}`}><span>{lead.label}</span><strong>{lead.value}</strong><small>{lead.suffix}</small><b>{name(lead.row)}</b></a>)}</div></section>}
+  <section class="section"><div class="section-top"><div><p class="eyebrow">Players</p><h3>Roster directory</h3></div><p aria-live="polite"><b id="count">{rows.length}</b> shown</p></div>
+    <div class="tabs" role="group" aria-label="Roster unit"><button class="active" data-group="all" aria-pressed="true">All</button><button data-group="offense" aria-pressed="false">Offense</button><button data-group="defense" aria-pressed="false">Defense</button><button data-group="special" aria-pressed="false">Special teams</button></div>
+    <label class="position">Position group <select id="position"><option value="ALL">All positions</option>{positions.map((p) => <option value={p}>{p}</option>)}</select></label>
+    <div class="table-wrap" role="region" aria-label="Sortable roster table" tabindex="0"><table><thead><tr><th><button class="sort" data-sort="name">Player ↕</button></th><th><button class="sort" data-sort="number">No. ↕</button></th><th><button class="sort" data-sort="position">Pos ↕</button></th>{Object.entries(columns).map(([unit,defs]) => defs.map((def) => <th class={`stats stats-${unit}`} data-stat-group={unit}><button class="sort" data-sort={def.keys[0]}>{def.label} ↕</button></th>))}</tr></thead><tbody id="body">{rows.map((r) => <tr data-group={group(pos(r))} data-position={pos(r)} data-name={name(r).toLowerCase()} data-number={String(jersey(r)??"")}><td class="player"><a href={`/players/${encodeURIComponent(String(id(r)))}`}><span class="badge">{jersey(r)??pos(r)}</span><span><b>{name(r)}</b><small>View profile</small></span></a></td><td data-label="No.">{jersey(r)??""}</td><td data-label="Position">{pos(r)}</td>{Object.entries(columns).map(([unit,defs]) => defs.map((def) => <td class={`stats stats-${unit}`} data-stat-group={unit} data-stat-key={def.keys[0]} data-value={stat(r,def.keys)??""} data-label={def.label}>{stat(r,def.keys)??""}</td>))}</tr>)}</tbody></table></div><p id="empty" class="empty" hidden>No players match those filters.</p>
+  </section>
   <script is:inline>
-    (() => {
-      const select = document.getElementById("pos");
-      const body = document.getElementById("playersBody");
-      const countEl = document.getElementById("playerCount");
-
-      function getPosFromUrl() {
-        const params = new URLSearchParams(window.location.search);
-        return (params.get("pos") || "ALL").toUpperCase();
-      }
-
-      function setUrlPos(pos) {
-        const url = new URL(window.location.href);
-        if (!pos || pos === "ALL") url.searchParams.delete("pos");
-        else url.searchParams.set("pos", pos);
-        window.history.replaceState({}, "", url);
-      }
-
-      function applyFilter(pos) {
-        if (!body || !countEl) return;
-        const rows = body.querySelectorAll("tr[data-pos]");
-        let shown = 0;
-
-        rows.forEach((tr) => {
-          const rpos = (tr.getAttribute("data-pos") || "").toUpperCase();
-          const visible = (pos === "ALL") || (rpos === pos);
-          tr.style.display = visible ? "" : "none";
-          if (visible) shown++;
-        });
-
-        countEl.textContent = String(shown);
-      }
-
-      // Init from URL
-      const initialPos = getPosFromUrl();
-      if (!select) return;
-      select.value = initialPos;
-      applyFilter(initialPos);
-
-      // On change: filter + update URL (no reload)
-      select.addEventListener("change", () => {
-        const pos = (select.value || "ALL").toUpperCase();
-        setUrlPos(pos);
-        applyFilter(pos);
-      });
-    })();
+    (()=>{const body=document.getElementById('body');if(!body)return;const search=document.getElementById('search'),position=document.getElementById('position'),count=document.getElementById('count'),empty=document.getElementById('empty'),tabs=[...document.querySelectorAll('.tabs button')];let group='all',sortKey='name',direction=1;function update(){const q=(search.value||'').trim().toLowerCase(),p=position.value;let shown=0;[...body.rows].forEach(row=>{row.hidden=!((group==='all'||row.dataset.group===group)&&(p==='ALL'||row.dataset.position===p)&&(!q||row.dataset.name.includes(q)||row.dataset.number===q.replace(/^#/,'')));if(!row.hidden)shown++});count.textContent=shown;empty.hidden=shown!==0;document.querySelectorAll('[data-stat-group]').forEach(cell=>{cell.hidden=group==='all'?cell.dataset.statGroup!=='all':cell.dataset.statGroup!==group})}tabs.forEach(button=>button.addEventListener('click',()=>{group=button.dataset.group;tabs.forEach(x=>{const on=x===button;x.classList.toggle('active',on);x.setAttribute('aria-pressed',on)});position.value='ALL';update()}));search.addEventListener('input',update);position.addEventListener('change',update);document.querySelectorAll('.sort').forEach(button=>button.addEventListener('click',()=>{const key=button.dataset.sort;if(key===sortKey)direction*=-1;else{sortKey=key;direction=1}[...body.rows].sort((a,b)=>{const get=(row)=>key==='name'?row.dataset.name:key==='number'?row.dataset.number:key==='position'?row.dataset.position:row.querySelector(`[data-stat-key="${key}"]`)?.dataset.value||'';const av=get(a),bv=get(b),an=Number(av),bn=Number(bv);return direction*(av!==''&&bv!==''&&!isNaN(an)&&!isNaN(bn)?an-bn:String(av).localeCompare(String(bv),undefined,{numeric:true}))}).forEach(row=>body.append(row))}));update()})();
   </script>
-
   <style>
-    .sfz-topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      gap: 1rem;
-      flex-wrap: wrap;
-      margin-bottom: 0.85rem;
-      padding-bottom: 0.75rem;
-      border-bottom: 1px solid rgba(0, 34, 68, 0.12);
-    }
-
-    .sfz-sub {
-      color: rgba(15, 23, 32, 0.65);
-      font-weight: 800;
-      font-size: 0.95rem;
-    }
-
-    .sfz-controls {
-      display: inline-flex;
-      gap: 0.75rem;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .sfz-label {
-      font-weight: 900;
-      color: rgba(0, 34, 68, 0.72);
-      font-size: 0.9rem;
-    }
-
-    .sfz-select {
-      border-radius: 10px;
-      padding: 0.5rem 0.65rem;
-      border: 1px solid rgba(0, 34, 68, 0.18);
-      font-weight: 900;
-      background: #fff;
-      color: rgba(0, 34, 68, 0.9);
-      min-width: 160px;
-    }
-
-    .sfz-count {
-      color: rgba(0, 34, 68, 0.85);
-      font-weight: 900;
-      font-size: 0.95rem;
-    }
-
-    .sfz-table-wrap {
-      border-radius: 16px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: #ffffff;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
-      overflow: auto;
-      max-height: 70vh;
-    }
-
-    .sfz-table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 760px;
-      font-size: 0.95rem;
-    }
-
-    .sfz-table th,
-    .sfz-table td {
-      padding: 0.65rem 0.7rem;
-      border-bottom: 1px solid rgba(0, 34, 68, 0.10);
-      white-space: nowrap;
-    }
-
-    .sfz-table thead th {
-      background: rgba(0, 34, 68, 0.04);
-      color: rgba(0, 34, 68, 0.88);
-      font-weight: 900;
-      letter-spacing: 0.2px;
-    }
-
-    .sticky {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-    }
-
-    .sfz-table tbody tr:hover td {
-      background: rgba(105, 190, 40, 0.10);
-    }
-
-    .name {
-      font-weight: 900;
-      color: var(--navy);
-    }
-
-    .player-link {
-      color: inherit;
-      text-decoration: none;
-      font-weight: 900;
-    }
-    .player-link:hover {
-      text-decoration: underline;
-      opacity: 0.95;
-    }
-
-    .pos {
-      color: rgba(15, 23, 32, 0.7);
-      font-weight: 800;
-    }
-
-    .num {
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-      font-weight: 800;
-      color: rgba(15, 23, 32, 0.75);
-    }
-
-    .sfz-note {
-      margin-top: 1rem;
-      padding: 0.85rem 0.95rem;
-      border-radius: 14px;
-      border: 1px solid rgba(0, 34, 68, 0.14);
-      background: rgba(165, 172, 175, 0.18);
-      color: rgba(15, 23, 32, 0.85);
-    }
+    .hub,.section{border:1px solid #d8dfe5;border-radius:18px;background:#fff;box-shadow:0 12px 30px rgba(0,34,68,.07)}.hub{display:flex;justify-content:space-between;align-items:end;gap:1rem;padding:1.2rem;background:linear-gradient(120deg,#002244,#16456e);color:#fff}.hub h3,.hub p,.section h3{margin:.1rem 0}.eyebrow{margin:0!important;color:#69be28;text-transform:uppercase;letter-spacing:.12em;font-size:.7rem;font-weight:950}.hub-controls{display:flex;gap:.7rem;flex-wrap:wrap}.hub label,.position{display:grid;gap:.25rem;font-size:.78rem;font-weight:900}.hub input,.hub select,.position select{min-height:42px;padding:.45rem .6rem;border:1px solid #bbc7d1;border-radius:9px;background:#fff;color:#002244;font:inherit}.hub input{min-width:220px}.section{margin-top:1rem;padding:1rem}.leader-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:.6rem;margin-top:.7rem}.leader{display:grid;grid-template-columns:1fr auto;padding:.75rem;border-left:4px solid #69be28;border-radius:10px;background:#f2f5f7;color:#002244;text-decoration:none}.leader strong{font-size:1.5rem}.leader small{text-align:right}.leader b{grid-column:1/-1;font-size:.78rem}.section-top{display:flex;justify-content:space-between;align-items:end}.tabs{display:flex;gap:.4rem;overflow:auto;margin:.7rem 0}.tabs button{padding:.5rem .8rem;border:1px solid #cbd5dc;border-radius:999px;background:#fff;color:#002244;font-weight:900;white-space:nowrap}.tabs .active{background:#002244;color:#fff}.position{display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem}.table-wrap{overflow:auto;border:1px solid #d8dfe5;border-radius:12px}table{width:100%;min-width:620px;border-collapse:collapse}th,td{padding:.65rem;text-align:right;border-bottom:1px solid #e3e8ec}th{position:sticky;top:0;background:#f2f5f7}.sort{border:0;background:none;font-weight:950;color:#334e68;cursor:pointer}.player{text-align:left}.player a{display:flex;align-items:center;gap:.6rem;color:#002244;text-decoration:none}.player small{display:block;color:#687c8f}.badge{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#002244;color:#fff;font-weight:950}.empty{text-align:center;padding:1rem;background:#f2f5f7}[hidden]{display:none!important}button:focus-visible,input:focus-visible,select:focus-visible,.table-wrap:focus-visible{outline:3px solid #69be28;outline-offset:2px}
+    @media(max-width:680px){.hub{align-items:stretch;flex-direction:column}.hub-controls,.hub label,.hub input,.hub select{width:100%;box-sizing:border-box}.leader-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.table-wrap{border:0;overflow:visible}table,tbody{display:block;min-width:0}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}tbody{display:grid;gap:.55rem}tr{display:grid;grid-template-columns:1fr auto auto;gap:.3rem .65rem;padding:.7rem;border:1px solid #d8dfe5;border-radius:12px}td{display:flex;justify-content:space-between;padding:.12rem 0;border:0}.player{grid-column:1/-1;border-bottom:1px solid #e3e8ec;padding-bottom:.45rem}.stats::before{content:attr(data-label);font-size:.7rem;font-weight:900;color:#687c8f}}
   </style>
 </SeahawksLayout>
