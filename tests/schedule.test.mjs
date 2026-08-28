@@ -7,6 +7,7 @@ import {
   selectScheduleSeason,
   validateSchedule,
 } from "../src/lib/schedule.mjs";
+import { groupScheduleMonths, scheduleRow } from "../src/lib/schedule-display.mjs";
 
 const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const SF = { abbreviation: "SF", full_name: "San Francisco 49ers" };
@@ -77,4 +78,37 @@ test("publishing validation rejects duplicate IDs, season mismatch, and supplied
   assert.throws(() => validateSchedule({ ...valid, games: [...valid.games, { ...valid.games[0] }] }, 2026), /duplicate game ID/);
   assert.throws(() => validateSchedule({ ...valid, byeWeek: 11 }, 2026), /missing supplied bye week/);
   assert.throws(() => validateSchedule({ ...valid, nextGameId: "later" }, 2026), /published next game skips/);
+});
+
+test("schedule rows expose completed scores, outcome, location, badges, and recap action", () => {
+  const completed = normalizeSchedule({ season: 2026, games: [game("final", 1, "2026-09-13T20:05:00Z", {
+    status: "Final", home_team: SF, visitor_team: SEA, home_team_score: 17, visitor_team_score: 24,
+    network: "FOX", venue: "Levi's Stadium", prime_time: true,
+  })] }).games[0];
+  const row = scheduleRow(completed);
+  assert.deepEqual({ state: row.state, result: row.result, location: row.homeAway, division: row.division, primeTime: row.primeTime, action: row.action }, {
+    state: "completed", result: { outcome: "W", seahawks: 24, opponent: 17 }, location: "at", division: true, primeTime: true, action: "Recap",
+  });
+  assert.equal(row.resultLabel, "SEA 24, SF 17");
+  assert.equal(row.href, "/games/final");
+});
+
+test("schedule rows distinguish next, later upcoming, TBD, and bye states", () => {
+  const next = scheduleRow(normalizeSchedule({ season: 2026, games: [game("next", 2, "2026-09-20T20:05:00Z")] }).games[0], { nextGameId: "next" });
+  const later = scheduleRow(normalizeSchedule({ season: 2026, games: [game("later", 3, "2026-09-27T20:05:00Z")] }).games[0]);
+  const tbd = scheduleRow(normalizeSchedule({ season: 2026, games: [game("tbd", 4, "2026-10-04T00:00:00Z", { status: "TBD", time_tbd: true })] }).games[0]);
+  const bye = scheduleRow({ id: "bye", state: "bye", week: 5 });
+  assert.deepEqual([next.state, next.stateLabel, next.action], ["next", "Up next", "Preview"]);
+  assert.deepEqual([later.state, later.stateLabel, later.action], ["upcoming", "Upcoming", "Details"]);
+  assert.deepEqual([tbd.state, tbd.stateLabel, tbd.kickoff], ["tbd", "Details TBD", "Time TBD"]);
+  assert.deepEqual([bye.kind, bye.status, bye.detail], ["bye", "Bye", "No game scheduled"]);
+});
+
+test("bye rows stay within the surrounding chronological month group", () => {
+  const september = normalizeSchedule({ season: 2026, games: [game("week-4", 4, "2026-09-27T20:05:00Z")] }).games[0];
+  const october = normalizeSchedule({ season: 2026, games: [game("week-6", 6, "2026-10-11T20:05:00Z")] }).games[0];
+  const groups = groupScheduleMonths([september, { id: "bye", state: "bye", week: 5 }, october]);
+  assert.deepEqual(groups.map(({ label, games }) => [label, games.map(({ id }) => id)]), [
+    ["September 2026", ["week-4", "bye"]], ["October 2026", ["week-6"]],
+  ]);
 });

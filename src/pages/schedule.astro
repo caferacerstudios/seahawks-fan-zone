@@ -1,10 +1,9 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../components/SeasonContext.astro";
-import ScheduleScoreboard from "../components/ScheduleScoreboard.astro";
-import TeamMark from "../components/TeamMark.astro";
+import ScheduleList from "../components/ScheduleList.astro";
 import { getAvailableSeasonContexts, getSeasonContext } from "../lib/season-context";
-import { formatScheduleDate, nextScheduleEvent, selectScheduleSeason } from "../lib/schedule.mjs";
+import { nextScheduleEvent, selectScheduleSeason } from "../lib/schedule.mjs";
 import rawScheduleData from "../data/nfl/seahawks.json";
 
 const scheduleRoot: any = rawScheduleData;
@@ -15,24 +14,6 @@ const options = Array.isArray(scheduleRoot?.seasons)
   ? scheduleRoot.seasons.map((record) => getSeasonContext(selectScheduleSeason(scheduleRoot, record.season), "regular season"))
   : getAvailableSeasonContexts(scheduleData, "regular season");
 const season = context.seasonYear ?? "";
-const names = { ARI:"Arizona Cardinals", ATL:"Atlanta Falcons", BAL:"Baltimore Ravens", BUF:"Buffalo Bills", CAR:"Carolina Panthers", CHI:"Chicago Bears", CIN:"Cincinnati Bengals", CLE:"Cleveland Browns", DAL:"Dallas Cowboys", DEN:"Denver Broncos", DET:"Detroit Lions", GB:"Green Bay Packers", HOU:"Houston Texans", IND:"Indianapolis Colts", JAX:"Jacksonville Jaguars", KC:"Kansas City Chiefs", LAC:"Los Angeles Chargers", LAR:"Los Angeles Rams", LV:"Las Vegas Raiders", MIA:"Miami Dolphins", MIN:"Minnesota Vikings", NE:"New England Patriots", NO:"New Orleans Saints", NYG:"New York Giants", NYJ:"New York Jets", PHI:"Philadelphia Eagles", PIT:"Pittsburgh Steelers", SF:"San Francisco 49ers", TB:"Tampa Bay Buccaneers", TEN:"Tennessee Titans", WAS:"Washington Commanders" };
-const divisionTeams = new Set(["ARI", "LAR", "SF"]);
-const abbr = (team) => String(team?.abbreviation ?? team?.abbr ?? "").toUpperCase();
-const opponent = (game) => game?.opponent;
-const opponentAbbr = (game) => abbr(opponent(game));
-const opponentName = (game) => (opponent(game)?.full_name ?? opponent(game)?.fullName ?? opponent(game)?.name ?? names[opponentAbbr(game)] ?? opponentAbbr(game)) || "Opponent TBD";
-const isHome = (game) => game?.isHome === true;
-const isFinal = (game) => game?.state === "completed";
-const now = Date.now();
-const dataUpdatedAt = new Date(scheduleData?.updatedAt ?? scheduleData?.seasonContext?.updatedAt ?? "").getTime();
-const isLive = (game) => game?.state === "in_progress" && Number.isFinite(dataUpdatedAt) && now-dataUpdatedAt >= 0 && now-dataUpdatedAt < 15*60_000;
-const isBye = (game) => game?.state === "bye";
-const gameKey = (game, index) => String(game?.id ?? game?.game_id ?? index);
-const href = (game, index) => `/games/${encodeURIComponent(gameKey(game, index))}`;
-const dateValue = (game) => game?.startsAt ?? game?.date;
-const venue = (game) => game?.venue;
-const network = (game) => game?.network;
-const prime = (game) => Boolean(game?.prime_time ?? game?.primeTime ?? game?.is_primetime);
 const typeOf = (game) => game?.phase ?? "regular";
 const games = scheduleData.games;
 const sections = [
@@ -40,44 +21,10 @@ const sections = [
   { id:"regular", label:"Regular Season", games:games.filter((game) => typeOf(game) === "regular") },
   { id:"postseason", label:"Postseason", games:games.filter((game) => typeOf(game) === "postseason") },
 ];
-const nextGame = nextScheduleEvent(games, new Date(now));
-const activeTab = typeOf(nextGame ?? {}) === "preseason" ? "preseason" : typeOf(nextGame ?? {}) === "postseason" ? "postseason" : "regular";
-const result = (game) => { if(!isFinal(game)) return null; const home=Number(game?.home_team_score), away=Number(game?.visitor_team_score); if(!Number.isFinite(home)||!Number.isFinite(away)) return null; const sea=isHome(game)?home:away, opp=isHome(game)?away:home; return { outcome:sea===opp?"T":sea>opp?"W":"L", sea, opp }; };
-const stateLabel = (game) => ({ canceled:"Canceled", postponed:"Postponed", in_progress:"In progress", tbd:"Details TBD", upcoming:"Upcoming" })[game?.state] ?? "Upcoming";
-const month = (game) => { if(isBye(game)) return "Bye week"; const value=dateValue(game); if(!value) return "Date to be announced"; const date=new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("en-US",{month:"long",year:"numeric",timeZone:"America/Los_Angeles"}).format(date) : "Date to be announced"; };
-const groups = (rows) => rows.reduce((all,game) => { const label=month(game), found=all.find((group)=>group.label===label); found ? found.games.push(game) : all.push({label,games:[game]}); return all; }, []);
+const nextGame = nextScheduleEvent(games, new Date());
 ---
 
 <SeahawksLayout title={`Seahawks Schedule (${season})`} pageTitle={`Seahawks Schedule (${season})`} description={`Seattle Seahawks ${season} season schedule, results, and upcoming games`} seo={{ title: `Seahawks Schedule (${season}) | Seahawks Fan Zone`, description: `Seattle Seahawks ${season} season schedule, results, and upcoming games`, canonicalPath: `/schedule${scheduleRoot?.seasons?.length ? `?season=${season}` : ""}` }} activePath="/schedule" pageType="schedule" season={season}>
   <SeasonContextView context={context} options={options} freshnessIndicator seasonNavigation />
-  {nextGame ? <ScheduleScoreboard game={nextGame} href={href(nextGame,games.indexOf(nextGame))} opponentName={opponentName(nextGame)} opponentAbbr={opponentAbbr(nextGame)} home={isHome(nextGame)} venue={venue(nextGame)} network={network(nextGame)} live={isLive(nextGame)} /> : <section class="next-empty"><p>Next game</p><h1>Schedule awaiting kickoff details</h1><span>The next Seahawks matchup will be featured here when it is available.</span></section>}
-
-  <div class="schedule-controls">
-    <div class="tabs" role="tablist" aria-label="Season phase">{sections.map((section) => <button type="button" role="tab" aria-selected={section.id===activeTab?"true":"false"} data-tab={section.id}>{section.label}<span>{section.games.length}</span></button>)}</div>
-    <details class="filters"><summary>Filter games</summary><div>{[["home","Home"],["away","Away"],["division","Division"],["prime","Prime time"]].map(([value,label]) => <label><input type="checkbox" value={value} /> {label}</label>)}</div></details>
-  </div>
-
-  {sections.map((section) => <section class="season-section" data-section={section.id} hidden={section.id!==activeTab} aria-label={section.label}>
-    {section.games.length ? groups(section.games).map((group) => <div class="month-group"><h2>{group.label}</h2><div class="game-list">{group.games.map((game) => {
-      const gameResult=result(game), away=!isHome(game), division=divisionTeams.has(opponentAbbr(game)), networkName=network(game), gamePrime=prime(game);
-      const filterValues=[away?"away":"home",division&&"division",gamePrime&&"prime"].filter(Boolean).join(" ");
-      return isBye(game) ? <article class="game-card game-card--bye" data-filters=""><div class="week">{game?.week?`Week ${game.week}`:"Season break"}</div><div><h3>Bye week</h3><p>No game scheduled</p></div></article> : <article class:list={["game-card",isLive(game)&&"game-card--live",gameResult?.outcome==="W"&&"game-card--win",gameResult?.outcome==="L"&&"game-card--loss"]} data-filters={filterValues}>
-        <div class="week"><span>{game?.week?`Week ${game.week}`:section.label}</span>{isLive(game)&&<strong>Live</strong>}{gameResult&&<strong class={`result result--${gameResult.outcome.toLowerCase()}`}>{gameResult.outcome}</strong>}</div>
-        <div class="opponent"><TeamMark abbreviation={opponentAbbr(game)} name={opponentName(game)} decorative /><div><p>{isHome(game)?"Home":"Away"}</p><h3>{isHome(game)?"vs":"at"} {opponentName(game)}</h3><span>{formatScheduleDate(game)}</span></div></div>
-        <div class="badges">{division&&<span>Division</span>}{gamePrime&&<span>Prime time</span>}</div>
-        <dl><div><dt>Venue</dt><dd>{venue(game)??"Venue TBD"}</dd></div><div><dt>TV</dt><dd>{networkName??"Network TBD"}</dd></div></dl>
-        <div class="game-action">{gameResult?<strong>{gameResult.outcome} · SEA {gameResult.sea}, {opponentAbbr(game)} {gameResult.opp}</strong>:<strong>{stateLabel(game)}</strong>}<a href={href(game,games.indexOf(game))}>{gameResult?"Recap":isLive(game)?"Game Center":"Preview"} →</a></div>
-      </article>;
-    })}</div></div>) : <div class="empty-state"><span>{section.label}</span><h2>{section.id==="postseason"?"The playoff picture is still taking shape":`No ${section.label.toLowerCase()} games are available`}</h2><p>{section.id==="postseason"?"Qualifying matchups will appear here once they are confirmed.":"Games will appear here when schedule data is available."}</p></div>}
-  </section>)}
-
-  <script>
-    const tabs=[...document.querySelectorAll<HTMLButtonElement>('[data-tab]')]; const sections=[...document.querySelectorAll<HTMLElement>('[data-section]')]; const checks=[...document.querySelectorAll<HTMLInputElement>('.filters input')];
-    function applyFilters(){const selected=checks.filter((check)=>check.checked).map((check)=>check.value);document.querySelectorAll('.season-section:not([hidden]) .game-card').forEach((card)=>{const values=(card.dataset.filters??'').split(' ');card.toggleAttribute('hidden',selected.some((value)=>!values.includes(value)));});}
-    tabs.forEach((tab)=>tab.addEventListener('click',()=>{tabs.forEach((item)=>item.setAttribute('aria-selected',String(item===tab)));sections.forEach((section)=>section.toggleAttribute('hidden',section.dataset.section!==tab.dataset.tab));applyFilters();})); checks.forEach((check)=>check.addEventListener('change',applyFilters));
-  </script>
-  <style>
-    .next-empty,.empty-state{padding:clamp(1.25rem,4vw,2rem);border:var(--border-crisp);background:var(--slate-100)}.next-empty{margin-bottom:1rem;border-top:6px solid var(--action-green)}.next-empty p,.empty-state>span{margin:0;color:var(--slate-700);font-size:.72rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.next-empty h1,.empty-state h2{margin:.3rem 0}.schedule-controls{display:flex;align-items:start;justify-content:space-between;gap:1rem;margin:1.25rem 0}.tabs{display:inline-flex;padding:4px;background:var(--slate-300)}.tabs button{display:flex;gap:.5rem;align-items:center;min-height:42px;padding:.55rem .85rem;border:0;background:transparent;color:var(--navy-900);font:800 .85rem var(--font-display);cursor:pointer}.tabs button[aria-selected=true]{background:var(--navy-800);color:#fff}.tabs span{display:grid;min-width:1.45rem;height:1.45rem;place-items:center;border-radius:50%;background:#ffffff2b;font-size:.7rem}.filters{position:relative;border:var(--border-crisp);background:#fff}.filters summary{padding:.65rem .85rem;font-weight:900;cursor:pointer}.filters div{position:absolute;z-index:2;right:-1px;display:grid;gap:.65rem;min-width:150px;padding:.85rem;border:var(--border-crisp);background:#fff;box-shadow:var(--shadow-lg)}.filters label{font-weight:800}.month-group{margin-top:1.6rem}.month-group>h2{margin:0 0 .65rem;padding-bottom:.45rem;border-bottom:3px solid var(--navy-800);font-size:1.15rem;text-transform:uppercase}.game-list{display:grid;gap:.6rem}.game-card{display:grid;grid-template-columns:100px minmax(240px,1.4fr) minmax(100px,.6fr) minmax(180px,1fr);align-items:center;gap:1rem;padding:.9rem 1rem;border:var(--border-crisp);border-left:6px solid var(--slate-500);background:#fff}.game-card--win{border-left-color:var(--action-green)}.game-card--loss{border-left-color:#b3261e}.game-card--live{border-left-color:var(--action-green);box-shadow:0 0 0 2px #69be2866}.week{display:flex;align-items:center;gap:.45rem;color:var(--slate-700);font-size:.73rem;font-weight:900;text-transform:uppercase}.week strong,.result{display:grid;min-width:1.6rem;height:1.6rem;place-items:center;padding:0 .2rem;background:var(--action-green);color:var(--navy-950)}.result--l{background:#b3261e;color:#fff}.result--t{background:var(--slate-500)}.opponent{display:flex;align-items:center;gap:.8rem}.opponent p{margin:0;color:var(--slate-700);font-size:.68rem;font-weight:900;text-transform:uppercase}.opponent h3{margin:.1rem 0;font-size:1rem}.opponent span{color:var(--slate-700);font-size:.82rem}.badges{display:flex;gap:.35rem;flex-wrap:wrap}.badges span{padding:.22rem .4rem;background:#00224414;color:var(--navy-900);font-size:.67rem;font-weight:900;text-transform:uppercase}.game-card dl{display:grid;gap:.35rem;margin:0}.game-card dt{color:var(--slate-700);font-size:.62rem;text-transform:uppercase}.game-card dd{margin:0;font-size:.78rem;font-weight:800;overflow-wrap:anywhere}.game-action{grid-column:2/-1;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-top:.65rem;border-top:var(--border-crisp);font-size:.82rem}.game-action a{font-weight:900}.game-card--bye{grid-template-columns:100px 1fr;background:var(--slate-100);border-left-color:var(--navy-800)}.game-card--bye h3,.game-card--bye p{margin:.1rem 0}.empty-state{text-align:center}.empty-state p{margin:.4rem 0 0;color:var(--slate-700)}
-    @media(max-width:760px){.schedule-controls{display:grid}.tabs{width:100%;overflow-x:auto}.tabs button{flex:1;white-space:nowrap}.filters{width:max-content}.game-card{grid-template-columns:72px minmax(0,1fr);align-items:start;gap:.75rem}.opponent{min-width:0}.opponent h3{font-size:.95rem}.badges,.game-card dl,.game-action{grid-column:2}.game-action{align-items:flex-start;flex-direction:column;gap:.45rem}.game-card--bye{grid-template-columns:72px 1fr}}@media(max-width:430px){.tabs button{padding:.5rem;font-size:.76rem}.tabs span{display:none}.game-card{grid-template-columns:1fr}.week,.opponent,.badges,.game-card dl,.game-action{grid-column:1}.game-card--bye{grid-template-columns:1fr}}
-  </style>
+  <ScheduleList sections={sections} nextGameId={nextGame?.id} />
 </SeahawksLayout>
