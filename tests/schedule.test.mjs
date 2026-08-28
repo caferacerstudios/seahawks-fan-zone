@@ -8,7 +8,7 @@ import {
   selectScheduleSeason,
   validateSchedule,
 } from "../src/lib/schedule.mjs";
-import { groupScheduleMonths, scheduleRow } from "../src/lib/schedule-display.mjs";
+import { groupScheduleMonths, normalizeScheduleFilters, scheduleGameMatches, scheduleRow } from "../src/lib/schedule-display.mjs";
 import { gameCalendar, gameDayView, seasonCalendar } from "../src/lib/game-day.mjs";
 
 const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
@@ -131,6 +131,16 @@ test("bye rows stay within the surrounding chronological month group", () => {
   assert.deepEqual(groups.map(({ label, games }) => [label, games.map(({ id }) => id)]), [
     ["September 2026", ["week-4", "bye"]], ["October 2026", ["week-6"]],
   ]);
+});
+
+test("schedule filters combine categories and OR choices within a category", () => {
+  const homeDivision = normalizeSchedule({ season: 2026, games: [game("home-division", 1, "2026-09-13T20:05:00Z", { home_team: SEA, visitor_team: SF, season_type: "regular" })] }).games[0];
+  const awayDivision = normalizeSchedule({ season: 2026, games: [game("away-division", 2, "2026-09-20T20:05:00Z", { home_team: SF, visitor_team: SEA, season_type: "regular" })] }).games[0];
+  assert.equal(scheduleGameMatches(homeDivision, { filters: ["home", "division", "regular"] }), true);
+  assert.equal(scheduleGameMatches(awayDivision, { filters: ["home", "division"] }), false);
+  assert.equal(scheduleGameMatches(awayDivision, { filters: ["home", "away"] }), true);
+  assert.equal(scheduleGameMatches(homeDivision, { status: "completed" }), false);
+  assert.deepEqual(normalizeScheduleFilters(["HOME", "home", "invalid", "prime-time"]), ["home", "prime-time"]);
 });
 
 test("featured game stays on an unfinished live or postponed event until final", () => {

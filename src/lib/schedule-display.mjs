@@ -90,3 +90,27 @@ export function groupScheduleMonths(games) {
   }
   return groups;
 }
+
+export const SCHEDULE_FILTERS = new Set(["home", "away", "division", "prime-time", "preseason", "regular", "postseason"]);
+
+export function normalizeScheduleFilters(values = []) {
+  return [...new Set(values.map((value) => String(value).toLowerCase()).filter((value) => SCHEDULE_FILTERS.has(value)))];
+}
+
+export function scheduleGameMatches(game, { status = "all", filters = [] } = {}) {
+  const selected = new Set(normalizeScheduleFilters(filters));
+  const state = String(game?.state ?? "upcoming").toLowerCase();
+  if (status === "completed" && state !== "completed") return false;
+  if (status === "upcoming" && (state === "completed" || state === "bye" || state === "canceled")) return false;
+
+  const locations = ["home", "away"].filter((value) => selected.has(value));
+  if (locations.length && !locations.includes(game?.isHome ? "home" : "away")) return false;
+
+  const phases = ["preseason", "regular", "postseason"].filter((value) => selected.has(value));
+  if (phases.length && !phases.includes(String(game?.phase ?? "regular").toLowerCase())) return false;
+
+  const opponentAbbr = abbreviation(game?.opponent);
+  if (selected.has("division") && !DIVISION.has(opponentAbbr)) return false;
+  if (selected.has("prime-time") && !Boolean(game?.prime_time ?? game?.primeTime ?? game?.is_primetime)) return false;
+  return true;
+}
