@@ -167,6 +167,8 @@ function safeSeasonFromStandings() {
   title={`Standings & Playoff Picture (${season})`}
   description="Seahawks record and remaining schedule for the current season."
   activePath="/standings"
+  pageType="standings"
+  season={season}
 >
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
 
@@ -225,7 +227,7 @@ function safeSeasonFromStandings() {
     ) : null}
   </div>
 
-  <h3 class="section-title" style="margin-top: 1.25rem;">Remaining regular season</h3>
+  <h2 class="section-title" style="margin-top: 1.25rem;">Remaining regular season</h2>
 
   {remaining.length === 0 ? (
     <div class="empty">{seasonContext.seasonStatus === "complete" ? "The regular season is complete." : unavailableMessage(seasonContext)}</div>

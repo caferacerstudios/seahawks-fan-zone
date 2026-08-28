@@ -494,7 +494,7 @@ const headshotImg = findHeadshotForName(displayName);
 const currentStatus = injuryMatches[0]?.status ? String(injuryMatches[0].status) : null;
 ---
 
-<SeahawksLayout title={pageTitle} description="Player profile page." activePath="/players">
+<SeahawksLayout title={pageTitle} description="Player profile page." activePath="/players" pageType="player" season={seasonContext.seasonYear}>
   <SeasonContextView context={{ ...seasonContext, updatedAt: updatedAtForPage }} options={seasonOptions} prefix="Data through" />
   <div class="meta-line">
     <span><strong>Back:</strong> <a href="/players">Players</a></span>

@@ -8,7 +8,7 @@ const description = "Here is a running list of my eBay listings for 90’s and e
 const ebayListings = ebayData?.items ?? [];
 ---
 
-<BaseLayout {title} {description}>
+<BaseLayout {title} {description} monetizationEligible={false}>
   <header class="lr-header">
     <div class="lr-header-bg" aria-hidden="true"></div>
 
@@ -47,7 +47,7 @@ const ebayListings = ebayData?.items ?? [];
       </section>
     </aside>
 
-    <main class="lr-main">
+    <main class="lr-main" id="main-content" tabindex="-1">
       <article class="lr-paper">
         <header class="lr-post-header">
           <h2 class="lr-post-title">Games For Sale</h2>
