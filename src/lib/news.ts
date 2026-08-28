@@ -49,6 +49,88 @@ const sharedHero: HeroAsset = {
 
 const articles: NewsArticle[] = [
   {
+    slug: "what-made-2025-seahawks-champions-repeatable-2026",
+    headline: "What made the 2025 Seahawks champions, and which strengths can carry into 2026",
+    dek: "Seattle's title rested on a defense that won ordinary downs, an efficient passing game and real field-position help. Here is what looks durable, and what is likelier to move back toward the pack.",
+    publishedAt: "2026-08-28",
+    updatedAt: "2026-08-28",
+    author: "Seahawks Fan Zone Editorial Team",
+    category: "Analysis",
+    tags: ["2025 season", "Super Bowl LX", "Data analysis", "2026 outlook", "Mike Macdonald", "Jaxon Smith-Njigba"],
+    season: 2025,
+    opponent: null,
+    body: [
+      { type: "paragraph", html: "The <a href=\"/history\">franchise timeline</a> records the headline: Seattle finished 14–3, earned the NFC's top seed and beat New England 29–13 in Super Bowl LX for its second championship. The more useful question for 2026 is how it happened. The evidence points to a broad base, not one hot playoff month. Seattle finished first in regular-season point differential, first in points allowed and third in points scored. Its defense suppressed rushing efficiency and ended drives on third down; its offense created high-value passing yards despite a middling red-zone rate; its specialists added hidden and direct points. Some of those inputs remain. Others, especially perfect postseason ball security and return touchdowns, should be treated as benefits rather than baselines. The site's <a href=\"/team\">team statistics</a>, <a href=\"/players\">player statistics</a> and <a href=\"/standings\">standings</a> provide the live 2026 comparison points." },
+
+      { type: "heading", heading: "The season in six numbers" },
+      { type: "table", caption: "Six numbers that explain Seattle's 2025 regular season", columns: ["Measure", "Seattle", "NFL context", "Plain-football meaning"], rows: [
+        { cells: ["Point differential", "+191", "1st", "Seattle outscored opponents by 11.2 points per game, evidence of strength beyond a 14–3 record."] },
+        { cells: ["Offensive yards per play", "5.9", "8th", "The offense produced above-average distance each snap without requiring league-leading volume."] },
+        { cells: ["Offensive points per drive", "2.32", "11th", "Good, not extraordinary, drive finishing. Defense and special teams widened the scoreboard advantage."] },
+        { cells: ["Defensive points per drive", "1.48", "1st", "An opponent possession was worth 0.84 fewer points than a Seattle possession on average."] },
+        { cells: ["Opponent yards per rush", "3.7", "1st", "Strong run defense kept the full defensive call sheet available on later downs."] },
+        { cells: ["Opponent third-down rate", "32.1%", "1st", "Seattle ended nearly seven of every ten third-down attempts without allowing a conversion."] }
+      ], note: "Data period: 2025 regular season, 17 games. Source: Pro Football Reference team totals and drive table; rankings are its published NFL ranks. Point differential is 483 points scored minus 292 allowed. The drive comparison uses 183 Seattle drives and 188 opponent drives. Alt text: Table comparing six Seattle efficiency measures with 2025 NFL rank and a plain-language interpretation." },
+
+      { type: "heading", heading: "The offense created value between the 20s" },
+      { type: "paragraph", html: "Seattle's offense was productive without being equally strong everywhere. It gained 5,973 yards on 1,015 plays, or 5.88 yards per play before rounding, and scored 483 points. The passing game did more of the efficiency work: team net yards per pass attempt were 7.6, second in the NFL, while the running game averaged 4.1 yards per carry, 25th. <a href=\"/players/sam-darnold\">Sam Darnold</a> completed 67.7% of his passes for 4,048 yards, 25 touchdowns and 14 interceptions. Seattle allowed 27 sacks, a 5.3% sack rate. That combination says the line and quarterback generally preserved passing plays, even though giveaways remained a weakness." },
+      { type: "paragraph", html: "The offense converted 39.8% of third downs, 16th, and scored touchdowns on 32 of 59 red-zone trips, 54.2%, 21st. Those are important boundaries on the argument. Seattle did not score because every long possession ended perfectly. It created field position and chunk yardage, then received enough support from defense, returns and Jason Myers to turn an above-average offense into the league's third-highest point total. No reliable first-down play-by-play file exists in this repository, so this analysis does not claim an early-down rate or an explosive-play rate for the whole offense." },
+      { type: "paragraph", html: "The clearest concentration risk was <a href=\"/players/jaxon-smith-njigba\">Jaxon Smith-Njigba</a>. His 1,793 receiving yards represented 44.1% of Seattle's 4,063 gross team passing yards, and his 119 catches were 36.6% of the team's 325 completions. Those are original calculations, not target share. He also generated 27 catches of at least 20 yards, according to his official Seahawks profile. A player capable of carrying that load is a repeatable advantage. Needing him to carry it is a vulnerability if coverage changes or availability does." },
+
+      { type: "heading", heading: "The defense won before it needed a takeaway" },
+      { type: "paragraph", html: "The defense's case is stronger because it does not depend on turnovers. Seattle allowed 4.6 yards per play, second in the NFL, 3.7 per rush, first, and 1.48 points per drive, first. Opponents converted only 75 of 234 third downs. They scored touchdowns on 26 of 52 red-zone possessions, a 50.0% rate that ranked fifth. Those measures describe repeatable down-to-down resistance: short gains created longer third downs, and longer third downs expanded Mike Macdonald's pressure and coverage menu." },
+      { type: "paragraph", html: "Pressure mattered, but the verified public totals support a careful description rather than a proprietary pressure grade. Seattle recorded 47 sacks, tied for seventh in the league, while allowing only 20 passing touchdowns and intercepting 18 passes. The front could rush without selling out against the run, and the secondary could change responsibilities after the snap. <a href=\"/players/devon-witherspoon\">Devon Witherspoon</a> supplied outside and nickel flexibility, while <a href=\"/players/leonard-williams\">Leonard Williams</a>, Byron Murphy II and the edge rotation supplied different entry points to the quarterback." },
+      { type: "paragraph", html: "The postseason was three games, so it belongs in a separate sample. Seattle allowed 46 total points, or 15.3 per game, against San Francisco, the Rams and New England. The Super Bowl defense produced six sacks, two interceptions and 11 quarterback hits, but that single game should confirm the regular-season profile, not define it. The 17-game evidence is the better reason to expect the structure to travel." },
+
+      { type: "heading", heading: "Special teams changed possessions and scoreboards" },
+      { type: "paragraph", html: "Special teams were not background detail. Michael Dickson averaged 42.2 net yards on 52 regular-season punts and put 20 inside the 20. Rashid Shaheed averaged 29.9 yards on 14 kick returns and 16.2 on 13 punt returns after arriving in Seattle; Tory Horton averaged 14.9 on 16 punt returns. The Seahawks' season review credits special teams with five touchdowns including the playoffs. Those scores mattered, but return touchdowns are sparse events. Dickson's net average and the return units' consistent yardage are the sounder 2026 baseline." },
+
+      { type: "heading", heading: "Three strengths that can reasonably repeat" },
+      { type: "table", caption: "Repeatability audit for Seattle's 2025 strengths", columns: ["Strength", "2025 evidence", "Personnel or scheme", "2026 input check", "Outlook"], rows: [
+        { cells: ["Run defense across flexible fronts", "3.7 opponent yards per rush, 1st; nine rush TD allowed, 2nd", "Macdonald's fronts, Williams and Murphy inside, Witherspoon's movable role", "Macdonald, defensive coordinator Aden Durde and the named core are on the Aug. 28 roster", "Reasonably repeatable; matching No. 1 exactly is not required"] },
+        { cells: ["Efficient primary passing connection", "7.6 team net yards per attempt, 2nd; Smith-Njigba had 1,793 yards", "Darnold's accuracy plus Smith-Njigba's route and catch production", "Both are on the Aug. 28 roster; Smith-Njigba is extended through 2031", "Repeatable foundation, with concentration risk"] },
+        { cells: ["Field-position specialists", "Dickson: 42.2 net, 20 punts inside 20; Shaheed: 29.9 kick-return average", "Directional punting, coverage and return speed", "Dickson, Shaheed, Horton, Myers and coordinator Jay Harbaugh remain on the Aug. 28 roster/staff", "Yardage edge is more repeatable than touchdowns"] }
+      ], note: "Data period: 2025 regular season unless noted. Sources: NFL and Seahawks team statistics; Seahawks 2026 roster and coaching staff. ‘Reasonably repeatable’ is a projection, not a guarantee. Alt text: Table connecting three 2025 strengths to their statistical evidence, underlying personnel and 2026 continuity." },
+      { type: "paragraph", html: "Continuity is strongest on defense. Macdonald still directs the system, Durde remains defensive coordinator, and Seattle's Aug. 28 roster retains Witherspoon, Williams, Murphy, Ernest Jones IV, DeMarcus Lawrence and multiple rotational rushers. Offensively, the two central players return, but the designer changes. Brian Fleury replaced Klint Kubiak after Kubiak became Las Vegas' head coach. Fleury comes from a related outside-zone and play-action family, which may reduce transition cost, but continuity of terminology is not proof of continuity in sequencing or results." },
+
+      { type: "heading", heading: "Three regression risks" },
+      { type: "paragraph", html: "<strong>1. Turnover timing.</strong> Seattle's regular-season margin was only minus-three: 25 takeaways against 28 giveaways. Then it became the first champion to complete an entire postseason without a turnover. Three clean games are valuable performance, especially against playoff opponents, but they are still three games. If the offense again approaches 28 regular-season giveaways, the defense may not always erase them." },
+      { type: "paragraph", html: "<strong>2. Health and concentrated responsibility.</strong> Witherspoon missed five regular-season games, yet the defense maintained its standard. That depth was tested successfully, not promised forever. Smith-Njigba supplied 44.1% of gross passing yards, while Darnold started all 17 games. Losing either would change far more than one lineup spot. Injury forecasting is unreliable, so the risk is exposure, not a prediction that someone will be hurt." },
+      { type: "paragraph", html: "<strong>3. Close-game and situational variance.</strong> Seattle went 6–3 in regular-season games decided by eight points or fewer, calculated from the official 17-game results. That is good without being the foundation of the record: the Seahawks were 8–0 in games decided by nine or more and owned a plus-191 differential. Still, a one-point comeback such as the 38–37 win over the Rams cannot be budgeted as routine. The coordinator change adds another source of variation because offensive red-zone and third-down decisions now belong to Fleury." },
+
+      { type: "heading", heading: "What Seattle does not need to repeat exactly" },
+      { type: "paragraph", html: "Seattle does not need another league-low 1.48 defensive points per drive, five special-teams touchdowns across the full season and playoffs, or three turnover-free playoff games to remain a championship-level team. A defense can slide from first to fifth if the offense improves its 54.2% red-zone touchdown rate or reduces its 28 giveaways. Return touchdowns can disappear while better average starting field position still creates value. Smith-Njigba can fall short of 1,793 yards if a healthier distribution to Shaheed, Cooper Kupp, AJ Barner and the backs keeps team passing efficiency high. Sustainable teams replace lost outlier value rather than demanding the same outlier twice." },
+
+      { type: "heading", heading: "Four indicators for the first month of 2026" },
+      { type: "watchlist", items: [
+        { label: "Net yards per pass attempt", html: "Track whether Seattle remains above <strong>7.0</strong>, close to the 2025 strength of 7.6, under Fleury's play calling." },
+        { label: "Opponent yards per rush", html: "Use <strong>4.0</strong> as the early checkpoint. A small four-game sample cannot settle the run defense, but repeated efficient runs would change the down-and-distance advantage." },
+        { label: "Giveaways per game", html: "Watch for <strong>1.0 or fewer</strong>. Seattle averaged 1.65 in the 2025 regular season before giving the ball away zero times in the postseason." },
+        { label: "Non-JSN receiving share", html: "Calculate gross team passing yards minus Smith-Njigba's yards, divided by gross team passing yards. A share above <strong>60%</strong> would show broader production without requiring his efficiency to fall." }
+      ] },
+
+      { type: "heading", heading: "Methodology and limitations" },
+      { type: "paragraph", html: "Repository audit: the site's NFL ingestion is designed to retain games, player season stats and standings, with play-by-play requested only when the provider tier permits it. No generated <code>src/data/nfl</code> files or 2025 play-by-play snapshot were present in this checkout, so no early-down, pressure-rate, drive-start or whole-team explosive-play calculation was attempted. Official Seahawks and NFL pages verify records, scores and basic totals. Pro Football Reference supplies transparent team drive totals and published league ranks. Original calculations use unrounded inputs where available: point differential = 483 − 292; yards per play = 5,973 ÷ 1,015; Smith-Njigba receiving-yard share = 1,793 ÷ 4,063; catch share = 119 ÷ 325; close-game record counts final margins of eight or fewer. Kneel-downs, spikes and garbage time were not excluded because the available aggregate totals do not identify them. Regular season is 17 games; postseason is three. The monitoring thresholds are editorial checkpoints, not forecasts or league averages. This historical analysis remains fixed after kickoff; only the four-item monitoring section should be updated with 2026 results." }
+    ],
+    sources: [
+      { label: "Seattle Seahawks: 2025 regular-season team and player statistics", url: "https://www.seahawks.com/team/stats/2025/reg" },
+      { label: "Seattle Seahawks: 2025 schedule and official results", url: "https://www.seahawks.com/schedule/2025/" },
+      { label: "Seattle Seahawks: 2025 season numbers", url: "https://www.seahawks.com/news/12-numbers-of-note-from-the-seahawks-super-bowl-winning-2025-season" },
+      { label: "Seattle Seahawks: finalized 2026 coaching staff", url: "https://www.seahawks.com/news/seattle-seahawks-finalize-2026-coaching-staff" },
+      { label: "Seattle Seahawks: current 2026 roster", url: "https://www.seahawks.com/team/players-roster/" },
+      { label: "NFL: 2025 team statistics", url: "https://www.nfl.com/stats/team-stats/" },
+      { label: "Pro Football Reference: 2025 Seahawks team, drive and league-rank tables", url: "https://www.pro-football-reference.com/teams/sea/2025.htm" }
+    ],
+    hero: {
+      src: "/images/news/2025-championship-analysis.png",
+      alt: "Illustrated football beside a transparent strategy board on a rainy field, with a Seattle-inspired skyline and six glowing data points",
+      width: 1672,
+      height: 941
+    },
+    featured: true,
+    status: "published"
+  },
+  {
     slug: "price-of-keeping-a-champion-seahawks-contract-strategy",
     headline: "The price of keeping a champion: How Seattle is building around its core",
     dek: "Four extensions reveal a deliberate split: buy the prime years of drafted stars early, then pay selectively to keep the veteran who makes the defensive structure work.",
@@ -111,7 +193,7 @@ const articles: NewsArticle[] = [
       { label: "Seahawks Fan Zone methodology", url: "/methodology" }
     ],
     hero: sharedHero,
-    featured: true,
+    featured: false,
     status: "published"
   },
   {
