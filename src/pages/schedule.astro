@@ -87,6 +87,10 @@ function statusText(game) {
   return game?.status || "";
 }
 
+function isFinal(game) {
+  return /final|finished|complete/i.test(String(game?.status || ""));
+}
+
 function scoreText(game) {
   const hs = game?.home_team_score;
   const as = game?.visitor_team_score;
@@ -200,7 +204,7 @@ function playoffRoundLabel(g, i, allPlayoffs) {
           <article class={cardClass}>
             <div class="card-top">
               <div class="week">
-                <a class="week-link" href={gameHref(g, i)} aria-label={`Open recap for week ${g?.week ?? ""}`}>
+                <a class="week-link" href={gameHref(g, i)} aria-label={`Open ${isFinal(g) ? "recap" : "matchup preview"} for week ${g?.week ?? ""}`}>
                   {Number.isFinite(Number(g?.week)) ? `Week ${g.week}` : String(g?.week || "")}
                 </a>
               </div>
@@ -229,7 +233,7 @@ function playoffRoundLabel(g, i, allPlayoffs) {
             </div>
 
             <div class="card-links">
-              <a class="pill pill--ghost" href={gameHref(g, i)}>Recap →</a>
+              <a class="pill pill--ghost" href={gameHref(g, i)}>{isFinal(g) ? "Recap" : "Matchup"} →</a>
             </div>
           </article>
         );
@@ -261,7 +265,7 @@ function playoffRoundLabel(g, i, allPlayoffs) {
             <article class={cls}>
               <div class="card-top">
                 <div class="week">
-                  <a class="week-link" href={gameHref(g, idx)} aria-label={`Open recap for ${round}`}>
+                  <a class="week-link" href={gameHref(g, idx)} aria-label={`Open ${isFinal(g) ? "recap" : "matchup preview"} for ${round}`}>
                     {round}
                   </a>
                   <span class={`round-badge ${isSB ? "round-badge--sb" : ""}`}>SEA vs {opp}</span>
@@ -292,7 +296,7 @@ function playoffRoundLabel(g, i, allPlayoffs) {
               </div>
 
               <div class="card-links">
-                <a class={`pill pill--ghost ${isSB ? "pill--sb" : ""}`} href={gameHref(g, idx)}>Recap →</a>
+                <a class={`pill pill--ghost ${isSB ? "pill--sb" : ""}`} href={gameHref(g, idx)}>{isFinal(g) ? "Recap" : "Matchup"} →</a>
               </div>
             </article>
           );
