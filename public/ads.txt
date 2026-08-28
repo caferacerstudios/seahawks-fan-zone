@@ -1,1 +1,2 @@
-google.com, pub-6319637311271773, DIRECT, f08c47fec0942fa0
+# Advertising is disabled until a real publisher record is configured at build time.
+# See README.md for ADS_TXT_RECORD and AdSense production setup.

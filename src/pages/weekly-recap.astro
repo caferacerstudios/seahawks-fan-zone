@@ -31,7 +31,7 @@ const featured = entries[0] ?? null;
 const groups = entries.slice(1).reduce((map, entry) => { const label = `${entry.season} ${phase(entry.game)}`; if (!map.has(label)) map.set(label, []); map.get(label).push(entry); return map; }, new Map());
 ---
 
-<SeahawksLayout title="Seattle Seahawks game recaps" description="Authored Seahawks game recaps, results, key context, and the season archive." pageTitle="Game Recaps" pageTagline="The final score, the authored story, and the factual context from each completed game." activePath="/weekly-recap" canonical="/weekly-recap">
+<SeahawksLayout title="Seattle Seahawks game recaps" description="Authored Seahawks game recaps, results, key context, and the season archive." pageTitle="Game Recaps" pageTagline="The final score, the authored story, and the factual context from each completed game." activePath="/weekly-recap" canonical="/weekly-recap" monetizationEligible={entries.length > 0}>
   {featured ? <article class={`featured result-${outcome(featured.game).toLowerCase()}`}>
     <div class="feature-copy">
       <p class="eyebrow">Latest recap · {featured.season} · {phase(featured.game)}</p>
