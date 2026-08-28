@@ -28,6 +28,15 @@ const featuredGame = featuredScheduleEvent(games, new Date());
 
 <SeahawksLayout title={`Seahawks Schedule (${season})`} pageTitle={`Seahawks Schedule (${season})`} description={`Seattle Seahawks ${season} season schedule, results, and upcoming games`} seo={{ title: `Seahawks Schedule (${season}) | Seahawks Fan Zone`, description: `Seattle Seahawks ${season} season schedule, results, and upcoming games`, canonicalPath: `/schedule${scheduleRoot?.seasons?.length ? `?season=${season}` : ""}` }} activePath="/schedule" pageType="schedule" season={season}>
   <SeasonContextView context={context} options={options} freshnessIndicator seasonNavigation />
+  <aside class="calendar-action" aria-label="Full-season calendar">
+    <a href={`/schedule/${season}.ics`} download={`seahawks-${season}-schedule.ics`}>Add Seahawks schedule to calendar</a>
+    <p>This is a downloaded calendar file. Download it again after NFL schedule changes to get updated kickoff details.</p>
+  </aside>
   <UpNext game={featuredGame} canonicalBase={Astro.site ?? Astro.url} />
-  <ScheduleList sections={sections} nextGameId={nextGame?.id} />
+  <ScheduleList sections={sections} nextGameId={nextGame?.id} canonicalBase={Astro.site ?? Astro.url} />
 </SeahawksLayout>
+
+<style>
+  .calendar-action{display:flex;align-items:center;gap:.5rem 1rem;flex-wrap:wrap;margin:.8rem 0 1rem;padding:.75rem;border-left:5px solid var(--action-green);background:var(--slate-100)}
+  .calendar-action a{font-weight:900}.calendar-action p{flex:1;min-width:240px;margin:0;color:var(--slate-700);font-size:.75rem}
+</style>

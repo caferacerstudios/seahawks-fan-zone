@@ -15,6 +15,18 @@ const optionalUrl = (value) => {
     return ["http:", "https:"].includes(url.protocol) ? candidate : null;
   } catch { return null; }
 };
+const ALLOWED_EXTERNAL_HOSTS = new Set([
+  "seahawks.com", "www.seahawks.com", "lumenfield.com", "www.lumenfield.com",
+  "nfl.com", "www.nfl.com", "espn.com", "www.espn.com",
+]);
+const allowlistedUrl = (value) => {
+  const candidate = optionalUrl(value);
+  if (!candidate) return null;
+  try {
+    const url = new URL(candidate, "https://example.invalid");
+    return url.origin === "https://example.invalid" || (url.protocol === "https:" && ALLOWED_EXTERNAL_HOSTS.has(url.hostname)) ? candidate : null;
+  } catch { return null; }
+};
 
 export function schedulePhase(game) {
   const value = text(game?.phase ?? game?.season_type ?? game?.seasonType ?? game?.type).toLowerCase();
@@ -84,8 +96,10 @@ export function normalizeGame(game, season) {
     venue: game?.venue_confirmed === false || game?.venueConfirmed === false ? null : venueValue || null,
     network: game?.network_confirmed === false || game?.networkConfirmed === false ? null : networkValue || null,
     radio: game?.radio_confirmed === false || game?.radioConfirmed === false ? null : radioValue || null,
-    venueUrl: optionalUrl(game?.venue_url ?? game?.venueUrl ?? game?.venue?.url ?? game?.directions_url ?? game?.directionsUrl),
-    canonicalUrl: optionalUrl(game?.canonical_url ?? game?.canonicalUrl ?? game?.detail_url ?? game?.detailUrl),
+    venueUrl: allowlistedUrl(game?.venue_url ?? game?.venueUrl ?? game?.venue?.url ?? game?.directions_url ?? game?.directionsUrl),
+    watchUrl: allowlistedUrl(game?.watch_url ?? game?.watchUrl ?? game?.broadcast_url ?? game?.broadcastUrl),
+    canonicalUrl: allowlistedUrl(game?.canonical_url ?? game?.canonicalUrl ?? game?.detail_url ?? game?.detailUrl),
+    previewAvailable: game?.preview_available === true || game?.previewAvailable === true || Boolean(text(game?.preview?.summary ?? game?.preview?.text).length >= 120),
     opponentConfirmed: state === "bye" ? false : Boolean(opponent) && game?.opponent_confirmed !== false && game?.opponentConfirmed !== false,
   };
 }
@@ -121,6 +135,20 @@ export function normalizeSchedule(raw, expectedSeason = raw?.season) {
     ? raw.games
     : [...(raw?.gamesPreseason ?? []), ...(raw?.gamesRegular ?? []), ...(raw?.gamesPostseason ?? [])];
   const games = sortSchedule(addBye(source.map((game) => normalizeGame(game, season)), season));
+  const record = { wins: 0, losses: 0, ties: 0 };
+  for (const game of games) {
+    if (game.phase !== "regular" || game.state !== "completed") continue;
+    if (game.home_team_score == null || game.visitor_team_score == null) continue;
+    const homeScore = Number(game.home_team_score);
+    const awayScore = Number(game.visitor_team_score);
+    if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
+    const seahawksScore = game.isHome ? homeScore : awayScore;
+    const opponentScore = game.isHome ? awayScore : homeScore;
+    if (seahawksScore === opponentScore) record.ties += 1;
+    else if (seahawksScore > opponentScore) record.wins += 1;
+    else record.losses += 1;
+    game.seahawksRecordAfter = `${record.wins}-${record.losses}${record.ties ? `-${record.ties}` : ""}`;
+  }
   const normalized = {
     ...raw,
     season,

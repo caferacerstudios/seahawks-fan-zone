@@ -9,7 +9,7 @@ import {
   validateSchedule,
 } from "../src/lib/schedule.mjs";
 import { groupScheduleMonths, scheduleRow } from "../src/lib/schedule-display.mjs";
-import { gameCalendar, gameDayView } from "../src/lib/game-day.mjs";
+import { gameCalendar, gameDayView, seasonCalendar } from "../src/lib/game-day.mjs";
 
 const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const SF = { abbreviation: "SF", full_name: "San Francisco 49ers" };
@@ -100,10 +100,28 @@ test("schedule rows distinguish next, later upcoming, TBD, and bye states", () =
   const later = scheduleRow(normalizeSchedule({ season: 2026, games: [game("later", 3, "2026-09-27T20:05:00Z")] }).games[0]);
   const tbd = scheduleRow(normalizeSchedule({ season: 2026, games: [game("tbd", 4, "2026-10-04T00:00:00Z", { status: "TBD", time_tbd: true })] }).games[0]);
   const bye = scheduleRow({ id: "bye", state: "bye", week: 5 });
-  assert.deepEqual([next.state, next.stateLabel, next.action], ["next", "Up next", "Preview"]);
-  assert.deepEqual([later.state, later.stateLabel, later.action], ["upcoming", "Upcoming", "Details"]);
+  assert.deepEqual([next.state, next.stateLabel, next.action], ["next", "Up next", "Game details"]);
+  assert.deepEqual([later.state, later.stateLabel, later.action], ["upcoming", "Upcoming", "Game details"]);
   assert.deepEqual([tbd.state, tbd.stateLabel, tbd.kickoff], ["tbd", "Details TBD", "Time TBD"]);
   assert.deepEqual([bye.kind, bye.status, bye.detail], ["bye", "Bye", "No game scheduled"]);
+});
+
+test("schedule actions reflect preview, game-day, postponed, and missing metadata states", () => {
+  const base = normalizeSchedule({ season: 2026, games: [game("states", 2, "2026-09-20T20:05:00Z")] }).games[0];
+  assert.equal(scheduleRow({ ...base, previewAvailable: true }, { now: new Date("2026-09-19T20:00:00Z") }).action, "Preview");
+  assert.equal(scheduleRow(base, { now: new Date("2026-09-20T12:00:00-07:00") }).action, "Game center");
+  assert.equal(scheduleRow({ ...base, state: "postponed" }).action, "Updated details");
+  const empty = scheduleRow({ ...base, network: null, venue: null });
+  assert.equal(empty.network, null);
+  assert.equal(empty.venue, null);
+});
+
+test("completed regular-season rows carry the Seahawks record after that game", () => {
+  const schedule = normalizeSchedule({ season: 2026, games: [
+    game("win", 1, "2026-09-13T20:05:00Z", { status: "Final", home_team_score: 24, visitor_team_score: 17 }),
+    game("loss", 2, "2026-09-20T20:05:00Z", { status: "Final", home_team_score: 14, visitor_team_score: 21 }),
+  ] });
+  assert.deepEqual(schedule.games.map((entry) => entry.seahawksRecordAfter), ["1-0", "1-1"]);
 });
 
 test("bye rows stay within the surrounding chronological month group", () => {
@@ -168,4 +186,21 @@ test("calendar output is a complete CRLF ICS event and disables unconfirmed kick
 
   const unconfirmed = { ...confirmed, timeConfirmed: false, startsAt: null };
   assert.deepEqual(gameCalendar(unconfirmed, "https://seahawks.example").enabled, false);
+});
+
+test("season calendar has stable UIDs, all phases, date-only TBD events, and no bye event", () => {
+  const schedule = normalizeSchedule({ season: 2026, games: [
+    game("pre", 1, "2026-08-20T20:05:00Z", { season_type: "preseason" }),
+    game("regular", 1, "2026-09-13T20:05:00Z", { season_type: "regular" }),
+    { ...game("playoff", 1, "2027-01-16T00:00:00Z", { season_type: "postseason", time_tbd: true }) },
+    { id: "bye", season: 2026, season_type: "regular", week: 8, status: "bye", bye: true },
+  ] });
+  const first = seasonCalendar(schedule, "https://seahawks.example");
+  const second = seasonCalendar(schedule, "https://seahawks.example");
+  assert.equal(first.eventCount, 3);
+  assert.equal(first.content, second.content);
+  assert.match(first.content, /UID:2026-pre@seahawksfanzone/);
+  assert.match(first.content, /DTSTART;VALUE=DATE:20270116/);
+  assert.doesNotMatch(first.content, /UID:2026-bye@/);
+  assert.match(first.content, /URL:https:\/\/seahawks\.example\/games\/regular/);
 });
