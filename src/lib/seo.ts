@@ -27,7 +27,7 @@ export interface SitemapPage extends SeoMetadata {
 
 export const PUBLIC_PAGES: SitemapPage[] = [
   { canonicalPath: "/", title: "Seattle Seahawks Season Hub | Seahawks Fan Zone", description: "Seattle Seahawks schedule, results, standings, statistical leaders, and original game recaps in one independent season hub." },
-  { canonicalPath: "/news", title: "Seattle Seahawks News | Seahawks Fan Zone", description: "Find timely Seahawks Fan Zone recaps, schedule updates, standings, and player coverage." },
+  { canonicalPath: "/news", title: "Seattle Seahawks News and Analysis | Seahawks Fan Zone", description: "Original Seattle Seahawks news, analysis, roster context, injuries, game-week coverage and NFC West perspective." },
   { canonicalPath: "/schedule", title: "Seattle Seahawks Schedule | Seahawks Fan Zone", description: "Browse the Seattle Seahawks schedule, kickoff times, opponents, locations, and final scores for the current season." },
   { canonicalPath: "/weekly-recap", title: "Seattle Seahawks Game Recaps | Seahawks Fan Zone", description: "Read original Seattle Seahawks game recaps with final scores, turning points, and season context." },
   { canonicalPath: "/standings", title: "Seattle Seahawks Standings | Seahawks Fan Zone", description: "See Seattle's current NFC West and conference position with season-aware NFL standings." },
