@@ -39,7 +39,7 @@ let latestRecapHref = "/weekly-recap";
 try {
   const schedule = (await import("../data/nfl/seahawks.json")).default;
   const recaps = (await import("../data/nfl/gameRecaps.json")).default?.recaps ?? {};
-  const games = [...(schedule?.gamesPreseason ?? []), ...(schedule?.gamesRegular ?? []), ...(schedule?.gamesPostseason ?? []), ...(schedule?.games ?? [])];
+  const games = Array.isArray(schedule?.games) ? schedule.games : [...(schedule?.gamesPreseason ?? []), ...(schedule?.gamesRegular ?? []), ...(schedule?.gamesPostseason ?? [])];
   const latest = games.filter((game) => /final|finished|complete/i.test(String(game?.status ?? "")) && recaps[String(game?.id ?? game?.game_id)]).sort((a, b) => new Date(b?.date ?? 0).getTime() - new Date(a?.date ?? 0).getTime())[0];
   if (latest) latestRecapHref = `/games/${encodeURIComponent(String(latest?.id ?? latest?.game_id))}`;
 } catch {}

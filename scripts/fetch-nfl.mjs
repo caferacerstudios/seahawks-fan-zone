@@ -19,6 +19,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeSchedule } from "../src/lib/schedule.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,10 +45,6 @@ function defaultSeason(now = new Date()) {
 const SEASON = Number(process.env.NFL_SEASON) || defaultSeason();
 
 const API_KEY = process.env.BALLDONTLIE_API_KEY;
-if (!API_KEY) {
-  console.error("Missing BALLDONTLIE_API_KEY env var.");
-  process.exit(1);
-}
 
 // Your curl used: -H "Authorization: $BALLDONTLIE_API_KEY"
 function authHeaderValue() {
@@ -135,10 +132,6 @@ function safeWriteJson(filePath, obj) {
   fs.renameSync(tmp, filePath);
 }
 
-function sortGamesChronologically(games) {
-  return games.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-}
-
 function assertNonEmptyArray(name, arr) {
   if (!Array.isArray(arr) || arr.length === 0) {
     throw new Error(`Refusing to write: ${name} is empty (fetch looks broken).`);
@@ -146,6 +139,7 @@ function assertNonEmptyArray(name, arr) {
 }
 
 async function main() {
+  if (!API_KEY) throw new Error("Missing BALLDONTLIE_API_KEY env var.");
   // 1) Find Seahawks team id
   const teams = await pagedGet("/teams", { per_page: 100 });
   const team = teams.find((t) => (t.abbreviation || "").toUpperCase() === TEAM_ABBR);
@@ -166,8 +160,10 @@ async function main() {
 
   const gamesFiltered = games.filter((g) => Number(g.season) === Number(SEASON));
 
-  const gamesRegular = sortGamesChronologically(gamesFiltered.filter((g) => !g.postseason));
-  const gamesPostseason = sortGamesChronologically(gamesFiltered.filter((g) => !!g.postseason));
+  // Normalize once at the ingestion boundary. In particular, `postseason:
+  // false` does not mean regular season: the API also uses it for preseason.
+  const normalizedSchedule = normalizeSchedule({ season: SEASON, sourceSeason: SEASON, games: gamesFiltered }, SEASON);
+  const { games, gamesPreseason, gamesRegular, gamesPostseason, nextGameId } = normalizedSchedule;
 
   // 3) Fetch team player list (names/positions)
   const players = await pagedGet("/players", { "team_ids[]": [team.id] });
@@ -254,8 +250,12 @@ async function main() {
     season: SEASON,
     playerStatsSeason,
     updatedAt,
+    sourceSeason: SEASON,
+    games,
+    gamesPreseason,
     gamesRegular,
     gamesPostseason,
+    nextGameId,
     playerSeasonStats: enriched,
   };
 
@@ -289,6 +289,16 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err?.stack || String(err));
-  process.exit(1);
+  const existingPath = path.resolve(__dirname, "..", "src", "data", "nfl", "seahawks.json");
+  // A refresh must never replace good data with an empty/partial response. If
+  // a previously validated snapshot exists, keep building with that snapshot;
+  // the page will show its age through the freshness indicator.
+  try {
+    const existing = JSON.parse(fs.readFileSync(existingPath, "utf8"));
+    normalizeSchedule(existing, existing.season);
+    console.warn(`Schedule refresh failed; retaining last known valid schedule.\n${err?.message || err}`);
+  } catch {
+    console.error(err?.stack || String(err));
+    process.exitCode = 1;
+  }
 });

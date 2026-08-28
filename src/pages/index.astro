@@ -45,7 +45,8 @@ const venue = (game: any) => game?.venue?.name ?? game?.venue ?? game?.stadium?.
 const marks = new Map(Object.keys(import.meta.glob("../../public/images/nfl/teams/*.{png,svg,webp}"))
   .map((path) => [path.split("/").pop()?.split(".")[0]?.toUpperCase(), path.replace("../../public", "")]));
 
-const games = [...(nfl?.gamesPreseason ?? []), ...(nfl?.gamesRegular ?? []), ...(nfl?.gamesPostseason ?? []), ...(nfl?.games ?? [])]
+const sourceGames = Array.isArray(nfl?.games) ? nfl.games : [...(nfl?.gamesPreseason ?? []), ...(nfl?.gamesRegular ?? []), ...(nfl?.gamesPostseason ?? [])];
+const games = sourceGames
   .filter((game, i, all) => all.findIndex((other, j) => id(other, j) === id(game, i)) === i)
   .sort((a, b) => (time(a) ?? Number.MAX_SAFE_INTEGER) - (time(b) ?? Number.MAX_SAFE_INTEGER));
 const completed = games.filter(final);

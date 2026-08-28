@@ -21,7 +21,7 @@ const readingTime = (recap) => { const words = authoredText(recap).split(/\s+/).
 const dateValue = (value) => { const time = new Date(value ?? 0).getTime(); return Number.isFinite(time) ? time : 0; };
 const displayDate = (value) => value ? new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric", year: "numeric" }).format(new Date(value)) : "Date unavailable";
 
-const rawGames = [...(scheduleData?.gamesPreseason ?? []), ...(scheduleData?.gamesRegular ?? []), ...(scheduleData?.gamesPostseason ?? []), ...(scheduleData?.games ?? [])];
+const rawGames = Array.isArray(scheduleData?.games) ? scheduleData.games : [...(scheduleData?.gamesPreseason ?? []), ...(scheduleData?.gamesRegular ?? []), ...(scheduleData?.gamesPostseason ?? [])];
 const uniqueGames = rawGames.filter((game, index, all) => all.findIndex((other, otherIndex) => key(other, otherIndex) === key(game, index)) === index);
 const entries = uniqueGames.map((game, index) => ({ game, id: key(game, index), recap: recapData?.recaps?.[key(game, index)] }))
   .filter((entry) => final(entry.game) && entry.recap && recapText(entry.recap))
