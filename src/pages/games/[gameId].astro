@@ -521,7 +521,8 @@ const recapText = recap?.text ?? (Array.isArray(recap?.segments) ? recap.segment
 const canonicalPath = `/games/${encodeURIComponent(String(gameId))}`;
 const publishedTime = recap?.publishedAt ?? recap?.createdAt ?? gameRecaps?.updatedAt ?? null;
 const modifiedTime = recap?.updatedAt ?? gameRecaps?.updatedAt ?? publishedTime;
-const articleData = completed && recapText ? { publishedTime, modifiedTime } : null;
+const articleImage = teamLogo("SEA");
+const articleData = completed && recapText && publishedTime ? { headline: pageTitle, author: "Seahawks Fan Zone", publishedTime, modifiedTime, image: articleImage, section: "Game Recaps" } : null;
 const structuredData = articleData ? {
   "@context": "https://schema.org",
   "@type": "NewsArticle",
@@ -530,13 +531,15 @@ const structuredData = articleData ? {
   datePublished: publishedTime,
   dateModified: modifiedTime,
   mainEntityOfPage: new URL(canonicalPath, Astro.site ?? Astro.url).toString(),
+  image: new URL(articleImage, Astro.site ?? Astro.url).toString(),
   author: { "@type": "Organization", name: "Seahawks Fan Zone" },
-  publisher: { "@type": "Organization", name: "Seahawks Fan Zone" },
+  publisher: { "@type": "Organization", name: "Seahawks Fan Zone", logo: { "@type": "ImageObject", url: new URL("/favicon.svg", Astro.site ?? Astro.url).toString() } },
   about: { "@type": "SportsEvent", name: `Seattle Seahawks vs ${opponentName}`, startDate: game?.date },
 } : null;
 ---
 
-<SeahawksLayout title={pageTitle} description={pageDescription} pageTitle={pageTitle} pageTagline={pageDescription} activePath="" canonical={canonicalPath} article={articleData} structuredData={structuredData}>
+<SeahawksLayout seo={{ title: `${pageTitle} | Seahawks Fan Zone`, description: pageDescription, canonicalPath, robots: game ? "index, follow" : "noindex, follow", openGraphImage: articleImage, article: articleData }} pageTitle={pageTitle} pageTagline={pageDescription} activePath="" structuredData={structuredData}>
+  {articleData && <p class="byline">By Seahawks Fan Zone · Published <time datetime={publishedTime}>{new Date(publishedTime).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "long" })}</time>{modifiedTime && modifiedTime !== publishedTime && <> · Updated <time datetime={modifiedTime}>{new Date(modifiedTime).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "long" })}</time></>}</p>}
   {!game && <div class="empty"><strong>Game unavailable.</strong> This game is not present in the current season schedule. <a href="/schedule">Return to the full schedule →</a></div>}
   {game && <GameCenter
     {game}

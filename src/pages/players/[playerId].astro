@@ -489,9 +489,11 @@ const abbr = teamAbbrFromAny(rosterPlayer, statRow);
 const fallbackImg = teamLogoUrl(abbr);
 const headshotImg = findHeadshotForName(displayName);
 const currentStatus = injuryMatches[0]?.status ? String(injuryMatches[0].status) : null;
+const canonicalPath = `/players/${encodeURIComponent(String(playerId))}`;
+const pageDescription = `${displayName} ${String(position).toUpperCase()} profile, roster information, and ${seasonContext.label} statistics for Seattle.`;
 ---
 
-<SeahawksLayout title={pageTitle} description="Player profile page." activePath="/players">
+<SeahawksLayout seo={{ title: `${displayName} Player Profile | Seahawks Fan Zone`, description: pageDescription, canonicalPath, robots: rosterPlayer || statRow ? "index, follow" : "noindex, follow", openGraphImage: headshotImg ?? fallbackImg }} activePath="/players">
   <SeasonContextView context={{ ...seasonContext, updatedAt: updatedAtForPage }} options={seasonOptions} prefix="Data through" />
   <div class="meta-line">
     <span><strong>Back:</strong> <a href="/players">Players</a></span>

@@ -164,8 +164,7 @@ function safeSeasonFromStandings() {
 ---
 
 <SeahawksLayout
-  title={`Standings & Playoff Picture (${season})`}
-  description="Seahawks record and remaining schedule for the current season."
+  seo={{ title: `${seasonContext.label} Seattle Seahawks Standings | Seahawks Fan Zone`, description: `Seattle Seahawks position in the NFC West and conference standings for the ${seasonContext.label}.`, canonicalPath: "/standings" }}
   activePath="/standings"
 >
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />

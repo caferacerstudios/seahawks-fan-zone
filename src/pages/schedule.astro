@@ -182,8 +182,7 @@ function playoffRoundLabel(g, i, allPlayoffs) {
 ---
 
 <SeahawksLayout
-  title={`Seahawks Schedule (${season})`}
-  description="Season results and upcoming games"
+  seo={{ title: `${seasonContext.label} Seattle Seahawks Schedule | Seahawks Fan Zone`, description: `Seattle Seahawks ${seasonContext.label} schedule, kickoff times, opponents, locations, and final scores.`, canonicalPath: "/schedule" }}
   activePath="/schedule"
 >
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
