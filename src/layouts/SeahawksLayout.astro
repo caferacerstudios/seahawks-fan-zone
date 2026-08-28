@@ -64,7 +64,7 @@ const navPages = [
         <span class="sfz-brand-copy"><span class="lr-site-title">Seahawks Fan Zone</span><span class="lr-site-tagline">Independent coverage · Pacific Northwest</span></span>
       </a>
 
-      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav" aria-label="Open primary navigation">
         <span class="nav-toggle-label">Menu</span><span class="nav-toggle-icon" aria-hidden="true"></span>
       </button>
 
@@ -113,7 +113,7 @@ const navPages = [
       <article class="lr-paper seahawks-paper">
         {showPageHeader && <header class="lr-post-header">
           <p class="page-eyebrow">Seahawks Fan Zone</p>
-          <h2 class="lr-post-title">{pageTitle}</h2>
+          <h1 class="lr-post-title">{pageTitle}</h1>
           {pageTagline && <p class="page-deck">{pageTagline}</p>}
         </header>}
 
@@ -159,13 +159,22 @@ const navPages = [
       button.addEventListener('click', () => {
         const open = button.getAttribute('aria-expanded') === 'true';
         button.setAttribute('aria-expanded', String(!open));
+        button.setAttribute('aria-label', `${open ? 'Open' : 'Close'} primary navigation`);
         nav.classList.toggle('is-open', !open);
       });
       nav.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
           button.setAttribute('aria-expanded', 'false');
+          button.setAttribute('aria-label', 'Open primary navigation');
           nav.classList.remove('is-open');
           button.focus();
+        }
+      });
+      nav.addEventListener('click', (event) => {
+        if (event.target.closest('a')) {
+          button.setAttribute('aria-expanded', 'false');
+          button.setAttribute('aria-label', 'Open primary navigation');
+          nav.classList.remove('is-open');
         }
       });
     })();
