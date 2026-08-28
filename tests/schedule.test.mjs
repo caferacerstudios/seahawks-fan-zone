@@ -2,12 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   formatScheduleDate,
+  featuredScheduleEvent,
   nextScheduleEvent,
   normalizeSchedule,
   selectScheduleSeason,
   validateSchedule,
 } from "../src/lib/schedule.mjs";
 import { groupScheduleMonths, scheduleRow } from "../src/lib/schedule-display.mjs";
+import { gameCalendar, gameDayView } from "../src/lib/game-day.mjs";
 
 const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const SF = { abbreviation: "SF", full_name: "San Francisco 49ers" };
@@ -111,4 +113,59 @@ test("bye rows stay within the surrounding chronological month group", () => {
   assert.deepEqual(groups.map(({ label, games }) => [label, games.map(({ id }) => id)]), [
     ["September 2026", ["week-4", "bye"]], ["October 2026", ["week-6"]],
   ]);
+});
+
+test("featured game stays on an unfinished live or postponed event until final", () => {
+  const schedule = normalizeSchedule({ season: 2026, games: [
+    game("live", 1, "2026-09-13T20:05:00Z", { status: "In Progress", home_team_score: 10, visitor_team_score: 7 }),
+    game("later", 2, "2026-09-20T20:05:00Z"),
+  ] });
+  assert.equal(featuredScheduleEvent(schedule.games).id, "live");
+  schedule.games[0].state = "completed";
+  assert.equal(featuredScheduleEvent(schedule.games).id, "later");
+  schedule.games[1].state = "completed";
+  assert.equal(featuredScheduleEvent(schedule.games).id, "later");
+});
+
+test("game-day view handles today, live, final scores, phase labels, and optional metadata", () => {
+  const normalized = normalizeSchedule({ season: 2026, games: [game("today", 3, "2026-08-28T20:05:00Z", {
+    season_type: "Preseason", network: "KING 5", radio: "Seattle Sports 710 AM", venue: "Lumen Field",
+    records: { seahawks: { phase: "preseason", record: "2-0" }, opponent: { phase: "regular", record: "10-7" } },
+  })] }).games[0];
+  const view = gameDayView(normalized, new Date("2026-08-28T12:00:00-07:00"));
+  assert.equal(view.status, "Today");
+  assert.equal(view.phaseWeek, "Preseason Week 3");
+  assert.equal(view.radio, "Seattle Sports 710 AM");
+  assert.equal(view.seaRecord, "2-0");
+  assert.equal(view.opponentRecord, null);
+  assert.equal(view.primaryLabel, "Game preview");
+
+  normalized.state = "in_progress";
+  normalized.home_team_score = 10;
+  normalized.visitor_team_score = 7;
+  assert.equal(gameDayView(normalized).status, "Live");
+  assert.deepEqual(gameDayView(normalized).liveScore, { seahawks: 10, opponent: 7 });
+  normalized.state = "completed";
+  normalized.home_team_score = 24;
+  normalized.visitor_team_score = 17;
+  assert.deepEqual(gameDayView(normalized).result, { outcome: "W", seahawks: 24, opponent: 17 });
+  assert.equal(gameDayView(normalized).primaryLabel, "Game recap");
+});
+
+test("calendar output is a complete CRLF ICS event and disables unconfirmed kickoffs", () => {
+  const confirmed = normalizeSchedule({ season: 2026, games: [game("calendar-1", 1, "2026-09-13T20:05:00Z", {
+    venue: "Lumen Field, Seattle", home_team: SEA, visitor_team: SF,
+  })] }).games[0];
+  const calendar = gameCalendar(confirmed, "https://seahawks.example/schedule/");
+  assert.equal(calendar.enabled, true);
+  assert.match(calendar.content, /^BEGIN:VCALENDAR\r\n/);
+  assert.match(calendar.content, /X-WR-TIMEZONE:America\/Los_Angeles\r\n/);
+  assert.match(calendar.content, /DTSTART:20260913T200500Z\r\n/);
+  assert.match(calendar.content, /LOCATION:Lumen Field\\, Seattle\r\n/);
+  assert.match(calendar.content, /URL:https:\/\/seahawks\.example\/games\/calendar-1\r\n/);
+  assert.match(calendar.content, /NFL dates and times may change/);
+  assert.match(calendar.content, /END:VCALENDAR\r\n$/);
+
+  const unconfirmed = { ...confirmed, timeConfirmed: false, startsAt: null };
+  assert.deepEqual(gameCalendar(unconfirmed, "https://seahawks.example").enabled, false);
 });

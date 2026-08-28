@@ -7,6 +7,14 @@ export const SCHEDULE_STATES = ["bye", "canceled", "postponed", "completed", "in
 const text = (value) => String(value ?? "").trim();
 const abbr = (team) => text(team?.abbreviation ?? team?.abbr).toUpperCase();
 const integer = (value) => Number.isInteger(Number(value)) ? Number(value) : null;
+const optionalUrl = (value) => {
+  const candidate = text(value);
+  if (!candidate) return null;
+  try {
+    const url = new URL(candidate, "https://example.invalid");
+    return ["http:", "https:"].includes(url.protocol) ? candidate : null;
+  } catch { return null; }
+};
 
 export function schedulePhase(game) {
   const value = text(game?.phase ?? game?.season_type ?? game?.seasonType ?? game?.type).toLowerCase();
@@ -58,6 +66,7 @@ export function normalizeGame(game, season) {
   const opponent = suppliedOpponent ?? (abbr(home) === TEAM ? away : abbr(away) === TEAM ? home : null);
   const venueValue = game?.venue?.name ?? game?.venue ?? game?.stadium?.name ?? game?.stadium ?? null;
   const networkValue = game?.network ?? game?.tv_network ?? game?.tvNetwork ?? game?.broadcast ?? null;
+  const radioValue = game?.radio?.name ?? (typeof game?.radio === "string" ? game.radio : null) ?? game?.radio_network ?? game?.radioNetwork ?? null;
   const id = text(game?.id ?? game?.game_id) || `${season}-${phase}-${integer(game?.week) ?? "tbd"}-${state}`;
   return {
     ...game,
@@ -74,6 +83,9 @@ export function normalizeGame(game, season) {
     ...dates,
     venue: game?.venue_confirmed === false || game?.venueConfirmed === false ? null : venueValue || null,
     network: game?.network_confirmed === false || game?.networkConfirmed === false ? null : networkValue || null,
+    radio: game?.radio_confirmed === false || game?.radioConfirmed === false ? null : radioValue || null,
+    venueUrl: optionalUrl(game?.venue_url ?? game?.venueUrl ?? game?.venue?.url ?? game?.directions_url ?? game?.directionsUrl),
+    canonicalUrl: optionalUrl(game?.canonical_url ?? game?.canonicalUrl ?? game?.detail_url ?? game?.detailUrl),
     opponentConfirmed: state === "bye" ? false : Boolean(opponent) && game?.opponent_confirmed !== false && game?.opponentConfirmed !== false,
   };
 }
@@ -130,6 +142,12 @@ export function nextScheduleEvent(games, now = new Date()) {
   void now;
   const eligible = sortSchedule(games).filter((game) => !["bye", "canceled", "completed"].includes(game.state));
   return eligible[0] ?? null;
+}
+
+export function featuredScheduleEvent(games, now = new Date()) {
+  const next = nextScheduleEvent(games, now);
+  if (next) return next;
+  return sortSchedule(games).filter((game) => game.state === "completed").at(-1) ?? null;
 }
 
 export function validateSchedule(schedule, displaySeason = schedule?.season) {
