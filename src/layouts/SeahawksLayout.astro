@@ -9,6 +9,7 @@ const {
   activePath = "",
   quickLinks = [],
   rightLinks = [],
+  showPageHeader = true,
 } = Astro.props;
 
 const navPages = [
@@ -77,11 +78,11 @@ const navPages = [
 
     <main class="lr-main" id="main-content" tabindex="-1">
       <article class="lr-paper seahawks-paper">
-        <header class="lr-post-header">
+        {showPageHeader && <header class="lr-post-header">
           <p class="page-eyebrow">Seahawks Fan Zone</p>
           <h2 class="lr-post-title">{pageTitle}</h2>
           {pageTagline && <p class="page-deck">{pageTagline}</p>}
-        </header>
+        </header>}
 
         <div class="lr-post-content">
           <slot />
