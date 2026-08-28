@@ -1,4 +1,6 @@
 ---
+import { AD_CLIENT_ID, AUTO_ADS } from "../lib/advertising";
+
 const { title = "Seahawks Fan Zone", description = "", canonical, article, structuredData } = Astro.props;
 const canonicalUrl = canonical ? new URL(canonical, Astro.site ?? Astro.url).toString() : null;
 ---
@@ -28,10 +30,11 @@ const canonicalUrl = canonical ? new URL(canonical, Astro.site ?? Astro.url).toS
     <!-- Site CSS -->
     <link rel="stylesheet" href="/styles/main.css" />
 
-    <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6319637311271773"
-     crossorigin="anonymous"
-    ></script>
+    <!-- Overlay formats remain off unless each format is explicitly enabled in the shared ad configuration. -->
+    {!import.meta.env.DEV && <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CLIENT_ID}`} crossorigin="anonymous"></script>}
+    <meta name="sfz-auto-ads" content={AUTO_ADS.enabled ? "enabled" : "disabled"} />
+    <meta name="sfz-anchor-ads" content={AUTO_ADS.overlays.anchor ? "enabled" : "disabled"} />
+    <meta name="sfz-vignette-ads" content={AUTO_ADS.overlays.vignette ? "enabled" : "disabled"} />
   </head>
 
   <body>
