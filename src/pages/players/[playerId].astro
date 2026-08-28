@@ -14,7 +14,8 @@ import injuriesData from "../../data/nfl/injuries.json";
    getStaticPaths (SELF-CONTAINED)
    ======================= */
 export function getStaticPaths() {
-  function getRosterLocal(playersData) {
+function getRosterLocal(playersData) {
+    if (Array.isArray(playersData?.playerSeasonStats)) return playersData.playerSeasonStats;
     if (Array.isArray(playersData?.data)) return playersData.data;
     if (Array.isArray(playersData?.players)) return playersData.players;
     if (Array.isArray(playersData)) return playersData;
@@ -59,6 +60,7 @@ export function getStaticPaths() {
 const { playerId } = Astro.params;
 
 function getRoster(playersData) {
+  if (Array.isArray(playersData?.playerSeasonStats)) return playersData.playerSeasonStats;
   if (Array.isArray(playersData?.data)) return playersData.data;
   if (Array.isArray(playersData?.players)) return playersData.players;
   if (Array.isArray(playersData)) return playersData;
@@ -410,14 +412,21 @@ const displayName =
 const position =
   (rosterPlayer?.position_abbreviation ||
     rosterPlayer?.position ||
+    rosterPlayer?.player?.position_abbreviation ||
+    rosterPlayer?.player?.position ||
     statRow?.player?.position_abbreviation ||
     "—");
+
+const college = rosterPlayer?.college ?? rosterPlayer?.player?.college ?? statRow?.player?.college ?? null;
 
 // ✅ FIXED: fallback to statRow.player for the "missing info" fields
 const jersey =
   rosterPlayer?.jersey_number ??
   rosterPlayer?.jersey ??
   rosterPlayer?.number ??
+  rosterPlayer?.player?.jersey_number ??
+  rosterPlayer?.player?.jersey ??
+  rosterPlayer?.player?.number ??
   statRow?.player?.jersey_number ??
   statRow?.player?.jersey ??
   statRow?.player?.number ??
@@ -426,20 +435,47 @@ const jersey =
 const height =
   rosterPlayer?.height ??
   rosterPlayer?.height_feet_inches ??
+  rosterPlayer?.player?.height ??
   statRow?.player?.height ??
   "—";
 
 const weight =
   rosterPlayer?.weight ??
   rosterPlayer?.weight_lbs ??
+  rosterPlayer?.player?.weight ??
   statRow?.player?.weight ??
   "—";
 
 const experience =
   rosterPlayer?.experience ??
   rosterPlayer?.years_pro ??
+  rosterPlayer?.player?.experience ??
+  rosterPlayer?.player?.years_pro ??
   statRow?.player?.experience ??
   "—";
+
+const statDefinitions = [
+  ["Games", ["games_played"]], ["Pass yards", ["passing_yards"]], ["Pass TD", ["passing_touchdowns"]],
+  ["Completions", ["completions"]], ["Attempts", ["passing_attempts", "attempts"]],
+  ["Rush yards", ["rushing_yards"]], ["Carries", ["rushing_attempts", "carries"]], ["Rush TD", ["rushing_touchdowns"]],
+  ["Receptions", ["receptions"]], ["Rec yards", ["receiving_yards"]], ["Rec TD", ["receiving_touchdowns"]],
+  ["Tackles", ["total_tackles", "tackles"]], ["Sacks", ["sacks"]], ["Interceptions", ["defensive_interceptions", "interceptions"]],
+  ["Passes defended", ["passes_defended", "passes_defensed"]], ["Forced fumbles", ["forced_fumbles"]],
+  ["Field goals", ["field_goals_made"]], ["FG attempts", ["field_goals_attempted"]], ["Extra points", ["extra_points_made"]],
+  ["Punts", ["punts"]], ["Punt average", ["punt_average", "punting_average"]],
+];
+function firstNumber(row, keys) {
+  for (const key of keys) if (typeof row?.[key] === "number" && Number.isFinite(row[key])) return row[key];
+  return null;
+}
+const statTiles = statDefinitions.map(([label, keys]) => ({ label, value: firstNumber(statRow, keys) })).filter((item) => item.value !== null);
+
+const rosterForNavigation = getRoster(rosterData)
+  .filter((item) => String(item?.position_abbreviation ?? item?.player?.position_abbreviation ?? "").toUpperCase() === String(position).toUpperCase())
+  .sort((a, b) => playerNameFromAny(a).localeCompare(playerNameFromAny(b)));
+const navigationIndex = rosterForNavigation.findIndex((item) => String(pid(item)) === String(playerId));
+const previousPlayer = navigationIndex > 0 ? rosterForNavigation[navigationIndex - 1] : null;
+const nextPlayer = navigationIndex >= 0 && navigationIndex < rosterForNavigation.length - 1 ? rosterForNavigation[navigationIndex + 1] : null;
 
 const updatedAtForPage =
   playerProfilesData?.updatedAt ?? seasonData?.updatedAt ?? null;
@@ -451,7 +487,8 @@ const pageTitle = `${displayName} — Player Profile`;
 // image URLs
 const abbr = teamAbbrFromAny(rosterPlayer, statRow);
 const fallbackImg = teamLogoUrl(abbr);
-const headshotImg = findHeadshotForName(displayName) || fallbackImg;
+const headshotImg = findHeadshotForName(displayName);
+const currentStatus = injuryMatches[0]?.status ? String(injuryMatches[0].status) : null;
 ---
 
 <SeahawksLayout title={pageTitle} description="Player profile page." activePath="/players">
@@ -464,7 +501,8 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
 
   <article class="card">
     <div class="card-top">
-      <div class="avatar-wrap">
+      <div class:list={["avatar-wrap", !headshotImg && "number-avatar"]}>
+        {headshotImg ? (
         <img
           class="avatar"
           src={headshotImg}
@@ -473,16 +511,21 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
           height="104"
           loading="lazy"
           decoding="async"
-          onerror={`this.onerror=null;this.src='${fallbackImg}';`}
+          onerror="this.hidden=true;this.nextElementSibling.hidden=false;"
         />
+        ) : null}
+        <span class="avatar-number" hidden={Boolean(headshotImg)} aria-label={`Jersey number ${jersey}`}>{jersey !== "—" ? jersey : String(position).toUpperCase()}</span>
       </div>
 
       <div class="top-text">
         <div class="name">{displayName}</div>
+        <div class="jersey-line"><span aria-hidden="true">#</span>{String(jersey)}</div>
         <div class="sub">
-          <span><strong>Pos:</strong> {String(position).toUpperCase()}</span>
+          <span><strong>{String(position).toUpperCase()}</strong></span>
           <span class="dot">•</span>
-          <span><strong>Jersey:</strong> {String(jersey)}</span>
+          {currentStatus && <><span class="dot">•</span><span>{currentStatus}</span></>}
+          {experience !== "—" && <><span class="dot">•</span><span>{String(experience)} experience</span></>}
+          {college && <><span class="dot">•</span><span>{String(college)}</span></>}
         </div>
       </div>
     </div>
@@ -503,15 +546,7 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
         {!seasonContext.hasStatistics || seasonContext.seasonStatus === "upcoming" || !statRow ? (
           <div class="empty">{unavailableMessage(seasonContext)}</div>
         ) : (
-          <div class="stats">
-            <div class="stat"><span class="k">GP</span><span class="v">{dash(statRow?.games_played)}</span></div>
-            <div class="stat"><span class="k">Pass Yds</span><span class="v">{dash(statRow?.passing_yards)}</span></div>
-            <div class="stat"><span class="k">Rush Yds</span><span class="v">{dash(statRow?.rushing_yards)}</span></div>
-            <div class="stat"><span class="k">Rec Yds</span><span class="v">{dash(statRow?.receiving_yards)}</span></div>
-            <div class="stat"><span class="k">Pass TD</span><span class="v">{dash(statRow?.passing_touchdowns)}</span></div>
-            <div class="stat"><span class="k">Rush TD</span><span class="v">{dash(statRow?.rushing_touchdowns)}</span></div>
-            <div class="stat"><span class="k">Rec TD</span><span class="v">{dash(statRow?.receiving_touchdowns)}</span></div>
-          </div>
+          <div class="stats">{statTiles.map((item) => <div class="stat"><span class="k">{item.label}</span><span class="v">{item.value}</span></div>)}</div>
         )}
 
         <div class="mini">
@@ -557,6 +592,11 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
       )}
     </div>
   </article>
+
+  {(previousPlayer || nextPlayer) && <nav class="player-nav" aria-label={`${position} player navigation`}>
+    {previousPlayer ? <a rel="prev" href={`/players/${encodeURIComponent(String(pid(previousPlayer)))}`}><small>Previous {position}</small><strong>← {playerNameFromAny(previousPlayer)}</strong></a> : <span></span>}
+    {nextPlayer ? <a rel="next" href={`/players/${encodeURIComponent(String(pid(nextPlayer)))}`}><small>Next {position}</small><strong>{playerNameFromAny(nextPlayer)} →</strong></a> : <span></span>}
+  </nav>}
 
   <style>
     .meta-line,
@@ -630,6 +670,10 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
       object-fit: cover;
       display: block;
     }
+
+    .number-avatar { background: linear-gradient(145deg, #002244, #16456e); }
+    .avatar-number { color: #fff; font-size: 2rem; font-weight: 1000; }
+    .jersey-line { color: #69be28; font-size: 1.15rem; font-weight: 1000; margin-bottom: .15rem; }
 
     .top-text {
       min-width: 0;
@@ -766,5 +810,9 @@ const headshotImg = findHeadshotForName(displayName) || fallbackImg;
       font-weight: 750;
       line-height: 1.45;
     }
+    .player-nav { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .9rem; }
+    .player-nav a { display: grid; gap: .15rem; padding: .75rem; border: 1px solid rgba(0,34,68,.14); border-radius: 12px; color: #002244; text-decoration: none; background: #fff; }
+    .player-nav a:last-child { text-align: right; }
+    .player-nav small { color: rgba(15,23,32,.62); font-weight: 800; }
   </style>
 </SeahawksLayout>
