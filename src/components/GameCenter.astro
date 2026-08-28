@@ -17,9 +17,9 @@ const rowOpponent = (row) => String((String(row?.home_team?.abbreviation).toUppe
 <article class:list={["game-scoreboard", completed && "is-final", outcome === "W" && "is-win", outcome === "L" && "is-loss"]}>
   <div class="topline"><span>{weekLabel}</span><span>{completed ? `Final${outcome ? ` · ${outcome}` : ""}` : "Matchup preview"}</span></div>
   <div class="teams">
-    <div class="team"><img src={logo("SEA")} alt="Seattle Seahawks logo" /><span>Seattle Seahawks</span><strong>{completed ? seaScore ?? "—" : seaRecord}</strong><small>{home ? "Home" : "Away"}</small></div>
+    <div class="team"><img src={logo("SEA")} alt="Seattle Seahawks logo" width="82" height="82" decoding="async" /><span>Seattle Seahawks</span><strong>{completed ? seaScore ?? "—" : seaRecord}</strong><small>{home ? "Home" : "Away"}</small></div>
     <div class="versus">{completed ? "Final" : "vs"}</div>
-    <div class="team opponent"><img src={logo(opponentAbbr)} alt={`${name} logo`} /><span>{name}</span><strong>{completed ? opponentScore ?? "—" : opponentRecord}</strong><small>{home ? "Away" : "Home"}</small></div>
+    <div class="team opponent"><img src={logo(opponentAbbr)} alt={`${name} logo`} width="82" height="82" decoding="async" /><span>{name}</span><strong>{completed ? opponentScore ?? "—" : opponentRecord}</strong><small>{home ? "Away" : "Home"}</small></div>
   </div>
   <div class="details"><span>{formatPacificTime(game?.date ?? game?.start_time ?? game?.kickoff)}</span><span>{venue ?? "Venue not yet available"}</span><span>{home ? "Seattle home game" : "Seattle away game"}</span></div>
 </article>

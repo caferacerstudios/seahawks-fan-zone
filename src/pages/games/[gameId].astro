@@ -595,7 +595,7 @@ const structuredData = articleData ? {
 
         <div class="matchup">
           <div class="team">
-            <img class="logo" src={teamLogo("SEA")} alt="SEA logo" loading="lazy" />
+            <img class="logo" src={teamLogo("SEA")} alt="SEA logo" width="28" height="28" loading="lazy" decoding="async" />
             <div class="abbr">SEA</div>
             <div class="ha">{seaIsHome(game) ? "H" : "A"}</div>
           </div>
@@ -603,7 +603,7 @@ const structuredData = articleData ? {
           <div class="at">@</div>
 
           <div class="team">
-            <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} loading="lazy" />
+            <img class="logo" src={teamLogo(opp)} alt={`${opp} logo`} width="28" height="28" loading="lazy" decoding="async" />
             <div class="abbr">{opp}</div>
             <div class="ha">{seaIsHome(game) ? "A" : "H"}</div>
           </div>

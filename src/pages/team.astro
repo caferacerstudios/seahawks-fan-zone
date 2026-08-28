@@ -333,7 +333,7 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
   <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
   <div class="sfz-team-header">
     {seahawksLogo ? (
-      <img class="sfz-team-logo" src={seahawksLogo} alt="SEA logo" loading="lazy" />
+      <img class="sfz-team-logo" src={seahawksLogo} alt="SEA logo" width="64" height="64" loading="lazy" decoding="async" />
     ) : (
       <div class="sfz-team-logo sfz-team-logo-fallback" aria-hidden="true">SEA</div>
     )}
