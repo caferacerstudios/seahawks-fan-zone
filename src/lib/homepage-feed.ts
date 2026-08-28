@@ -18,7 +18,13 @@ const recent = (value: string, now: Date, days: number) => {
   return Number.isFinite(age) && age >= 0 && age <= days * DAY;
 };
 const readingTime = (article: NewsArticle) => {
-  const words = article.body.join(" ").trim().split(/\s+/).filter(Boolean).length;
+  const words = article.body.map((block) => {
+    if (typeof block === "string") return block;
+    if (block.type === "heading") return block.heading;
+    if (block.type === "paragraph") return block.html;
+    if (block.type === "factbox") return [block.heading, ...block.known, ...block.unknown, block.milestone].join(" ");
+    return block.items.flatMap((item) => [item.label, item.html]).join(" ");
+  }).join(" ").replace(/<[^>]+>/g, " ").trim().split(/\s+/).filter(Boolean).length;
   return words ? Math.max(1, Math.ceil(words / 225)) : null;
 };
 
