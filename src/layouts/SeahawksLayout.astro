@@ -27,10 +27,16 @@ const navPages = [
     <div class="lr-header-bg seahawks-header-bg" aria-hidden="true"></div>
 
     <div class="lr-header-inner">
-      <h1 class="lr-site-title">Seahawks Fan Zone</h1>
-      <p class="lr-site-tagline">{pageTagline}</p>
+      <a class="sfz-brand" href="/" aria-label="Seahawks Fan Zone home">
+        <span class="sfz-mark" aria-hidden="true"><span>SFZ</span></span>
+        <span class="sfz-brand-copy"><span class="lr-site-title">Seahawks Fan Zone</span><span class="lr-site-tagline">Independent coverage · Pacific Northwest</span></span>
+      </a>
 
-      <nav class="top-nav" aria-label="Primary">
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+        <span class="nav-toggle-label">Menu</span><span class="nav-toggle-icon" aria-hidden="true"></span>
+      </button>
+
+      <nav class="top-nav" id="primary-nav" aria-label="Primary">
         {navPages.map((p) => (
           <a
             class="top-nav-link"
@@ -69,10 +75,12 @@ const navPages = [
       </section>
     </aside>
 
-    <main class="lr-main">
+    <main class="lr-main" id="main-content" tabindex="-1">
       <article class="lr-paper seahawks-paper">
         <header class="lr-post-header">
+          <p class="page-eyebrow">Seahawks Fan Zone</p>
           <h2 class="lr-post-title">{pageTitle}</h2>
+          {pageTagline && <p class="page-deck">{pageTagline}</p>}
         </header>
 
         <div class="lr-post-content">
@@ -80,15 +88,6 @@ const navPages = [
         </div>
       </article>
 
-      <footer class="lr-footer">
-        <a href="/about">About</a> · <a href="/privacy-policy">Privacy Policy</a> · <a href="/methodology">Methodology</a> · <a href="/disclosure">Disclosure</a>
-        <div class="lr-footer-note">
-          Seahawks Fan Zone is an independent fan site and is not affiliated with the NFL or the Seattle Seahawks.
-        </div>
-        <div class="lr-copyright">
-          &copy; {new Date().getFullYear()} seahawksfanzone
-        </div>
-      </footer>
     </main>
 
     <aside class="lr-sidebar lr-sidebar-right">
@@ -106,4 +105,35 @@ const navPages = [
       </section>
     </aside>
   </div>
+
+  <footer class="lr-footer">
+    <div class="footer-inner">
+      <div class="footer-brand"><span class="footer-mark">SFZ</span><span>Independent football coverage for the 12s.</span></div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="/disclosure">Disclosure</a><a href="/methodology">Methodology</a><a href="/about#contact">Contact</a><a href="/sources">Data updates</a><a href="/privacy-policy">Privacy</a>
+      </nav>
+      <p class="lr-footer-note">Seahawks Fan Zone is an independent fan site and is not affiliated with the NFL or the Seattle Seahawks. Data refreshes during scheduled site builds.</p>
+      <div class="lr-copyright">&copy; {new Date().getFullYear()} Seahawks Fan Zone</div>
+    </div>
+  </footer>
+
+  <script is:inline>
+    (() => {
+      const button = document.querySelector('.nav-toggle');
+      const nav = document.getElementById('primary-nav');
+      if (!button || !nav) return;
+      button.addEventListener('click', () => {
+        const open = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', String(!open));
+        nav.classList.toggle('is-open', !open);
+      });
+      nav.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          button.setAttribute('aria-expanded', 'false');
+          nav.classList.remove('is-open');
+          button.focus();
+        }
+      });
+    })();
+  </script>
 </BaseLayout>

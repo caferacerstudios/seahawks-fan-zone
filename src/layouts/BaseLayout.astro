@@ -26,9 +26,8 @@ const { title = "Seahawks Fan Zone", description = "" } = Astro.props;
   </head>
 
   <body>
-    <main class="site-main">
-      <slot />
-    </main>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <slot />
 
     <!-- Cloudflare Insights beacon -->
     <script
