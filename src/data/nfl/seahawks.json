@@ -6,7 +6,7 @@
   "team": { "id": 1, "abbreviation": "SEA", "full_name": "Seattle Seahawks", "conference": "NFC", "division": "NFC West" },
   "games": [
     {
-      "id": "offline-fixture-game-1",
+      "id": "fictional-game-home-001",
       "season": 2026,
       "week": 1,
       "season_type": "regular",
@@ -20,7 +20,7 @@
   "gamesPreseason": [],
   "gamesRegular": [
     {
-      "id": "offline-fixture-game-1",
+      "id": "fictional-game-home-001",
       "season": 2026,
       "week": 1,
       "season_type": "regular",

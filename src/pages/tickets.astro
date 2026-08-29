@@ -1,0 +1,173 @@
+---
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import { TICKET_FINDER_STATE } from "../lib/tickets/config";
+import { selectScheduleSeason } from "../lib/schedule.mjs";
+import { scheduleRow } from "../lib/schedule-display.mjs";
+import rawSchedule from "../data/nfl/seahawks.json";
+import snapshot from "../data/tickets/fixtures/development.snapshot.json";
+
+const schedule = selectScheduleSeason(rawSchedule, rawSchedule.season);
+const games = schedule.games
+  .filter((game) => !["bye", "completed"].includes(game.state))
+  .map((game, index) => ({ game, row: scheduleRow(game, { index }) }));
+const gameIds = new Set(games.map(({ game }) => String(game.id)));
+const events = snapshot.events.filter((event) => gameIds.has(event.sfzGameId));
+const listings = events.flatMap((event) => event.listings.map((listing) => ({ ...listing, eventKey: event.eventKey, homeAway: event.homeAway, opponent: event.opponent.abbreviation })));
+const providers = [...new Set(listings.map((listing) => listing.provider))].sort();
+const zones = [...new Set(listings.map((listing) => listing.sectionNormalized).filter(Boolean))].sort();
+const deliveries = [...new Set(listings.map((listing) => listing.deliveryType).filter((value) => value && value !== "unknown"))].sort();
+const supportsAccessible = listings.some((listing) => listing.accessibleStatus === "accessible");
+const money = (cents, currency = "USD") => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
+const dateTime = (value) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles", timeZoneName: "short" }).format(new Date(value));
+const label = (value) => String(value).replace(/^fictional-/, "").replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const clientData = { games: games.map(({ game }) => String(game.id)), gameMeta: games.map(({ game }) => ({ id: String(game.id), isHome: game.isHome, venue: game.venue, state: game.state })), opponents: [...new Set(games.map(({ row }) => row.opponentAbbr))], zones, providers, deliveries, listings, generatedAt: snapshot.generatedAt };
+const preview = TICKET_FINDER_STATE === "preview";
+---
+
+<SeahawksLayout
+  title="Seahawks Ticket Finder"
+  pageTitle="Seahawks Ticket Finder"
+  pageTagline="Compare ticket details from connected official and resale partners for upcoming Seahawks games."
+  description="Compare official and resale ticket options for upcoming Seattle Seahawks games."
+  seo={{ title: "Seahawks Ticket Finder | Seahawks Fan Zone", description: "Compare official and resale ticket options for upcoming Seattle Seahawks games.", canonicalPath: "/tickets", robots: preview ? "noindex, nofollow" : "index, follow" }}
+  activePath="/tickets"
+  pageType="tickets"
+  monetizationEligible={false}
+>
+  {TICKET_FINDER_STATE === "disabled" ? (
+    <section class="ticket-empty" aria-labelledby="tickets-disabled"><h2 id="tickets-disabled">Ticket Finder unavailable</h2><p>This preview is currently disabled. Upcoming games remain available on the <a href="/schedule">Seahawks schedule</a>.</p></section>
+  ) : (
+    <div id="ticket-finder">
+      {preview && <p class="preview-banner" role="status"><strong>Preview:</strong> Prices and providers below are deterministic test fixtures, not live inventory.</p>}
+
+      <section class="trust-panel" aria-label="Important ticket information">
+        <p><strong>Affiliate disclosure:</strong> SFZ may earn a commission if you buy through a marked provider link. Compensation never changes the comparison order.</p>
+        <p>Seahawks Fan Zone is an independent fan site, not the Seahawks or the NFL. Prices and availability can change between our last check and checkout; confirm the final total and ticket details with the provider.</p>
+      </section>
+
+      <noscript><div class="ticket-empty"><h2>JavaScript is off</h2><p>You can still choose an upcoming game, open its SFZ preview, or use the official ticket links below. Turn on JavaScript to filter and sort fixture comparisons.</p></div></noscript>
+
+      <form class="ticket-controls" id="ticket-controls" method="get" aria-labelledby="comparison-heading">
+        <div class="controls-heading"><div><p class="control-kicker">Fixture-backed comparison</p><h2 id="comparison-heading">Find tickets</h2></div><button type="button" class="compact-toggle" aria-expanded="false" aria-controls="filter-fields">Filters &amp; sort</button></div>
+        <div class="filter-fields" id="filter-fields">
+          <label class="wide">Upcoming game<select name="game" data-control>{games.map(({ game, row }) => <option value={game.id}>{row.week}: {row.homeAwayLabel} {row.homeAway} {row.opponentName} — {row.date}, {row.kickoff}</option>)}</select></label>
+          <label>Quantity<select name="quantity" data-control>{Array.from({ length: 8 }, (_, index) => index + 1).map((quantity) => <option value={quantity} selected={quantity === 2}>{quantity}</option>)}</select></label>
+          <label>Maximum group total ($)<input name="maxTotal" data-control type="number" min="1" max="1000000" step="1" inputmode="numeric" placeholder="No maximum" /></label>
+          <label>Home or away<select name="homeAway" data-control><option value="all">Home and away</option><option value="home">Home only</option><option value="away">Away only</option></select></label>
+          <label>Opponent / date<select name="opponent" data-control><option value="all">All opponents</option>{games.map(({ row }) => <option value={row.opponentAbbr}>{row.opponentName} — {row.date}</option>)}</select></label>
+          <label>Seat zone<select name="zone" data-control><option value="all">All zones</option>{zones.map((zone) => <option value={zone}>{label(zone)}</option>)}</select></label>
+          <label>Ticket source<select name="source" data-control><option value="both">Official and resale</option><option value="official">Official only</option><option value="resale">Resale only</option></select></label>
+          <label>Provider<select name="provider" data-control><option value="all">All connected providers</option>{providers.map((provider) => <option value={provider}>{label(provider)}</option>)}</select></label>
+          {deliveries.length > 0 && <label>Delivery<select name="delivery" data-control><option value="all">All supported delivery</option>{deliveries.map((delivery) => <option value={delivery}>{label(delivery)}</option>)}</select></label>}
+          <label>Sort<select name="sort" data-control><option value="lowest_total">Lowest group total</option><option value="lowest_per_ticket">Lowest per ticket</option><option value="best_zone_within_budget">Best zone within budget</option><option value="official_first">Official first</option><option value="most_recent">Most recently checked</option></select></label>
+          <fieldset class="choice-group"><legend>Product</legend><label><input type="radio" name="mode" value="admission" checked data-control /> Game tickets</label><label><input type="radio" name="mode" value="parking" data-control /> Parking only</label></fieldset>
+          <div class="check-group"><label><input type="checkbox" name="allInOnly" value="true" checked data-control /> All-in-comparable only</label>{supportsAccessible && <label><input type="checkbox" name="accessible" value="true" data-control /> Accessible seating explicitly supplied</label>}</div>
+        </div>
+        <div class="control-actions"><button type="submit" class="apply-button">Apply comparison</button><a href="/tickets" data-clear>Clear filters</a></div>
+      </form>
+
+      <section class="selected-game" aria-labelledby="selected-game-heading">
+        <div><p class="control-kicker">Selected matchup</p><h2 id="selected-game-heading">Upcoming Seahawks game</h2></div>
+        {games.map(({ game, row }) => <article data-game-summary={game.id}>
+          <div><strong>{row.week} · {row.homeAwayLabel}</strong><h3>{row.homeAway} {row.opponentName}</h3><p>{row.date} · {row.kickoff} · {row.venue ?? "Venue TBD"}</p></div>
+          <ul aria-label="Game traits"><li>{row.division ? "NFC West division game" : "Non-division game"}</li><li>{row.primeTime ? "Prime-time game" : "Standard broadcast window"}</li><li>Status: {row.stateLabel}</li></ul>
+          <div class="game-links"><a href={row.href}>Game preview</a><a href="/schedule">Full schedule</a></div>
+        </article>)}
+      </section>
+
+      <section class="official-callouts" aria-labelledby="official-heading">
+        <h2 id="official-heading">Official Seahawks options</h2>
+        <div class="callout-grid">
+          <article><h3>Ticketmaster / Seahawks</h3><p>Check the official Seahawks ticket page alongside marketplace comparisons.</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Official Seahawks tickets</a></article>
+          <article data-value-ticket><h3>Official Value Ticket check</h3><p>For eligible Lumen Field home games with four or fewer seats, check the official program. This page does not claim Value Tickets are currently in stock.</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Check official availability</a></article>
+          <article><h3>Mobile entry reminder</h3><p>Tickets may require mobile entry. Review setup and transfer instructions before game day.</p><a href="https://www.seahawks.com/tickets/mobile-ticket-guide" rel="noopener">Official mobile ticket guide</a></article>
+        </div>
+      </section>
+
+      <section class="results-section" aria-labelledby="results-heading">
+        <div class="results-heading"><div><p class="control-kicker">Comparison results</p><h2 id="results-heading">Available offers</h2></div><p id="result-count" role="status" aria-live="polite" aria-atomic="true">Loading comparison…</p></div>
+        <p class="comparison-note">Group totals are ranked only when the fixture supplies a safe fee-complete total for the selected quantity. Taxes or delivery exclusions are never guessed.</p>
+        <div class="ticket-results" id="ticket-results">
+          {listings.map((listing) => {
+            const event = events.find((candidate) => candidate.eventKey === listing.eventKey);
+            const status = snapshot.providerStatuses.find((candidate) => candidate.provider === listing.provider);
+            const initialTotal = listing.allowedQuantities.length === 1 && listing.allInGroupTotalCents !== null ? listing.allInGroupTotalCents : listing.feeCompleteness === "all_in" && listing.allInPerTicketCents !== null ? listing.allInPerTicketCents * 2 : null;
+            const href = listing.affiliateUrl ?? listing.canonicalUrl;
+            return <article class="ticket-card" data-listing={listing.providerListingId} data-game={listing.sfzGameId} data-opponent={listing.opponent} data-location={listing.homeAway} data-provider={listing.provider} data-source={listing.sourceKind} data-zone={listing.sectionNormalized ?? "unknown"} data-delivery={listing.deliveryType} data-accessible={listing.accessibleStatus} data-product={listing.productType}>
+              <div class="price-block"><p class="group-price" data-group-price>{initialTotal === null ? "Total unavailable" : money(initialTotal, listing.currency)}</p><p data-per-price>{initialTotal === null ? "Fee-complete group total not supplied" : `${money(initialTotal / 2, listing.currency)} per ticket, all-in`}</p></div>
+              <div class="provider-line"><strong>{label(listing.provider)}</strong><span class="source-badge">{listing.sourceKind === "official-primary" ? "Official" : "Resale"}</span></div>
+              <dl><div><dt>Section</dt><dd>{listing.sectionRaw ?? "Not supplied"}</dd></div><div><dt>Row</dt><dd>{listing.rowRaw ?? "Not supplied"}</dd></div><div><dt>Quantity</dt><dd>{listing.allowedQuantities.join(", ")}</dd></div><div><dt>Delivery</dt><dd>{label(listing.deliveryType)}</dd></div></dl>
+              {(listing.obstructedView || listing.limitedView || listing.sanitizedNotes.length > 0) && <div class="restrictions"><strong>Notes and restrictions</strong><ul>{listing.obstructedView && <li>Obstructed view</li>}{listing.limitedView && <li>Limited view</li>}{listing.sanitizedNotes.map((note) => <li>{note}</li>)}</ul></div>}
+              <p class="freshness">Checked {dateTime(listing.fetchedAt)}{status?.status === "stale" ? " · Provider stale" : ""}</p>
+              <a class="provider-button" href={href} target="_blank" rel={listing.affiliateUrl ? "sponsored nofollow noopener" : "nofollow noopener"} aria-label={`Go to ${label(listing.provider)} for ${listing.sectionRaw ?? "this offer"}`}>Go to provider</a>
+            </article>;
+          })}
+        </div>
+        <div class="ticket-empty" id="no-results" hidden><h3>No matching tickets</h3><p>Try another quantity, budget, source, or seat zone. Provider inventory may also have changed.</p></div>
+        <div class="ticket-empty" id="no-fee-results" hidden><h3>No fee-complete offers</h3><p>Matching offers exist, but none supplies a safe all-in group total for this quantity. Turn off “all-in-comparable only” to review them without a price ranking.</p></div>
+        <div class="ticket-empty" id="game-unmatched" hidden><h3>Game unmatched</h3><p>The selected schedule game does not have a verified event match in this fixture. Use the official links or check back after matching review.</p></div>
+        <div class="ticket-empty" id="runtime-unavailable" hidden={events.length > 0}><h3>Runtime data unavailable</h3><p>No validated ticket snapshot is available. Upcoming games and official ticket links remain available above.</p></div>
+        <div class="reference-links" aria-labelledby="other-provider-heading">
+          <h3 id="other-provider-heading">Other connected provider paths</h3>
+          <p>Event-summary and deep-link sources are kept separate from listing-level price rankings.</p>
+          {events.map((event) => <div data-reference-game={event.sfzGameId}>{event.providerEventReferences.filter((reference) => ["event-summary", "deep-link-only"].includes(reference.status) && (reference.affiliateUrl || reference.canonicalUrl)).map((reference) => <a href={reference.affiliateUrl ?? reference.canonicalUrl} target="_blank" rel={reference.affiliateUrl ? "sponsored nofollow noopener" : "nofollow noopener"}>{label(reference.provider)} · {reference.status === "event-summary" ? "Event summary" : "Provider link"}</a>)}</div>)}
+        </div>
+      </section>
+
+      <section class="coverage" aria-labelledby="coverage-heading">
+        <div class="coverage-heading"><div><p class="control-kicker">Source health</p><h2 id="coverage-heading">Provider coverage</h2></div><p>Last checked {dateTime(snapshot.generatedAt)}</p></div>
+        <p>Coverage describes provider connections, not unique tickets. Similar inventory may appear at more than one provider.</p>
+        <ul class="coverage-list">{snapshot.providerStatuses.map((provider) => <li><span><strong>{label(provider.provider)}</strong><small>{provider.status === "connected-listings" ? "Connected listing provider" : provider.status === "event-summary" ? "Event-summary only" : provider.status === "deep-link-only" ? "Deep-link only" : provider.status === "stale" ? "Provider stale" : provider.status === "error" ? "Provider failed" : label(provider.status)}{provider.lastFetchedAt && <> · Checked {dateTime(provider.lastFetchedAt)}</>}</small></span><span class={`health health--${provider.status}`}>{provider.status === "stale" ? "Stale" : provider.status === "error" ? "Failed" : "Available"}</span></li>)}</ul>
+        {snapshot.unmatchedProviderEvents.length > 0 && <p class="coverage-warning"><strong>Unmatched provider events:</strong> {snapshot.unmatchedProviderEvents.length}. Their links and inventory are not shown.</p>}
+      </section>
+    </div>
+  )}
+</SeahawksLayout>
+
+<style>
+  .preview-banner,.trust-panel,.ticket-empty,.coverage-warning{padding:1rem;border:var(--border-crisp);border-left:5px solid var(--action-green);background:var(--slate-100)}.preview-banner{margin-top:0}.trust-panel{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}.trust-panel p{margin:0}.ticket-controls{margin:1.5rem 0;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--action-green);background:var(--slate-100)}.controls-heading,.results-heading,.coverage-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}.controls-heading h2,.results-heading h2,.coverage-heading h2{margin:.1rem 0 .75rem}.control-kicker{margin:0;color:#4b711f;font-size:.7rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.compact-toggle{display:none}.filter-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.8rem}.filter-fields>label{display:grid;gap:.25rem;color:var(--slate-700);font-size:.72rem;font-weight:900;text-transform:uppercase}.filter-fields .wide{grid-column:span 2}.filter-fields :is(select,input){width:100%;padding:.45rem .55rem}.choice-group,.check-group{margin:0;padding:.65rem;border:1px solid var(--slate-300)}.choice-group{display:flex;gap:.75rem;flex-wrap:wrap}.choice-group legend{font-size:.72rem;font-weight:900;text-transform:uppercase}.choice-group label,.check-group label{display:flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:800}.choice-group input,.check-group input{min-height:0}.check-group{display:grid;gap:.45rem}.control-actions{display:flex;align-items:center;gap:1rem;margin-top:1rem}.apply-button,.provider-button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:.6rem .85rem;border:2px solid var(--navy-900);background:var(--navy-900);color:#fff;font-weight:900;text-decoration:none;cursor:pointer}.selected-game{margin:1.5rem 0}.selected-game>article{display:grid;grid-template-columns:1.5fr 1fr auto;gap:1rem;align-items:center;padding:1rem;border:var(--border-crisp);background:#fff}.selected-game h3{margin:.15rem 0}.selected-game p{margin:.2rem 0}.selected-game ul{margin:0;padding-left:1.1rem}.game-links{display:grid;gap:.35rem}.official-callouts,.results-section,.coverage{margin-top:2.5rem}.callout-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.callout-grid article{padding:1rem;border:var(--border-crisp);border-top:4px solid var(--navy-800)}.callout-grid h3{margin-top:0}.ticket-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.ticket-card{display:flex;flex-direction:column;gap:.75rem;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--navy-800);background:#fff}.price-block p{margin:0}.group-price{font:900 clamp(1.8rem,4vw,2.7rem)/1 var(--font-display);color:var(--navy-900)}.provider-line{display:flex;justify-content:space-between;gap:.5rem}.source-badge,.health{display:inline-flex;align-items:center;padding:.2rem .45rem;border:1px solid currentColor;font-size:.68rem;font-weight:900;text-transform:uppercase}.ticket-card dl{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:0}.ticket-card dl div{padding:.45rem;background:var(--slate-100)}.ticket-card dt{font-size:.65rem;font-weight:900;text-transform:uppercase}.ticket-card dd{margin:0}.restrictions{font-size:.78rem}.restrictions ul{margin:.25rem 0;padding-left:1.1rem}.freshness{margin:auto 0 0;color:var(--slate-700);font-size:.72rem}.provider-button{width:100%}.comparison-note{color:var(--slate-700);font-size:.8rem}.ticket-empty{margin:1rem 0}.ticket-empty h2,.ticket-empty h3{margin-top:0}.reference-links{margin-top:1.25rem;padding:1rem;border:var(--border-crisp)}.reference-links>div{display:flex;flex-wrap:wrap;gap:.5rem 1rem}.coverage-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;padding:0;list-style:none}.coverage-list li{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.7rem;border:1px solid var(--slate-300)}.coverage-list small{display:block;color:var(--slate-700)}.health--stale,.health--error{font-weight:900}.health--stale::before{content:"Warning: ";}.health--error::before{content:"Error: ";}
+  @media(max-width:800px){.filter-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.selected-game>article{grid-template-columns:1fr 1fr}.game-links{grid-column:1/-1;display:flex}.callout-grid{grid-template-columns:1fr}.ticket-results{grid-template-columns:1fr}}
+  @media(max-width:600px){.trust-panel{grid-template-columns:1fr}.compact-toggle{display:inline-flex;min-height:44px;align-items:center;padding:.5rem .7rem;border:2px solid var(--navy-900);background:#fff;color:var(--navy-900);font-weight:900}.filter-fields{display:none;grid-template-columns:1fr}.filter-fields.is-open{display:grid}.filter-fields .wide{grid-column:auto}.control-actions{display:grid}.apply-button{width:100%}.selected-game>article{grid-template-columns:1fr}.game-links{grid-column:auto}.results-heading,.coverage-heading{display:block}.coverage-list{grid-template-columns:1fr}.ticket-card{padding:.85rem}.provider-button{position:sticky;bottom:.5rem}.coverage-heading>p{margin-top:0}}
+</style>
+
+<script define:vars={{ clientData }}>
+  (() => {
+    const form = document.querySelector('#ticket-controls');
+    if (!form) return;
+    const fields = document.querySelector('#filter-fields');
+    const toggle = form.querySelector('.compact-toggle');
+    const cards = [...document.querySelectorAll('[data-listing]')];
+    const summaries = [...document.querySelectorAll('[data-game-summary]')];
+    const referenceGroups = [...document.querySelectorAll('[data-reference-game]')];
+    const count = document.querySelector('#result-count');
+    const noResults = document.querySelector('#no-results');
+    const noFees = document.querySelector('#no-fee-results');
+    const unmatched = document.querySelector('#game-unmatched');
+    const valid = (value, values, fallback = 'all') => values.includes(value) ? value : fallback;
+    const read = () => {
+      const params = new URLSearchParams(location.search);
+      const number = (name, min, max, fallback) => { const value = params.get(name); return /^\d+$/.test(value || '') && +value >= min && +value <= max ? +value : fallback; };
+      return { game: valid(params.get('game'), clientData.games, clientData.games[0] || ''), quantity:number('quantity',1,8,2), maxTotal:params.has('maxTotal')?number('maxTotal',1,1000000,null):null, homeAway:valid(params.get('homeAway'),['all','home','away']), opponent:valid(params.get('opponent'),['all',...clientData.opponents]), zone:valid(params.get('zone'),['all',...clientData.zones]), source:valid(params.get('source'),['both','official','resale'],'both'), allInOnly:params.get('allInOnly')!=='false', provider:valid(params.get('provider'),['all',...clientData.providers]), sort:valid(params.get('sort'),['lowest_total','lowest_per_ticket','best_zone_within_budget','official_first','most_recent'],'lowest_total'), accessible:params.get('accessible')==='true', delivery:valid(params.get('delivery'),['all',...clientData.deliveries]), mode:valid(params.get('mode'),['admission','parking'],'admission') };
+    };
+    const fromForm = () => { const data=new FormData(form); return { game:String(data.get('game')||''),quantity:+data.get('quantity'),maxTotal:data.get('maxTotal')?+data.get('maxTotal'):null,homeAway:String(data.get('homeAway')||'all'),opponent:String(data.get('opponent')||'all'),zone:String(data.get('zone')||'all'),source:String(data.get('source')||'both'),allInOnly:data.get('allInOnly')==='true',provider:String(data.get('provider')||'all'),sort:String(data.get('sort')||'lowest_total'),accessible:data.get('accessible')==='true',delivery:String(data.get('delivery')||'all'),mode:String(data.get('mode')||'admission')}; };
+    const writeForm = (state) => { Object.entries(state).forEach(([name,value]) => { const controls=[...form.elements].filter((item)=>item.name===name); controls.forEach((control)=>{ if(control.type==='checkbox'||control.type==='radio') control.checked=String(control.value)===String(value); else control.value=value??''; }); }); };
+    const total = (listing, quantity) => { if(!listing.allowedQuantities.includes(quantity)) return null; if(listing.allowedQuantities.length===1&&listing.allInGroupTotalCents!==null) return listing.allInGroupTotalCents; if(listing.feeCompleteness==='all_in'&&listing.allInPerTicketCents!==null&&listing.mandatoryFeesCents!==null) return listing.allInPerTicketCents*quantity; return null; };
+    const currency = (cents, code) => new Intl.NumberFormat('en-US',{style:'currency',currency:code,maximumFractionDigits:0}).format(cents/100);
+    const apply = (state, push=false) => {
+      writeForm(state); summaries.forEach((item)=>item.hidden=item.dataset.gameSummary!==state.game); referenceGroups.forEach((item)=>item.hidden=item.dataset.referenceGame!==state.game);
+      const matchedEvent=clientData.listings.some((listing)=>listing.sfzGameId===state.game); unmatched.hidden=matchedEvent;
+      const candidates=[]; let incomplete=0;
+      clientData.listings.forEach((listing,index)=>{ const card=cards[index]; const price=total(listing,state.quantity); const official=listing.sourceKind==='official-primary'; const base=listing.sfzGameId===state.game&&(state.homeAway==='all'||listing.homeAway===state.homeAway); const matches=base&&(state.opponent==='all'||listing.opponent===state.opponent)&&(state.zone==='all'||listing.sectionNormalized===state.zone)&&(state.provider==='all'||listing.provider===state.provider)&&(state.source==='both'||(state.source==='official'&&official)||(state.source==='resale'&&!official))&&(state.delivery==='all'||listing.deliveryType===state.delivery)&&(!state.accessible||listing.accessibleStatus==='accessible')&&listing.productType===state.mode&&listing.allowedQuantities.includes(state.quantity);
+        const feeMatch=price!==null; if(matches&&!feeMatch) incomplete++; const visible=matches&&(!state.allInOnly||feeMatch)&&(state.maxTotal===null||price!==null&&price<=state.maxTotal*100); card.hidden=!visible; if(visible){ card.querySelector('[data-group-price]').textContent=price===null?'Total unavailable':currency(price,listing.currency); card.querySelector('[data-per-price]').textContent=price===null?'Fee-complete group total not supplied':`${currency(price/state.quantity,listing.currency)} per ticket, all-in`; candidates.push({card,listing,price}); }
+      });
+      candidates.sort((a,b)=>{ if(state.sort==='official_first'){const delta=Number(b.listing.sourceKind==='official-primary')-Number(a.listing.sourceKind==='official-primary');if(delta)return delta;} if(state.sort==='most_recent')return Date.parse(b.listing.fetchedAt)-Date.parse(a.listing.fetchedAt); if(state.sort==='best_zone_within_budget'){const budget=state.maxTotal===null?Infinity:state.maxTotal*100;const delta=Number((b.price??Infinity)<=budget)-Number((a.price??Infinity)<=budget);if(delta)return delta;} return (a.price??Infinity)-(b.price??Infinity); }); candidates.forEach(({card})=>document.querySelector('#ticket-results').append(card));
+      const feeEmpty=matchedEvent&&candidates.length===0&&incomplete>0&&state.allInOnly; noFees.hidden=!feeEmpty; noResults.hidden=!matchedEvent||candidates.length>0||feeEmpty; count.textContent=`${candidates.length} ${candidates.length===1?'offer':'offers'} shown for ${state.quantity} ${state.quantity===1?'ticket':'tickets'}`;
+      const value=document.querySelector('[data-value-ticket]'); const selected=clientData.gameMeta.find((game)=>game.id===state.game); value.hidden=!(selected?.isHome&&selected.venue==='Lumen Field'&&!["canceled","postponed"].includes(selected.state)&&state.quantity<=4);
+      if(push){const params=new URLSearchParams(); params.set('game',state.game); if(state.quantity!==2)params.set('quantity',state.quantity); if(state.maxTotal!==null)params.set('maxTotal',state.maxTotal); for(const key of ['homeAway','opponent','zone','provider','sort','delivery'])if(state[key]&&!['all','lowest_total'].includes(state[key]))params.set(key,state[key]); if(state.source!=='both')params.set('source',state.source); if(!state.allInOnly)params.set('allInOnly','false'); if(state.accessible)params.set('accessible','true'); if(state.mode!=='admission')params.set('mode',state.mode); history.pushState(null,'',`${location.pathname}?${params}`); }
+    };
+    toggle?.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-expanded',String(!open));fields.classList.toggle('is-open',!open);});
+    form.addEventListener('submit',(event)=>{event.preventDefault();apply(fromForm(),true);});
+    form.querySelector('[data-clear]')?.addEventListener('click',(event)=>{event.preventDefault();history.pushState(null,'',location.pathname);apply(read());});
+    addEventListener('popstate',()=>apply(read())); apply(read());
+  })();
+</script>
