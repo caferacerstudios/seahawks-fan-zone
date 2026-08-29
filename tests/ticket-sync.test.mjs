@@ -58,6 +58,30 @@ test("TickPick is reported disabled by default and makes no adapter call", async
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 
+test("TicketNetwork remains fail-closed while its rights summary is pending", async () => {
+  const adapter = providerRegistry().ticketnetwork;
+  assert.equal(adapter.approvalStatus, "pending");
+  assert.equal(adapter.credentialEnv, null);
+  assert.deepEqual(adapter.allowedHosts, []);
+  assert.throws(
+    () => loadConfig({ TICKETS_PROVIDERS_JSON: JSON.stringify({ ticketnetwork: { enabled: true, mode: "listing-level" } }) }, root),
+    /cannot be enabled until its operator-reviewed rights summary is complete/,
+  );
+  await assert.rejects(adapter.sync({}), { code: "RIGHTS_APPROVAL_REQUIRED" });
+});
+
+test("TicketNetwork is reported disabled by default and makes no adapter call", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-ticketnetwork-disabled-"));
+  try {
+    const config = loadConfig({ TICKETS_OUTPUT_DIR: join(temporary, "snapshot") }, root);
+    const status = await runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), log: () => {} });
+    const ticketnetwork = status.providers.find(({ provider }) => provider === "ticketnetwork");
+    assert.equal(ticketnetwork.state, "disabled");
+    assert.equal(ticketnetwork.lastAttempt, null);
+    assert.deepEqual(ticketnetwork.counts, { fresh: 0, stale: 0, rejected: 0, unmatched: 0 });
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
 test("fixture mode publishes a complete lightweight snapshot without network", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-sync-"));
   try {

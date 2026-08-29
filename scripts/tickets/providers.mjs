@@ -17,6 +17,13 @@ const shells = Object.freeze({
     allowedHosts: [],
     async sync() { throw Object.assign(new Error("TickPick rights approval is incomplete."), { code: "RIGHTS_APPROVAL_REQUIRED" }); },
   }),
+  ticketnetwork: Object.freeze({
+    id: "ticketnetwork",
+    approvalStatus: "pending",
+    credentialEnv: null,
+    allowedHosts: [],
+    async sync() { throw Object.assign(new Error("TicketNetwork rights approval is incomplete."), { code: "RIGHTS_APPROVAL_REQUIRED" }); },
+  }),
   "provider-shell": Object.freeze({
     id: "provider-shell",
     credentialEnv: "TICKETS_PROVIDER_SHELL_API_KEY",
