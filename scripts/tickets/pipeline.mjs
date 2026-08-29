@@ -90,7 +90,7 @@ export async function runTicketSync(config, options = {}) {
       }
       const counts = { fresh: 0, stale: 0, rejected: 0, unmatched: 0 }; const rejectedEvents = []; const unmatchedEvents = [];
       try {
-        const rawPayload = await provider.adapter.sync({ fixture: config.fixture, fixtureFile: config.fixtureFile, apiKey: provider.apiKey, attractionId: provider.attractionId, timeoutMs: provider.timeoutMs, fetch: options.fetch });
+        const rawPayload = await provider.adapter.sync({ fixture: config.fixture, fixtureFile: config.fixtureFile, apiKey: provider.apiKey, eventName: provider.eventName, eventDate: provider.eventDate, legacyEventId: provider.legacyEventId, timeoutMs: provider.timeoutMs, fetch: options.fetch });
         const payload = provider.mode === "listing-level" ? listingAdapterPayload(rawPayload) : eventSummaryAdapterPayload(rawPayload);
         const additions = [];
         for (const rawEvent of payload.events.slice(0, 100)) {
@@ -108,7 +108,7 @@ export async function runTicketSync(config, options = {}) {
             if (eventUrl.protocol !== "https:" || !provider.adapter.allowedHosts.includes(eventUrl.hostname) || eventUrl.username || eventUrl.password) throw Object.assign(new Error("Invalid provider event URL."), { code: "INVALID_RESPONSE" });
             for (const key of eventUrl.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key)) throw Object.assign(new Error("Secret-like provider event URL."), { code: "INVALID_RESPONSE" });
           }
-          const addition = { eventKey: result.eventKey, reference: { provider: provider.id, providerEventId: String(rawEvent.id), mode: provider.mode, matchConfidence: result.confidence, canonicalUrl: rawEvent.canonicalUrl ?? null, state: "fresh", fetchedAt: now, expiresAt: iso(started + provider.minRefreshMs), summary: provider.mode === "event-summary" ? { name: rawEvent.name, attractions: rawEvent.attractions, venue: rawEvent.venue, startTimeUtc: rawEvent.startTimeUtc, localDate: rawEvent.localDate, localTime: rawEvent.localTime, timeZone: rawEvent.timeZone, eventStatus: rawEvent.eventStatus, salesStatus: rawEvent.salesStatus, classifications: rawEvent.classifications, priceRanges: rawEvent.priceRanges, allInclusivePricing: rawEvent.allInclusivePricing } : null }, listings: [] };
+          const addition = { eventKey: result.eventKey, reference: { provider: provider.id, providerEventId: String(rawEvent.id), mode: provider.mode, matchConfidence: result.confidence, canonicalUrl: rawEvent.canonicalUrl ?? null, state: "fresh", fetchedAt: now, expiresAt: iso(started + provider.minRefreshMs), capabilities: provider.adapter.capabilities ?? null, summary: provider.mode === "event-summary" ? { name: rawEvent.name, venue: rawEvent.venue, startTimeUtc: rawEvent.startTimeUtc, localDate: rawEvent.localDate, localTime: rawEvent.localTime, timeZone: rawEvent.timeZone, eventStatus: rawEvent.eventStatus, currency: rawEvent.currency, priceRanges: rawEvent.priceRanges, inventoryDetailLevel: rawEvent.inventoryDetailLevel } : null }, listings: [] };
           if (provider.mode === "listing-level") for (const rawListing of (rawEvent.listings || []).slice(0, 2_000)) {
             try { addition.listings.push(listing(rawListing, provider, game, now)); counts.fresh += 1; } catch { counts.rejected += 1; }
           }
@@ -123,9 +123,10 @@ export async function runTicketSync(config, options = {}) {
         log(sink, "info", "provider_complete", { provider: provider.id, state: "success", counts });
       } catch (error) {
         degraded = true; const retained = priorProviderData(previous, provider.id, started, provider.retentionMs, true);
-        for (const item of retained.events) { const target = eventMap.get(item.eventKey); if (target) { if (item.reference) target.references.push({ ...item.reference, state: "stale" }); target.listings.push(...item.listings); counts.stale += item.listings.length; } }
-        providerStatuses.push({ provider: provider.id, mode: provider.mode, state: counts.stale ? "stale" : "error", errorCode: safeCode(error), lastSuccess: retained.status?.lastSuccess ?? null, lastAttempt: now, nextEligibleAttempt: iso(started + provider.minRefreshMs), matchedEventSummaries: retained.events.filter(({ reference }) => reference?.mode === "event-summary").length, counts });
-        log(sink, "warn", "provider_complete", { provider: provider.id, state: counts.stale ? "stale" : "error", errorCode: safeCode(error), counts });
+        for (const item of retained.events) { const target = eventMap.get(item.eventKey); if (target) { if (item.reference) target.references.push({ ...item.reference, state: "stale", expiresAt: iso(Date.parse(retained.status.lastSuccess) + provider.retentionMs) }); target.listings.push(...item.listings); counts.stale += item.listings.length; } }
+        const hasRetained = retained.events.length > 0;
+        providerStatuses.push({ provider: provider.id, mode: provider.mode, state: hasRetained ? "stale" : "error", errorCode: safeCode(error), lastSuccess: retained.status?.lastSuccess ?? null, lastAttempt: now, nextEligibleAttempt: iso(started + provider.minRefreshMs), matchedEventSummaries: retained.events.filter(({ reference }) => reference?.mode === "event-summary").length, counts });
+        log(sink, "warn", "provider_complete", { provider: provider.id, state: hasRetained ? "stale" : "error", errorCode: safeCode(error), counts });
       }
     }
     await mkdir(join(stage, "events"), { recursive: true });

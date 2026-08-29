@@ -1,8 +1,8 @@
 # Ticketmaster live development runbook
 
 This runbook is for the development instance only. Ticketmaster Discovery is
-an official event-summary source, not listing inventory. Attraction ID:
-`K8vZ9171oU7`.
+an official event-summary source, not listing inventory. It searches the named
+game on its local date and verifies legacy event ID `0F006482E67E7496`.
 
 | Setting | Development value |
 | --- | --- |
@@ -41,10 +41,11 @@ this repository task does not run it. Changing the environment file alone does
 not alter an already generated static page—the rebuild is required.
 
 The env file sets `TICKETS_ENV=development`, `TICKETS_FIXTURE=false`,
-`TICKETMASTER_ATTRACTION_ID=K8vZ9171oU7`, `TICKETMASTER_API_KEY`, and:
+`TICKETMASTER_API_KEY`, the event name/date/legacy-ID variables shown in the
+example env file, and:
 
 ```text
-TICKETS_PROVIDERS_JSON={"ticketmaster":{"enabled":true,"mode":"event-summary","minRefreshMs":900000,"retentionMs":3600000}}
+TICKETS_PROVIDERS_JSON={"ticketmaster":{"enabled":true,"mode":"event-summary","minRefreshMs":600000,"retentionMs":3600000}}
 TICKET_DATA_ROOT=/var/lib/sfz-ticket-finder/dev
 TICKET_SYNC_ENV_FILE=/etc/sfz-ticket-finder/dev.env
 ```
@@ -63,7 +64,8 @@ sudo journalctl -u sfz-ticket-sync@dev.service --since today --no-pager -o cat
 ```
 
 The journal is designed to contain bounded event names/counts and error codes,
-never request URLs or credentials. The timer refreshes every 15 minutes with a
+never request URLs or credentials. Provider calls are cached for 10 minutes;
+the timer may run on its independent schedule with a
 random delay and persistent catch-up. Publication is validated, locked, and
 atomic; failure preserves the last-good snapshot.
 
@@ -72,8 +74,8 @@ tailgates, hospitality-only products, hotel/travel packages, season-ticket
 notification/interest lists, deposits, and watch parties. Ambiguous duplicate
 candidates are suppressed. Unmatched games receive no fabricated URL.
 
-Discovery may omit `priceRanges`; the beta then says that Ticketmaster did not
-supply a price. If ranges later appear they remain provider-reported event
+Discovery may omit `priceRanges`; the beta then says “See current prices on
+Ticketmaster.” If ranges later appear they remain provider-reported event
 summaries and are not cheapest-sort eligible. Quantity, section, row, seats,
 listing IDs, and fee-complete totals require separately approved listing APIs.
 Inventory Status API access remains future work, as do listing-level

@@ -94,7 +94,8 @@ The exact runtime variables are:
 - `TICKETS_PROVIDERS_JSON` containing only reviewed provider IDs, modes,
   refresh, and retention settings.
 - `TICKETS_LOCK_STALE_MS` and, for Ticketmaster event summaries,
-  `TICKETMASTER_API_KEY` plus optional `TICKETMASTER_ATTRACTION_ID`.
+  `TICKETMASTER_API_KEY` plus optional `TICKETMASTER_EVENT_NAME`,
+  `TICKETMASTER_EVENT_DATE`, and `TICKETMASTER_LEGACY_EVENT_ID`.
 
 A future listing provider cannot be configured generically without its actual
 contract. After approval, repository work must record its credential variable,

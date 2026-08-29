@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig } from "../scripts/tickets/config.mjs";
 import { runTicketSync } from "../scripts/tickets/pipeline.mjs";
-import { normalizeTicketmasterEvent, providerRegistry } from "../scripts/tickets/providers.mjs";
+import { matchTicketmasterEvent, normalizeTicketmasterEvent, providerRegistry } from "../scripts/tickets/providers.mjs";
 import { evaluateProviderEvent, normalizeNflTeam, sfzEventKey } from "../src/lib/tickets/match.mjs";
 import { games as realSchedule, legitimateEvents, providerEvents, rejectedEvents } from "./fixtures/ticketmaster-discovery.mjs";
 
@@ -13,13 +13,67 @@ test("Ticketmaster is approved only as a credentialed event-summary source", () 
   const adapter = providerRegistry().ticketmaster;
   assert.equal(adapter.approvalStatus, "approved");
   assert.equal(adapter.credentialEnv, "TICKETMASTER_API_KEY");
+  assert.deepEqual(adapter.capabilities, { supportsSeatListings: false, supportsResaleListings: false, supportsPriceRange: true, accessTier: "discovery" });
   assert.throws(() => loadConfig({ TICKETS_PROVIDERS_JSON: JSON.stringify({ ticketmaster: { enabled: true, mode: "event-summary" } }) }, root), /requires TICKETMASTER_API_KEY/);
 });
 
 test("Ticketmaster normalization preserves genuine summary capability without listings", () => {
   const event = normalizeTicketmasterEvent({ id: "tm-1", name: "Seattle Seahawks vs. New England Patriots", url: "https://www.ticketmaster.com/event/tm-1", dates: { start: { dateTime: "2026-09-01T00:00:00Z", localDate: "2026-08-31", localTime: "17:00:00" }, timezone: "America/Los_Angeles", status: { code: "onsale" } }, _embedded: { attractions: [{ id: "K8vZ9171oU7", name: "Seattle Seahawks" }], venues: [{ name: "Lumen Field", city: { name: "Seattle" }, state: { stateCode: "WA" } }] }, classifications: [{ segment: { name: "Sports" }, genre: { name: "Football" } }] });
-  assert.equal(event.id, "tm-1"); assert.deepEqual(event.priceRanges, []); assert.equal(event.allInclusivePricing, null);
+  assert.equal(event.id, "tm-1"); assert.deepEqual(event.priceRanges, []); assert.equal(event.currency, null);
+  assert.equal(event.inventoryDetailLevel, "price_range");
   assert.equal(Object.hasOwn(event, "listings"), false);
+  assert.equal(Object.hasOwn(event, "attractions"), false);
+});
+
+const discoveryEvent = (overrides = {}) => ({
+  id: "vvG1HZkABC123", name: "Seattle Seahawks vs. New England Patriots",
+  url: "https://www.ticketmaster.com/event/0F006482E67E7496",
+  dates: { start: { dateTime: "2026-09-10T00:20:00Z", localDate: "2026-09-09", localTime: "17:20:00" }, timezone: "America/Los_Angeles", status: { code: "onsale" } },
+  priceRanges: [{ currency: "USD", min: 85.5, max: 640 }],
+  _embedded: { venues: [{ name: "Lumen Field", city: { name: "Seattle" }, state: { stateCode: "WA" } }] },
+  ...overrides,
+});
+
+test("Ticketmaster matches name and date, verifies the legacy URL ID, and saves the universal ID", async () => {
+  const adapter = providerRegistry().ticketmaster;
+  let requested;
+  const result = await adapter.sync({ apiKey: "test-key", eventName: "Seattle Seahawks vs. New England Patriots", eventDate: "2026-09-09", legacyEventId: "0F006482E67E7496", timeoutMs: 100, fetch: async (url) => { requested = url; return { ok: true, json: async () => ({ _embedded: { events: [discoveryEvent()] } }) }; } });
+  assert.equal(requested.pathname, "/discovery/v2/events.json");
+  assert.equal(requested.searchParams.get("keyword"), "Seattle Seahawks vs. New England Patriots");
+  assert.match(requested.searchParams.get("localStartDateTime"), /^2026-09-09/);
+  assert.equal(result.events[0].id, "vvG1HZkABC123");
+  assert.equal(result.events[0].canonicalUrl, "https://www.ticketmaster.com/event/0F006482E67E7496");
+});
+
+test("Ticketmaster parses valid ranges and does not manufacture ticket rows", () => {
+  const normalized = normalizeTicketmasterEvent(discoveryEvent());
+  assert.deepEqual(normalized.priceRanges, [{ currency: "USD", min: 85.5, max: 640 }]);
+  assert.equal(normalized.currency, "USD");
+  assert.equal(Object.hasOwn(normalized, "listings"), false);
+  assert.equal(Object.hasOwn(normalized, "section"), false);
+});
+
+test("Ticketmaster preserves a genuinely missing priceRanges value as no range", () => {
+  const normalized = normalizeTicketmasterEvent(discoveryEvent({ priceRanges: undefined }));
+  assert.deepEqual(normalized.priceRanges, []);
+  assert.equal(normalized.currency, null);
+});
+
+test("Ticketmaster reports authentication and rate-limit failures with bounded codes", async () => {
+  const adapter = providerRegistry().ticketmaster;
+  const context = { apiKey: "test-key", eventName: "Seattle Seahawks vs. New England Patriots", eventDate: "2026-09-09", legacyEventId: "0F006482E67E7496", timeoutMs: 100 };
+  await assert.rejects(adapter.sync({ ...context, fetch: async () => ({ ok: false, status: 401 }) }), { code: "HTTP_401" });
+  await assert.rejects(adapter.sync({ ...context, fetch: async () => ({ ok: false, status: 429 }) }), { code: "HTTP_429" });
+});
+
+test("multiple similar Seahawks events match only the verified legacy URL", () => {
+  const similar = [
+    discoveryEvent({ id: "wrong-date", dates: { start: { localDate: "2026-09-10" } } }),
+    discoveryEvent({ id: "wrong-opponent", name: "Seattle Seahawks vs. New York Patriots" }),
+    discoveryEvent({ id: "wrong-url", url: "https://www.ticketmaster.com/event/WRONG" }),
+    discoveryEvent(),
+  ];
+  assert.equal(matchTicketmasterEvent(similar, { eventName: "Seattle Seahawks vs. New England Patriots", eventDate: "2026-09-09", legacyEventId: "0F006482E67E7496" }).id, "vvG1HZkABC123");
 });
 
 test("all canonical NFL aliases used by the schedule normalize deterministically", () => {

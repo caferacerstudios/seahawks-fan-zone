@@ -78,11 +78,14 @@ export function validateRuntimeEvent(value, indexRow, now = Date.now()) {
     if (reference.mode === "event-summary") {
       if (!safeProviderUrl(reference.provider, reference.canonicalUrl)) throw new TypeError("Runtime provider URL is not allowlisted.");
       record(reference.summary, "event.providerReferences[].summary");
+      record(reference.capabilities, "event.providerReferences[].capabilities");
+      if (reference.capabilities.supportsSeatListings !== false || reference.capabilities.supportsResaleListings !== false || reference.capabilities.supportsPriceRange !== true || reference.capabilities.accessTier !== "discovery") throw new TypeError("Invalid runtime Discovery capabilities.");
+      if (reference.summary.inventoryDetailLevel !== "price_range") throw new TypeError("Invalid runtime inventory detail level.");
       if (!Array.isArray(reference.summary.priceRanges)) throw new TypeError("Invalid runtime event price ranges.");
       if (reference.summary.priceRanges.some((price) => !Number.isFinite(price?.min) || !Number.isFinite(price?.max) || typeof price?.currency !== "string")) throw new TypeError("Invalid runtime event price range.");
       timestamp(reference.fetchedAt, "event.providerReferences[].fetchedAt", now);
       const expires = timestamp(reference.expiresAt, "event.providerReferences[].expiresAt", now, true);
-      if (reference.state === "stale" || expires <= now) throw new TypeError("Runtime provider event summary is stale.");
+      if (expires <= now) throw new TypeError("Runtime provider event summary is beyond its freshness limit.");
     }
   }
   for (const listing of EVENT_BUCKETS.flatMap((bucket) => eventFile.listings[bucket])) {
@@ -98,7 +101,7 @@ export function validateRuntimeEvent(value, indexRow, now = Date.now()) {
 export function runtimeTicketView(event, now = Date.now()) {
   const references = Array.isArray(event?.providerReferences) ? event.providerReferences : [];
   const summaries = references.filter((reference) =>
-    reference?.mode === "event-summary" && reference.state !== "stale" && safeProviderUrl(reference.provider, reference.canonicalUrl) &&
+    reference?.mode === "event-summary" && safeProviderUrl(reference.provider, reference.canonicalUrl) &&
     Number.isFinite(Date.parse(reference.expiresAt)) && Date.parse(reference.expiresAt) > now,
   );
   const listings = EVENT_BUCKETS.flatMap((bucket) => Array.isArray(event?.listings?.[bucket]) ? event.listings[bucket] : []).filter((listing) =>
@@ -111,7 +114,7 @@ export function runtimeTicketView(event, now = Date.now()) {
 export function ticketmasterSummaryModel(reference) {
   if (reference?.provider !== "ticketmaster" || reference.mode !== "event-summary") throw new TypeError("Not a Ticketmaster event summary.");
   const prices = reference.summary?.priceRanges ?? [];
-  return { provider: "Ticketmaster", source: "Official event source", status: reference.summary?.eventStatus === "onsale" ? "On sale" : reference.summary?.eventStatus === "offsale" ? "Off sale" : "Status unknown", checkedAt: reference.fetchedAt, href: safeProviderUrl("ticketmaster", reference.canonicalUrl), priceCopy: prices.length === 0 ? "Price not supplied by Ticketmaster API" : "Provider-reported event range", priceRanges: prices };
+  return { provider: "Ticketmaster", source: "Official Discovery API event summary", status: reference.summary?.eventStatus === "onsale" ? "On sale" : reference.summary?.eventStatus === "offsale" ? "Off sale" : "Status unknown", checkedAt: reference.fetchedAt, stale: reference.state === "stale", href: safeProviderUrl("ticketmaster", reference.canonicalUrl), priceCopy: prices.length === 0 ? "See current prices on Ticketmaster" : "Ticketmaster advertised price range", rangeNotice: "This is a range, not an individual ticket listing.", disclaimer: "Price and availability may change on Ticketmaster.", priceRanges: prices };
 }
 
 export function runtimeProviderCoverage(status, event) {

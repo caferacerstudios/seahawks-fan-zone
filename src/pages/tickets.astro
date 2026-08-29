@@ -219,10 +219,12 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
             const card = document.createElement('article'); card.className = 'ticket-card event-summary-card'; card.dataset.referenceGame = String(event.event.gameId);
             const line = document.createElement('div'); line.className = 'provider-line'; line.append(text('strong', summary.provider), text('span', summary.source, 'source-badge')); card.append(line);
             card.append(text('p', summary.status));
-            card.append(text('p', `Last checked: ${dateTime(summary.checkedAt)}`, 'freshness'));
+            card.append(text('p', `Last updated: ${dateTime(summary.checkedAt)}${summary.stale ? ' · Stale — last successful response retained' : ''}`, 'freshness'));
             card.append(text('p', summary.priceCopy, 'comparison-note'));
             if (summary.priceRanges.length) card.append(text('p', summary.priceRanges.map((range) => `${range.currency} ${range.min}–${range.max}`).join(', ')));
-            const link = text('a', 'View tickets at Ticketmaster', 'provider-button'); link.href = summary.href; link.target = '_blank'; link.rel = 'nofollow noopener'; link.dataset.ticketOutbound = ''; link.dataset.provider = 'ticketmaster'; link.dataset.sourceKind = 'official-primary'; link.dataset.linkPlacement = 'event-summary'; card.append(link); references.append(card);
+            card.append(text('p', summary.rangeNotice));
+            card.append(text('p', summary.disclaimer, 'comparison-note'));
+            const link = text('a', 'View tickets on Ticketmaster', 'provider-button'); link.href = summary.href; link.target = '_blank'; link.rel = 'nofollow noopener'; link.dataset.ticketOutbound = ''; link.dataset.provider = 'ticketmaster'; link.dataset.sourceKind = 'official-primary'; link.dataset.linkPlacement = 'event-summary'; card.append(link); references.append(card);
         }
           document.getElementById('result-count').textContent = `${listingCount} listing-level ${listingCount === 1 ? 'offer' : 'offers'} · ${view.summaries.length} matched event ${view.summaries.length === 1 ? 'summary' : 'summaries'}`;
           const coverage = runtimeProviderCoverage(status, event); const coverageSection = document.getElementById('runtime-coverage'); const list = coverageSection.querySelector('[data-runtime-coverage-list]'); list.replaceChildren();

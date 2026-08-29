@@ -15,6 +15,7 @@ All adapters are disabled unless explicitly enabled. Configuration is validated 
 - `TICKETS_FIXTURE_FILE`: optional local provider fixture path.
 - `TICKETS_LOCK_STALE_MS`: age after which abandoned staging directories can be removed; minimum 60 seconds.
 - `TICKETS_PROVIDER_SHELL_API_KEY`: credential expected by the disabled real-provider shell if it is ever configured. The shell remains pending and cannot currently be enabled.
+- `TICKETMASTER_API_KEY`: server-side Ticketmaster Discovery API consumer key. The Ticketmaster adapter also accepts `TICKETMASTER_EVENT_NAME`, `TICKETMASTER_EVENT_DATE`, and `TICKETMASTER_LEGACY_EVENT_ID`; their defaults identify the September 9, 2026 Patriots game at Lumen Field.
 
 Credential values belong only in the server process environment. Provider configuration names the credential environment variable, never its value. Do not place credentials in JSON, fixture files, command-line URLs, logs, or public environment variables. The sync emits only bounded safe error codes.
 
@@ -26,7 +27,7 @@ Run a no-network complete synchronization with:
 TICKETS_FIXTURE=true TICKETS_OUTPUT_DIR=/var/tmp/sfz-tickets npm run tickets:sync
 ```
 
-Normal one-shot invocation is `npm run tickets:sync`. There are no live provider implementations in this change: `provider-shell` is disabled and pending by default. Fixture mode activates only `fixture-market` using `scripts/tickets/fixtures/provider.json` and needs no credentials or network.
+Normal one-shot invocation is `npm run tickets:sync`. Ticketmaster uses only the documented Discovery API v2 event search and is an event-summary provider; `provider-shell` is disabled and pending by default. Fixture mode activates only `fixture-market` using `scripts/tickets/fixtures/provider.json` and needs no credentials or network.
 
 The `stubhub` registry entry is also unconditionally pending and disabled. It has no credential variable or hostname allowlist, and configuration rejects attempts to enable it until the operator-reviewed checklist in `docs/ticket-finder/provider-rights/StubHub.md` is complete and the approval matrix is updated.
 

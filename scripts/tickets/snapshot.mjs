@@ -40,6 +40,9 @@ export function validateSnapshotFile(value, kind, allowedHosts = {}) {
       }
       if (reference.mode === "event-summary") {
         object(reference.summary, "event.providerReferences[].summary");
+        object(reference.capabilities, "event.providerReferences[].capabilities");
+        if (reference.capabilities.supportsSeatListings !== false || reference.capabilities.supportsResaleListings !== false || reference.capabilities.supportsPriceRange !== true || reference.capabilities.accessTier !== "discovery") throw new TypeError("Invalid Discovery provider capabilities.");
+        if (reference.summary.inventoryDetailLevel !== "price_range") throw new TypeError("Event summary inventory detail must be price_range.");
         if (!Array.isArray(reference.summary.priceRanges)) throw new TypeError("Event summary priceRanges must be an array.");
         if (reference.summary.priceRanges.some((price) => !Number.isFinite(price.min) || !Number.isFinite(price.max) || typeof price.currency !== "string")) throw new TypeError("Invalid provider event price range.");
         timestamp(reference.fetchedAt, "event.providerReferences[].fetchedAt"); timestamp(reference.expiresAt, "event.providerReferences[].expiresAt");
