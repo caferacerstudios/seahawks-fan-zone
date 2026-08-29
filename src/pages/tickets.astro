@@ -3,6 +3,7 @@ import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import PriceHistory from "../components/tickets/PriceHistory.astro";
 import { TICKET_FINDER_STATE, TICKET_PRICE_HISTORY_MINIMUM_POINTS, TICKET_PRICE_HISTORY_STATE } from "../lib/tickets/config";
 import { providerOutboundLink } from "../lib/tickets/outbound-links.mjs";
+import { ticketModeUsesFixtures } from "../lib/tickets/runtime-view.mjs";
 import { selectScheduleSeason } from "../lib/schedule.mjs";
 import { scheduleRow } from "../lib/schedule-display.mjs";
 import rawSchedule from "../data/nfl/seahawks.json";
@@ -15,7 +16,8 @@ const games = schedule.games
   .map((game, index) => ({ game, row: scheduleRow(game, { index }) }));
 const gameIds = new Set(games.map(({ game }) => String(game.id)));
 const beta = TICKET_FINDER_STATE === "beta";
-const events = beta ? [] : snapshot.events.filter((event) => gameIds.has(event.sfzGameId));
+const preview = TICKET_FINDER_STATE === "preview";
+const events = ticketModeUsesFixtures(TICKET_FINDER_STATE) ? snapshot.events.filter((event) => gameIds.has(event.sfzGameId)) : [];
 const unavailableProviders = new Set(snapshot.providerStatuses.filter(({ status }) => ["stale", "error", "disabled"].includes(status)).map(({ provider }) => provider));
 const listings = events.flatMap((event) => event.listings.filter((listing) => !unavailableProviders.has(listing.provider)).map((listing) => ({ ...listing, eventKey: event.eventKey, homeAway: event.homeAway, opponent: event.opponent.abbreviation })));
 const providers = [...new Set(listings.map((listing) => listing.provider))].sort();
@@ -26,16 +28,15 @@ const money = (cents, currency = "USD") => new Intl.NumberFormat("en-US", { styl
 const dateTime = (value) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles", timeZoneName: "short" }).format(new Date(value));
 const label = (value) => String(value).replace(/^fictional-/, "").replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const clientData = { games: games.map(({ game }) => String(game.id)), gameMeta: games.map(({ game }) => ({ id: String(game.id), isHome: game.isHome, venue: game.venue, state: game.state })), opponents: [...new Set(games.map(({ row }) => row.opponentAbbr))], zones, providers, deliveries, listings, generatedAt: snapshot.generatedAt };
-const preview = TICKET_FINDER_STATE === "preview";
-const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points.length >= TICKET_PRICE_HISTORY_MINIMUM_POINTS;
+const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points.length >= TICKET_PRICE_HISTORY_MINIMUM_POINTS;
 ---
 
 <SeahawksLayout
-  title="Seahawks Ticket Comparison"
+  title={beta ? "Seahawks Ticket Finder Beta" : "Seahawks Ticket Comparison"}
   pageTitle="Seahawks Ticket Finder"
-  pageTagline="Compare ticket details from connected official and resale partners for upcoming Seahawks games."
-  description="Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details."
-  seo={{ title: "Seahawks Ticket Comparison | Seahawks Fan Zone", description: "Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details.", canonicalPath: "/tickets", robots: preview || beta ? "noindex, nofollow" : "index, follow" }}
+  pageTagline={beta ? "Check official provider event availability for upcoming Seahawks games." : "Compare ticket details from connected official and resale partners for upcoming Seahawks games."}
+  description={beta ? "Check official provider event summaries for upcoming Seahawks games." : "Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details."}
+  seo={{ title: beta ? "Seahawks Ticket Finder Beta | Seahawks Fan Zone" : "Seahawks Ticket Comparison | Seahawks Fan Zone", description: beta ? "Check official provider event summaries for upcoming Seahawks games." : "Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details.", canonicalPath: "/tickets", robots: preview || beta ? "noindex, nofollow" : "index, follow" }}
   activePath="/tickets"
   pageType="tickets"
   monetizationEligible={false}
@@ -48,7 +49,7 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
       {beta && <p class="preview-banner" role="status"><strong>Live beta:</strong> Ticket information comes from connected providers. Coverage varies by marketplace and availability can change before checkout.</p>}
 
       <section class="trust-panel" aria-label="Important ticket information">
-        <p><strong>Ticket link disclosure:</strong> We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect ticket rankings.</p>
+        <p><strong>Ticket link disclosure:</strong> We may earn a commission if you purchase tickets through some links on this page. {beta ? "Ticketmaster event summaries are not ranked." : "Commission arrangements do not affect ticket rankings."}</p>
         <p>Seahawks Fan Zone is an independent fan site, not the Seahawks, NFL, or ticket seller. Prices and availability can change between refresh and checkout. Confirm the final price, availability, and ticket details on the provider site.</p>
       </section>
 
@@ -73,8 +74,13 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
         <div class="control-actions"><button type="submit" class="apply-button">Apply comparison</button><button type="button" class="watch-button" data-watch-save>Save browser watch</button><button type="button" class="watch-reset" data-watch-reset>Reset saved watch</button><a href="/tickets" data-clear>Clear filters</a></div>
         <p class="watch-status" data-watch-status role="status" aria-live="polite">A saved watch stays only in this browser and contains game, quantity, budget, and zone—no account or personal information.</p>
       </form>
+      {beta && <form class="ticket-controls" id="runtime-game-controls" method="get" aria-labelledby="runtime-game-heading">
+        <div class="controls-heading"><div><p class="control-kicker">Live event lookup</p><h2 id="runtime-game-heading">Choose a game</h2></div></div>
+        <div class="filter-fields"><label class="wide">Upcoming game<select name="game">{games.map(({ game, row }) => <option value={game.id}>{row.week}: {row.homeAwayLabel} {row.homeAway} {row.opponentName} — {row.date}, {row.kickoff}</option>)}</select></label></div>
+        <p class="watch-status">Detailed listing comparison requires a connected listing-level provider. Ticketmaster Discovery supplies event summaries only, so seat zone, row, delivery, accessibility, parking, quantity, budget, and cheapest-price controls are unavailable.</p>
+      </form>}
 
-      <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect ticket rankings.</p>
+      <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. {beta ? "Ticketmaster event summaries are not ranked." : "Commission arrangements do not affect ticket rankings."}</p>
 
       <section class="selected-game" aria-labelledby="selected-game-heading">
         <div><p class="control-kicker">Selected matchup</p><h2 id="selected-game-heading">Upcoming Seahawks game</h2></div>
@@ -90,15 +96,15 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
       <section class="official-callouts" aria-labelledby="official-heading">
         <h2 id="official-heading">Official Seahawks options</h2>
         <div class="callout-grid">
-          <article><h3>Ticketmaster / Seahawks</h3><p>Check the official Seahawks ticket page alongside marketplace comparisons.</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Official Seahawks tickets</a></article>
-          <article data-value-ticket><h3>Official Value Ticket check</h3><p>For eligible Lumen Field home games with four or fewer seats, check the official program. This page does not claim Value Tickets are currently in stock.</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Check official availability</a></article>
+          <article><h3>Ticketmaster / Seahawks</h3><p>{beta ? "Check the official Seahawks ticket page for additional team ticket information." : "Check the official Seahawks ticket page alongside marketplace comparisons."}</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Official Seahawks tickets</a></article>
+          {!beta && <article data-value-ticket><h3>Official Value Ticket check</h3><p>For eligible Lumen Field home games with four or fewer seats, check the official program. This page does not claim Value Tickets are currently in stock.</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Check official availability</a></article>}
           <article><h3>Mobile entry reminder</h3><p>Tickets may require mobile entry. Review setup and transfer instructions before game day.</p><a href="https://www.seahawks.com/tickets/mobile-ticket-guide" rel="noopener">Official mobile ticket guide</a></article>
         </div>
       </section>
 
       <section class="results-section" aria-labelledby="results-heading">
-        <div class="results-heading"><div><p class="control-kicker">Comparison results</p><h2 id="results-heading">Available offers</h2></div><p id="result-count" role="status" aria-live="polite" aria-atomic="true">Loading comparison…</p></div>
-        <p class="comparison-note">Prices can change between refresh and checkout. Rankings use all-in mandatory-price data only where a provider supplies enough information for the selected quantity. Taxes, delivery, or optional products are identified separately where applicable and never guessed. Event-summary and unknown-fee values are not ranked as cheapest. Confirm final price and availability on the provider site.</p>
+        <div class="results-heading"><div><p class="control-kicker">{beta ? "Provider results" : "Comparison results"}</p><h2 id="results-heading">{beta ? "Ticket availability" : "Available offers"}</h2></div><p id="result-count" role="status" aria-live="polite" aria-atomic="true">{beta ? "Loading live ticket data…" : "Loading comparison…"}</p></div>
+        <p class="comparison-note">{beta ? "Ticketmaster event summaries are not individual listings, quantity-specific offers, or cheapest-price comparisons. Confirm current availability on Ticketmaster." : "Prices can change between refresh and checkout. Rankings use all-in mandatory-price data only where a provider supplies enough information for the selected quantity. Taxes, delivery, or optional products are identified separately where applicable and never guessed. Event-summary and unknown-fee values are not ranked as cheapest. Confirm final price and availability on the provider site."}</p>
         <div class="ticket-results" id="ticket-results">
           {listings.map((listing) => {
             const event = events.find((candidate) => candidate.eventKey === listing.eventKey);
@@ -116,13 +122,13 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
           })}
         </div>
         {beta && <div class="ticket-results" id="runtime-listings" aria-live="polite"></div>}
-        <div class="ticket-empty" id="no-results" hidden><h3>No matching tickets</h3><p>Try another quantity, budget, source, or seat zone. Provider inventory may also have changed.</p></div>
-        <div class="ticket-empty" id="no-fee-results" hidden><h3>No fee-complete offers</h3><p>Matching offers exist, but none supplies a safe all-in group total for this quantity. Turn off “all-in-comparable only” to review them without a price ranking.</p></div>
-        <div class="ticket-empty" id="game-unmatched" hidden><h3>Game unmatched</h3><p>The selected schedule game does not have a verified event match in this fixture. Use the official links or check back after matching review.</p></div>
-        <div class="ticket-empty" id="runtime-unavailable" hidden={!beta && events.length > 0}><h3>Live comparison inventory is unavailable</h3><p>No fresh listing-level offers are available from an authorized connected provider. Matched event links, when available, are shown below and are not individual listings or price comparisons.</p></div>
-        <div class="reference-links" aria-labelledby="other-provider-heading">
-          <h3 id="other-provider-heading">Other connected provider paths</h3>
-          <p>Event-summary and deep-link sources are kept separate from listing-level price rankings.</p>
+        {!beta && <div class="ticket-empty" id="no-results" hidden><h3>No matching tickets</h3><p>Try another quantity, budget, source, or seat zone. Provider inventory may also have changed.</p></div>}
+        {!beta && <div class="ticket-empty" id="no-fee-results" hidden><h3>No fee-complete offers</h3><p>Matching offers exist, but none supplies a safe all-in group total for this quantity. Turn off “all-in-comparable only” to review them without a price ranking.</p></div>}
+        {!beta && <div class="ticket-empty" id="game-unmatched" hidden><h3>Game unmatched</h3><p>The selected schedule game does not have a verified event match in this fixture. Use the official links or check back after matching review.</p></div>}
+        {beta && <div class="ticket-empty" id="runtime-unavailable" hidden><h3>Live ticket data is temporarily unavailable.</h3><p>Use the schedule, game preview, or official Seahawks links while the runtime feed recovers.</p></div>}
+        <div class="reference-links" aria-labelledby="other-provider-heading" id={beta ? "runtime-summaries" : undefined}>
+          <h3 id="other-provider-heading">{beta ? "Official provider event summaries" : "Other connected provider paths"}</h3>
+          <p>{beta ? "These provider event summaries are not individual offers and are never ranked as cheapest." : "Event-summary and deep-link sources are kept separate from listing-level price rankings."}</p>
           {events.map((event) => <div data-reference-game={event.sfzGameId}>{event.providerEventReferences.filter((reference) => ["event-summary", "deep-link-only"].includes(reference.status)).map((reference) => {
             const outbound = providerOutboundLink(reference.provider, reference.canonicalUrl, reference.affiliateUrl);
             return outbound && <a href={outbound.href} target="_blank" rel={outbound.rel} data-ticket-outbound data-provider={reference.provider} data-source-kind={reference.sourceKind} data-link-placement={reference.status === "event-summary" ? "event-summary" : "deep-link"}>{label(reference.provider)} · {reference.status === "event-summary" ? "Event summary — not price ranked" : "Provider link"}</a>;
@@ -136,8 +142,13 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
         <ul class="coverage-list">{snapshot.providerStatuses.map((provider) => <li><span><strong>{label(provider.provider)}</strong><small>{provider.status === "connected-listings" ? "Connected listing-level provider" : provider.status === "event-summary" ? "Event-summary provider — values not price ranked" : provider.status === "deep-link-only" ? "Deep-link-only provider — no listing data" : provider.status === "stale" ? "Provider stale — values not price ranked" : provider.status === "error" ? "Provider failed — no current data" : label(provider.status)}{provider.lastFetchedAt && <> · Last successful refresh {dateTime(provider.lastFetchedAt)}</>}</small></span><span class={`health health--${provider.status}`}>{provider.status === "stale" ? "Stale" : provider.status === "error" ? "Failed" : "Available"}</span></li>)}</ul>
         {snapshot.unmatchedProviderEvents.length > 0 && <p class="coverage-warning"><strong>Unmatched provider events:</strong> {snapshot.unmatchedProviderEvents.length}. Their links and inventory are not shown.</p>}
       </section>}
+      {beta && <section class="coverage" aria-labelledby="coverage-heading" id="runtime-coverage" hidden>
+        <div class="coverage-heading"><div><p class="control-kicker">Source health</p><h2 id="coverage-heading">Provider coverage</h2></div><p data-runtime-checked></p></div>
+        <p>Coverage comes from the runtime provider status. Event-summary success does not require listing inventory.</p>
+        <ul class="coverage-list" data-runtime-coverage-list></ul>
+      </section>}
 
-      <section class="ticket-guidance" aria-labelledby="ticket-guidance-heading">
+      {!beta && <section class="ticket-guidance" aria-labelledby="ticket-guidance-heading">
         <h2 id="ticket-guidance-heading">How to compare Seahawks tickets</h2>
         <div class="guidance-grid">
           <article><h3>Official and resale inventory</h3><p>Official inventory comes from a team or authorized primary box-office path; resale inventory is offered through a marketplace. An official option remains visible for comparison, but SFZ does not call it cheapest unless it qualifies under the same fee-complete price rule.</p></article>
@@ -145,7 +156,7 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
           <article><h3>Independent ranking</h3><p>Organic order uses the selected price, recency, zone, or official-first sort. Commission is not an input, and providers cannot buy a higher organic position. Any future sponsored placement must be labeled and visually separated from these results.</p></article>
         </div>
         <p>Read the complete <a href="/methodology#ticket-comparisons">ticket comparison methodology</a>, <a href="/disclosure">affiliate disclosure</a>, and <a href="/privacy-policy">privacy policy</a>.</p>
-      </section>
+      </section>}
     </div>
   )}
 </SeahawksLayout>
@@ -159,45 +170,70 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
 </style>
 
 <script>
-  import { runtimeEventUrl, runtimeTicketView } from "../lib/tickets/runtime-view.mjs";
+  import { runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, selectRuntimeEvent, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeIndex, validateRuntimeStatus } from "../lib/tickets/runtime-view.mjs";
   if (document.getElementById('ticket-finder')?.dataset.runtime === 'true') (async () => {
     const results = document.getElementById('runtime-listings');
     const references = document.querySelector('.reference-links');
     const unavailable = document.getElementById('runtime-unavailable');
-    const selected = new URLSearchParams(location.search).get('game');
-    const safeLink = (value) => {
-      try { const url = new URL(value); const secret = [...url.searchParams.keys()].some((key) => /token|key|secret|signature|auth/i.test(key)); return url.protocol === 'https:' && !url.username && !url.password && !secret ? url.href : null; } catch { return null; }
-    };
+    const controls = document.getElementById('runtime-game-controls');
+    const gameSelect = controls?.elements?.game;
+    const allowedGames = [...(gameSelect?.options || [])].map((option) => option.value);
+    const summariesHeading = references.querySelector('h3');
+    const summariesNote = references.querySelector('p');
     const text = (tag, value, className) => { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node; };
     const providerName = (value) => String(value).replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const dateTime = (value) => new Intl.DateTimeFormat('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:'America/Los_Angeles', timeZoneName:'short' }).format(new Date(value));
+    const json = async (url) => { const response = await fetch(url, { headers: { accept: 'application/json' } }); if (!response.ok) throw new Error('runtime unavailable'); return response.json(); };
+    const clearRuntime = () => { results.replaceChildren(); references.replaceChildren(summariesHeading, summariesNote); };
+    const showFailure = () => { clearRuntime(); unavailable.hidden = false; document.getElementById('result-count').textContent = 'Live ticket data is temporarily unavailable.'; document.getElementById('runtime-coverage').hidden = true; };
     try {
-      const indexResponse = await fetch('/data/tickets/index.json', { headers: { accept: 'application/json' } });
-      if (!indexResponse.ok) throw new Error('snapshot unavailable');
-      const index = await indexResponse.json();
-      const rows = selected ? index.events.filter((event) => String(event.gameId) === selected) : index.events;
-      const files = await Promise.all(rows.map(async (row) => { const response = await fetch(runtimeEventUrl(row)); if (!response.ok) throw new Error('event unavailable'); return response.json(); }));
-      let listingCount = 0;
-      for (const event of files) {
+      const now = Date.now();
+      const [status, index] = await Promise.all([
+        json('/data/tickets/status.json').then((value) => validateRuntimeStatus(value, now)),
+        json('/data/tickets/index.json').then((value) => validateRuntimeIndex(value, now)),
+      ]);
+      if (status.generatedAt !== index.generatedAt) throw new Error('incompatible runtime snapshot');
+      const loadSelected = async (requested) => {
+        clearRuntime(); unavailable.hidden = true; document.getElementById('result-count').textContent = 'Loading live ticket data…';
+        const selected = selectRuntimeEvent(index, requested, allowedGames);
+        gameSelect.value = selected.gameId;
+        document.querySelectorAll('[data-game-summary]').forEach((item) => item.hidden = item.dataset.gameSummary !== selected.gameId);
+        if (!selected.row) { document.getElementById('result-count').textContent = '0 listing-level offers · No matched event summary'; document.getElementById('runtime-coverage').hidden = true; return; }
+        try {
+          const event = validateRuntimeEvent(await json(runtimeEventUrl(selected.row)), selected.row, Date.now());
+          if (event.generatedAt !== status.generatedAt) throw new Error('incompatible runtime event');
         const view = runtimeTicketView(event);
+          let listingCount = 0;
         for (const listing of view.listings) {
-          const href = safeLink(listing.affiliateUrl ?? listing.canonicalUrl); if (!href) continue;
           const card = document.createElement('article'); card.className = 'ticket-card'; card.dataset.listing = listing.providerListingId;
           card.append(text('p', new Intl.NumberFormat('en-US', { style: 'currency', currency: listing.currency }).format(listing.priceCents / 100), 'group-price'));
           card.append(text('p', listing.feeStatus === 'all-in' ? 'Provider-reported all-in price' : 'Fees may be added at checkout', 'comparison-note'));
           const line = document.createElement('div'); line.className = 'provider-line'; line.append(text('strong', providerName(listing.provider)), text('span', 'Listing-level offer', 'source-badge')); card.append(line);
           const details = [listing.section && `Section ${listing.section}`, listing.row && `Row ${listing.row}`, listing.allowedQuantities?.length && `Quantities ${listing.allowedQuantities.join(', ')}`].filter(Boolean).join(' · '); card.append(text('p', details || 'Seat details not supplied'));
           card.append(text('p', `Checked ${new Date(listing.fetchedAt).toLocaleString()}`, 'freshness'));
-          const link = text('a', 'View tickets at provider', 'provider-button'); link.href = href; link.target = '_blank'; link.rel = 'sponsored nofollow noopener'; card.append(link); results.append(card); listingCount++;
+          const link = text('a', 'View tickets at provider', 'provider-button'); link.href = listing.affiliateUrl ?? listing.canonicalUrl; link.target = '_blank'; link.rel = 'sponsored nofollow noopener'; card.append(link); results.append(card); listingCount++;
         }
         for (const reference of view.summaries) {
-        const href = safeLink(reference.canonicalUrl); if (!href) continue;
-          const group = document.createElement('div'); group.dataset.referenceGame = String(event.event.gameId); group.append(text('strong', `${providerName(reference.provider)} — matched event summary (not a listing): `));
-          const link = text('a', 'View tickets at provider'); link.href = href; link.target = '_blank'; link.rel = 'sponsored nofollow noopener'; group.append(link); references.append(group);
+            if (reference.provider !== 'ticketmaster') continue;
+            const summary = ticketmasterSummaryModel(reference);
+            const card = document.createElement('article'); card.className = 'ticket-card event-summary-card'; card.dataset.referenceGame = String(event.event.gameId);
+            const line = document.createElement('div'); line.className = 'provider-line'; line.append(text('strong', summary.provider), text('span', summary.source, 'source-badge')); card.append(line);
+            card.append(text('p', summary.status));
+            card.append(text('p', `Last checked: ${dateTime(summary.checkedAt)}`, 'freshness'));
+            card.append(text('p', summary.priceCopy, 'comparison-note'));
+            if (summary.priceRanges.length) card.append(text('p', summary.priceRanges.map((range) => `${range.currency} ${range.min}–${range.max}`).join(', ')));
+            const link = text('a', 'View tickets at Ticketmaster', 'provider-button'); link.href = summary.href; link.target = '_blank'; link.rel = 'nofollow noopener'; link.dataset.ticketOutbound = ''; link.dataset.provider = 'ticketmaster'; link.dataset.sourceKind = 'official-primary'; link.dataset.linkPlacement = 'event-summary'; card.append(link); references.append(card);
         }
-      }
-      unavailable.hidden = listingCount > 0;
-      document.getElementById('result-count').textContent = `${listingCount} live listing-level ${listingCount === 1 ? 'offer' : 'offers'}`;
-    } catch { unavailable.hidden = false; }
+          document.getElementById('result-count').textContent = `${listingCount} listing-level ${listingCount === 1 ? 'offer' : 'offers'} · ${view.summaries.length} matched event ${view.summaries.length === 1 ? 'summary' : 'summaries'}`;
+          const coverage = runtimeProviderCoverage(status, event); const coverageSection = document.getElementById('runtime-coverage'); const list = coverageSection.querySelector('[data-runtime-coverage-list]'); list.replaceChildren();
+          for (const provider of coverage) { const item = document.createElement('li'); const details = document.createElement('span'); details.append(text('strong', provider.provider), text('small', `${provider.mode} · ${provider.state} · Matched event summaries ${provider.matchedEventSummaries} · Fresh listings ${provider.freshListings} · Rejected events ${provider.rejectedEvents} · Unmatched events ${provider.unmatchedEvents}${provider.lastSuccess ? ` · Last successful refresh ${dateTime(provider.lastSuccess)}` : ''}`)); item.append(details, text('span', ['success','cached'].includes(provider.state) ? 'Connected' : provider.state, `health health--${provider.state}`)); list.append(item); }
+          coverageSection.querySelector('[data-runtime-checked]').textContent = `Last checked ${dateTime(status.generatedAt)}`; coverageSection.hidden = false;
+        } catch { showFailure(); }
+      };
+      const requested = new URLSearchParams(location.search).get('game'); await loadSelected(requested);
+      controls?.addEventListener('submit', (event) => event.preventDefault());
+      gameSelect?.addEventListener('change', async () => { const params = new URLSearchParams(); params.set('game', gameSelect.value); history.replaceState(null, '', `${location.pathname}?${params}`); await loadSelected(gameSelect.value); });
+    } catch { showFailure(); }
   })();
 </script>
 

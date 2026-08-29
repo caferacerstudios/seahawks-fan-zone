@@ -80,13 +80,13 @@ export async function runTicketSync(config, options = {}) {
     const providerStatuses = []; const allowedHosts = {}; let degraded = false;
     for (const provider of configuredProviders(config)) {
       allowedHosts[provider.id] = provider.adapter.allowedHosts;
-      if (!provider.enabled) { const disabled = { provider: provider.id, mode: provider.mode, state: "disabled", errorCode: null, lastSuccess: null, lastAttempt: null, nextEligibleAttempt: null, counts: { fresh: 0, stale: 0, rejected: 0, unmatched: 0 } }; providerStatuses.push(disabled); log(sink, "info", "provider_complete", { provider: provider.id, state: disabled.state, counts: disabled.counts }); continue; }
+      if (!provider.enabled) { const disabled = { provider: provider.id, mode: provider.mode, state: "disabled", errorCode: null, lastSuccess: null, lastAttempt: null, nextEligibleAttempt: null, matchedEventSummaries: 0, counts: { fresh: 0, stale: 0, rejected: 0, unmatched: 0 } }; providerStatuses.push(disabled); log(sink, "info", "provider_complete", { provider: provider.id, state: disabled.state, counts: disabled.counts }); continue; }
       const prior = previous.status?.providers?.find((item) => item.provider === provider.id);
       const eligibleAt = prior?.lastAttempt ? Date.parse(prior.lastAttempt) + provider.minRefreshMs : 0;
       if (eligibleAt > started) {
         const cached = priorProviderData(previous, provider.id, started, provider.retentionMs, false);
         for (const item of cached.events) { const target = eventMap.get(item.eventKey); if (target) { if (item.reference) target.references.push({ ...item.reference, state: "cached" }); target.listings.push(...item.listings); } }
-        providerStatuses.push({ ...prior, state: "cached", nextEligibleAttempt: iso(eligibleAt) }); log(sink, "info", "provider_complete", { provider: provider.id, state: "cached", counts: prior.counts }); continue;
+        providerStatuses.push({ ...prior, state: "cached", nextEligibleAttempt: iso(eligibleAt), matchedEventSummaries: prior.matchedEventSummaries ?? cached.events.filter(({ reference }) => reference?.mode === "event-summary").length }); log(sink, "info", "provider_complete", { provider: provider.id, state: "cached", counts: prior.counts }); continue;
       }
       const counts = { fresh: 0, stale: 0, rejected: 0, unmatched: 0 }; const rejectedEvents = []; const unmatchedEvents = [];
       try {
@@ -119,12 +119,12 @@ export async function runTicketSync(config, options = {}) {
           if (ambiguousKeys.has(addition.eventKey)) { counts.rejected += 1; rejectedEvents.push({ providerEventId: addition.reference.providerEventId, name: addition.reference.summary?.name ?? "", reasons: ["multiple-high-confidence-candidates"] }); continue; }
           const target = eventMap.get(addition.eventKey); target.references.push(addition.reference); target.listings.push(...addition.listings);
         }
-        providerStatuses.push({ provider: provider.id, mode: provider.mode, state: "success", errorCode: null, lastSuccess: now, lastAttempt: now, nextEligibleAttempt: iso(started + provider.minRefreshMs), counts, rejectedEvents, unmatchedEvents });
+        providerStatuses.push({ provider: provider.id, mode: provider.mode, state: "success", errorCode: null, lastSuccess: now, lastAttempt: now, nextEligibleAttempt: iso(started + provider.minRefreshMs), matchedEventSummaries: additions.filter((addition) => !ambiguousKeys.has(addition.eventKey) && addition.reference.mode === "event-summary").length, counts, rejectedEvents, unmatchedEvents });
         log(sink, "info", "provider_complete", { provider: provider.id, state: "success", counts });
       } catch (error) {
         degraded = true; const retained = priorProviderData(previous, provider.id, started, provider.retentionMs, true);
         for (const item of retained.events) { const target = eventMap.get(item.eventKey); if (target) { if (item.reference) target.references.push({ ...item.reference, state: "stale" }); target.listings.push(...item.listings); counts.stale += item.listings.length; } }
-        providerStatuses.push({ provider: provider.id, mode: provider.mode, state: counts.stale ? "stale" : "error", errorCode: safeCode(error), lastSuccess: retained.status?.lastSuccess ?? null, lastAttempt: now, nextEligibleAttempt: iso(started + provider.minRefreshMs), counts });
+        providerStatuses.push({ provider: provider.id, mode: provider.mode, state: counts.stale ? "stale" : "error", errorCode: safeCode(error), lastSuccess: retained.status?.lastSuccess ?? null, lastAttempt: now, nextEligibleAttempt: iso(started + provider.minRefreshMs), matchedEventSummaries: retained.events.filter(({ reference }) => reference?.mode === "event-summary").length, counts });
         log(sink, "warn", "provider_complete", { provider: provider.id, state: counts.stale ? "stale" : "error", errorCode: safeCode(error), counts });
       }
     }

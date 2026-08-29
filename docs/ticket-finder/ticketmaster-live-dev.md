@@ -15,6 +15,31 @@ an official event-summary source, not listing inventory. Attraction ID:
 | Web mount | current snapshot at `/usr/share/nginx/html/data/tickets:ro` (or the repository Nginx alias-equivalent) |
 | Build mode | `SFZ_TICKET_DATA_MODE=beta` |
 
+`SFZ_TICKET_DATA_MODE` is the non-secret Astro build-time feature switch. Its
+allowed values are `disabled`, `preview`, `beta`, and `live`; an absent or
+invalid value safely resolves to `preview`. The development site requires
+`beta`. Put that setting in `/etc/sfz-dev-workflow/build.env`, which is the
+development site's build environment, not in the ticket synchronizer's secret
+environment file. Never put `TICKETMASTER_API_KEY` in the Astro build
+environment.
+
+The site owner can add or replace the setting without disturbing other build
+variables:
+
+```sh
+sudo sh -c 'touch /etc/sfz-dev-workflow/build.env; if grep -q "^SFZ_TICKET_DATA_MODE=" /etc/sfz-dev-workflow/build.env; then sed -i "s/^SFZ_TICKET_DATA_MODE=.*/SFZ_TICKET_DATA_MODE=beta/" /etc/sfz-dev-workflow/build.env; else printf "SFZ_TICKET_DATA_MODE=beta\n" >> /etc/sfz-dev-workflow/build.env; fi'
+```
+
+From the checked-out dev release, rebuild the offline Astro site with Node 22:
+
+```sh
+set -a; . /etc/sfz-dev-workflow/build.env; set +a; npm run build:offline
+```
+
+The normal dev release activation/restart remains an operator workflow step;
+this repository task does not run it. Changing the environment file alone does
+not alter an already generated static page—the rebuild is required.
+
 The env file sets `TICKETS_ENV=development`, `TICKETS_FIXTURE=false`,
 `TICKETMASTER_ATTRACTION_ID=K8vZ9171oU7`, `TICKETMASTER_API_KEY`, and:
 
