@@ -80,3 +80,17 @@ export interface TicketFixture {
   events: TicketEvent[];
   unmatchedProviderEvents: ProviderEventReference[];
 }
+
+export type EventMatchConfidence = "high" | "medium" | "low" | "none";
+export type EventMatchOutcome = "matched" | "review" | "rejected";
+export type EventMatchMethod = "provider-crosswalk" | "teams-venue-time" | "manual" | "unmatched";
+
+export interface TicketMatchOverride {
+  action: "map" | "block";
+  sfzEventKey: string;
+  provider: string;
+  providerEventId: string;
+  note: string;
+  addedAt: string;
+  reason: string;
+}
