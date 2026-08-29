@@ -185,3 +185,9 @@ interface TicketSnapshot {
 Assumptions: providers can ultimately supply a stable event identifier and an approved outbound URL; the schedule source continues to expose `id`/`game_id`; one currency will normally be USD. None is provider approval.
 
 Operator decisions: JSON Schema versus a TypeScript validator, canonical ID alias storage, accepted currencies, match tolerances, price comparison quantity, tax/delivery treatment, public status-message vocabulary, snapshot retention, and whether section/row/seat fields are permitted per provider.
+
+## Price-history retention gate
+
+No connected production provider currently has an operator-approved historical-retention limit in `provider-matrix.md`. Production history therefore has an effective retention of zero and collection must remain disabled. A provider may contribute only after its dated approval record supplies a positive historical-retention limit. The configured period is capped at the strictest limit among contributors; pending or absent terms fail closed.
+
+Permitted history contains event-level daily summaries only: Pacific observation date, quantity, normalized seat zone, currency, exact minimum/median/nearest-rank P25/P75 all-in group prices, fee-complete sample size, and requested/contributing/missing/stale providers. It contains no listing IDs, raw sections or rows, URLs, seller data, or raw payloads. Missing periods are explicit empty points and are never interpolated. Removing a provider conservatively deletes summaries to which it contributed. The separate UI flag also requires at least seven permitted daily points; history makes no prediction.

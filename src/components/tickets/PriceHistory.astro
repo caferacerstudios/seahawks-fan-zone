@@ -1,0 +1,31 @@
+---
+const { history, money, zoneLabel } = Astro.props;
+const rows = history.points.flatMap((point) => point.groups.length ? point.groups.map((group) => ({ ...group, observedAt: point.observedAt, localDate: point.localDate, coverage: point.coverage, missingProviders: point.missingProviders, staleProviders: point.staleProviders })) : [{ observedAt: point.observedAt, localDate: point.localDate, coverage: point.coverage, missingProviders: point.missingProviders, staleProviders: point.staleProviders, gap: true }]);
+const values = rows.flatMap((group) => [group.minimumCents, group.medianCents, group.percentile25Cents, group.percentile75Cents]).filter(Number.isSafeInteger);
+const low = Math.min(...values); const high = Math.max(...values); const range = Math.max(1, high - low);
+const x = (index) => 20 + (index * 560 / Math.max(1, rows.length - 1));
+const y = (value) => 180 - ((value - low) / range * 150);
+let segmentOpen = false;
+const medianPath = rows.map((group, index) => { if (group.gap) { segmentOpen = false; return ""; } const command = segmentOpen ? "L" : "M"; segmentOpen = true; return `${command}${x(index)},${y(group.medianCents)}`; }).join(" ");
+---
+<section class="price-history" aria-labelledby="price-history-heading">
+  <h2 id="price-history-heading">All-in price history</h2>
+  <p>Observed event summaries only; no forecast. P25 and P75 use the nearest-rank method. Gaps mean requested provider data was missing or stale.</p>
+  <svg viewBox="0 0 600 210" role="img" aria-labelledby="history-chart-title history-chart-desc">
+    <title id="history-chart-title">Historical median all-in group price</title>
+    <desc id="history-chart-desc">Median all-in prices by observed date. Exact minimum, median, percentile, coverage, and sample values follow in the table.</desc>
+    <path d={medianPath} fill="none" stroke="currentColor" stroke-width="4" />
+    {rows.map((group, index) => group.gap ? <g><title>{group.localDate}: missing provider coverage; no price recorded</title><line x1={x(index)} x2={x(index)} y1="20" y2="190" stroke="currentColor" stroke-dasharray="6 6" /></g> : <circle cx={x(index)} cy={y(group.medianCents)} r="5"><title>{group.localDate}: {money(group.medianCents, group.currency)}, {group.coverage} coverage</title></circle>)}
+  </svg>
+  <div class="history-table-wrap" tabindex="0" role="region" aria-label="Scrollable price history data">
+    <table>
+      <caption>Equivalent price-history data</caption>
+      <thead><tr><th scope="col">Pacific date</th><th scope="col">Quantity</th><th scope="col">Zone</th><th scope="col">Minimum</th><th scope="col">P25</th><th scope="col">Median</th><th scope="col">P75</th><th scope="col">Fee-complete samples</th><th scope="col">Provider coverage</th></tr></thead>
+      <tbody>{rows.map((group) => <tr><th scope="row">{group.localDate}</th>{group.gap ? <><td colspan="7">Gap — no fee-complete price recorded</td><td>{group.coverage}; missing: {group.missingProviders.join(", ") || "all requested providers"}{group.staleProviders.length ? `; stale: ${group.staleProviders.join(", ")}` : ""}</td></> : <><td>{group.quantity}</td><td>{zoneLabel(group.zone)}</td><td>{money(group.minimumCents, group.currency)}</td><td>{money(group.percentile25Cents, group.currency)}</td><td>{money(group.medianCents, group.currency)}</td><td>{money(group.percentile75Cents, group.currency)}</td><td>{group.feeCompleteSampleSize}</td><td>{group.coverage}{group.missingProviders.length ? `; missing: ${group.missingProviders.join(", ")}` : ""}{group.staleProviders.length ? `; stale: ${group.staleProviders.join(", ")}` : ""}</td></>}</tr>)}</tbody>
+    </table>
+  </div>
+</section>
+
+<style>
+  .price-history{margin-top:2.5rem}.price-history svg{display:block;width:100%;max-width:760px;height:auto;border:1px solid var(--slate-300);background:#fff;color:var(--navy-800)}.price-history circle{fill:var(--action-green);stroke:#fff;stroke-width:2}.history-table-wrap{margin-top:1rem;overflow:auto}.history-table-wrap:focus{outline:3px solid var(--action-green);outline-offset:2px}table{width:100%;border-collapse:collapse;background:#fff}caption{font-weight:900;text-align:left;padding:.6rem 0}th,td{padding:.55rem;border:1px solid var(--slate-300);text-align:left;white-space:nowrap}
+</style>

@@ -1,11 +1,13 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
-import { TICKET_FINDER_STATE } from "../lib/tickets/config";
+import PriceHistory from "../components/tickets/PriceHistory.astro";
+import { TICKET_FINDER_STATE, TICKET_PRICE_HISTORY_MINIMUM_POINTS, TICKET_PRICE_HISTORY_STATE } from "../lib/tickets/config";
 import { providerOutboundLink } from "../lib/tickets/outbound-links.mjs";
 import { selectScheduleSeason } from "../lib/schedule.mjs";
 import { scheduleRow } from "../lib/schedule-display.mjs";
 import rawSchedule from "../data/nfl/seahawks.json";
 import snapshot from "../data/tickets/fixtures/development.snapshot.json";
+import history from "../data/tickets/fixtures/development.history.json";
 
 const schedule = selectScheduleSeason(rawSchedule, rawSchedule.season);
 const games = schedule.games
@@ -24,6 +26,7 @@ const dateTime = (value) => new Intl.DateTimeFormat("en-US", { month: "short", d
 const label = (value) => String(value).replace(/^fictional-/, "").replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const clientData = { games: games.map(({ game }) => String(game.id)), gameMeta: games.map(({ game }) => ({ id: String(game.id), isHome: game.isHome, venue: game.venue, state: game.state })), opponents: [...new Set(games.map(({ row }) => row.opponentAbbr))], zones, providers, deliveries, listings, generatedAt: snapshot.generatedAt };
 const preview = TICKET_FINDER_STATE === "preview";
+const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points.length >= TICKET_PRICE_HISTORY_MINIMUM_POINTS;
 ---
 
 <SeahawksLayout
@@ -65,7 +68,8 @@ const preview = TICKET_FINDER_STATE === "preview";
           <fieldset class="choice-group"><legend>Product</legend><label><input type="radio" name="mode" value="admission" checked data-control /> Game tickets</label><label><input type="radio" name="mode" value="parking" data-control /> Parking only</label></fieldset>
           <div class="check-group"><label><input type="checkbox" name="allInOnly" value="true" checked data-control /> All-in-comparable only</label>{supportsAccessible && <label><input type="checkbox" name="accessible" value="true" data-control /> Accessible seating explicitly supplied</label>}</div>
         </div>
-        <div class="control-actions"><button type="submit" class="apply-button">Apply comparison</button><a href="/tickets" data-clear>Clear filters</a></div>
+        <div class="control-actions"><button type="submit" class="apply-button">Apply comparison</button><button type="button" class="watch-button" data-watch-save>Save browser watch</button><button type="button" class="watch-reset" data-watch-reset>Reset saved watch</button><a href="/tickets" data-clear>Clear filters</a></div>
+        <p class="watch-status" data-watch-status role="status" aria-live="polite">A saved watch stays only in this browser and contains game, quantity, budget, and zone—no account or personal information.</p>
       </form>
 
       <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect ticket rankings.</p>
@@ -78,6 +82,8 @@ const preview = TICKET_FINDER_STATE === "preview";
           <div class="game-links"><a href={row.href}>Game preview</a><a href="/schedule">Full schedule</a></div>
         </article>)}
       </section>
+
+      {historyReady ? <PriceHistory history={history} money={money} zoneLabel={label} /> : <section class="ticket-empty" aria-labelledby="history-not-ready"><h2 id="history-not-ready">Price history is not available yet</h2><p>This separately flagged feature stays off until provider retention is approved and at least {TICKET_PRICE_HISTORY_MINIMUM_POINTS} permitted daily summaries exist. No prices are inferred to fill gaps, and no future prices are predicted.</p></section>}
 
       <section class="official-callouts" aria-labelledby="official-heading">
         <h2 id="official-heading">Official Seahawks options</h2>
@@ -142,7 +148,7 @@ const preview = TICKET_FINDER_STATE === "preview";
 </SeahawksLayout>
 
 <style>
-  .inline-disclosure{margin:0 0 1.5rem;padding:.8rem 1rem;border:var(--border-crisp);border-top:0;background:#fff}.link-unavailable{margin:0;padding:.6rem;border:1px solid var(--slate-300);text-align:center}.ticket-guidance{margin-top:2.5rem}.guidance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.guidance-grid article{padding:1rem;border:var(--border-crisp);background:#fff}.guidance-grid h3{margin-top:0}
+  .inline-disclosure{margin:0 0 1.5rem;padding:.8rem 1rem;border:var(--border-crisp);border-top:0;background:#fff}.link-unavailable{margin:0;padding:.6rem;border:1px solid var(--slate-300);text-align:center}.ticket-guidance{margin-top:2.5rem}.guidance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.guidance-grid article{padding:1rem;border:var(--border-crisp);background:#fff}.guidance-grid h3{margin-top:0}.watch-button,.watch-reset{min-height:44px;padding:.5rem .7rem;border:2px solid var(--navy-900);background:#fff;color:var(--navy-900);font-weight:900;cursor:pointer}.watch-reset{border-color:var(--slate-500)}.watch-status{margin:.75rem 0 0;font-size:.8rem}
   .preview-banner,.trust-panel,.ticket-empty,.coverage-warning{padding:1rem;border:var(--border-crisp);border-left:5px solid var(--action-green);background:var(--slate-100)}.preview-banner{margin-top:0}.trust-panel{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}.trust-panel p{margin:0}.ticket-controls{margin:1.5rem 0;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--action-green);background:var(--slate-100)}.controls-heading,.results-heading,.coverage-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}.controls-heading h2,.results-heading h2,.coverage-heading h2{margin:.1rem 0 .75rem}.control-kicker{margin:0;color:#4b711f;font-size:.7rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.compact-toggle{display:none}.filter-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.8rem}.filter-fields>label{display:grid;gap:.25rem;color:var(--slate-700);font-size:.72rem;font-weight:900;text-transform:uppercase}.filter-fields .wide{grid-column:span 2}.filter-fields :is(select,input){width:100%;padding:.45rem .55rem}.choice-group,.check-group{margin:0;padding:.65rem;border:1px solid var(--slate-300)}.choice-group{display:flex;gap:.75rem;flex-wrap:wrap}.choice-group legend{font-size:.72rem;font-weight:900;text-transform:uppercase}.choice-group label,.check-group label{display:flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:800}.choice-group input,.check-group input{min-height:0}.check-group{display:grid;gap:.45rem}.control-actions{display:flex;align-items:center;gap:1rem;margin-top:1rem}.apply-button,.provider-button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:.6rem .85rem;border:2px solid var(--navy-900);background:var(--navy-900);color:#fff;font-weight:900;text-decoration:none;cursor:pointer}.selected-game{margin:1.5rem 0}.selected-game>article{display:grid;grid-template-columns:1.5fr 1fr auto;gap:1rem;align-items:center;padding:1rem;border:var(--border-crisp);background:#fff}.selected-game h3{margin:.15rem 0}.selected-game p{margin:.2rem 0}.selected-game ul{margin:0;padding-left:1.1rem}.game-links{display:grid;gap:.35rem}.official-callouts,.results-section,.coverage{margin-top:2.5rem}.callout-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.callout-grid article{padding:1rem;border:var(--border-crisp);border-top:4px solid var(--navy-800)}.callout-grid h3{margin-top:0}.ticket-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.ticket-card{display:flex;flex-direction:column;gap:.75rem;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--navy-800);background:#fff}.price-block p{margin:0}.group-price{font:900 clamp(1.8rem,4vw,2.7rem)/1 var(--font-display);color:var(--navy-900)}.provider-line{display:flex;justify-content:space-between;gap:.5rem}.source-badge,.health{display:inline-flex;align-items:center;padding:.2rem .45rem;border:1px solid currentColor;font-size:.68rem;font-weight:900;text-transform:uppercase}.ticket-card dl{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:0}.ticket-card dl div{padding:.45rem;background:var(--slate-100)}.ticket-card dt{font-size:.65rem;font-weight:900;text-transform:uppercase}.ticket-card dd{margin:0}.restrictions{font-size:.78rem}.restrictions ul{margin:.25rem 0;padding-left:1.1rem}.freshness{margin:auto 0 0;color:var(--slate-700);font-size:.72rem}.provider-button{width:100%}.comparison-note{color:var(--slate-700);font-size:.8rem}.ticket-empty{margin:1rem 0}.ticket-empty h2,.ticket-empty h3{margin-top:0}.reference-links{margin-top:1.25rem;padding:1rem;border:var(--border-crisp)}.reference-links>div{display:flex;flex-wrap:wrap;gap:.5rem 1rem}.coverage-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;padding:0;list-style:none}.coverage-list li{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.7rem;border:1px solid var(--slate-300)}.coverage-list small{display:block;color:var(--slate-700)}.health--stale,.health--error{font-weight:900}.health--stale::before{content:"Warning: ";}.health--error::before{content:"Error: ";}
   .ticket-controls{margin-bottom:0}
   @media(max-width:800px){.filter-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.selected-game>article{grid-template-columns:1fr 1fr}.game-links{grid-column:1/-1;display:flex}.callout-grid,.guidance-grid{grid-template-columns:1fr}.ticket-results{grid-template-columns:1fr}}
@@ -193,6 +199,23 @@ const preview = TICKET_FINDER_STATE === "preview";
 
 <script>
   import { ticketClickEvent } from "../lib/tickets/analytics.mjs";
+  import { readWatchlist, resetWatchlist, writeWatchlist } from "../lib/tickets/watchlist.mjs";
+
+  const watchForm = document.querySelector("#ticket-controls");
+  const watchStatus = watchForm?.querySelector("[data-watch-status]");
+  const watchOptions = { games: [...(watchForm?.elements?.game?.options || [])].map((option) => option.value), zones: [...(watchForm?.elements?.zone?.options || [])].map((option) => option.value).filter((value) => value !== "all") };
+  const savedWatch = readWatchlist(localStorage, watchOptions);
+  if (savedWatch && watchForm) {
+    watchForm.elements.game.value = savedWatch.game; watchForm.elements.quantity.value = String(savedWatch.quantity); watchForm.elements.maxTotal.value = String(savedWatch.budget); watchForm.elements.zone.value = savedWatch.zone;
+    if (watchStatus) watchStatus.textContent = "Saved browser watch loaded. Apply comparison to use it.";
+  }
+  watchForm?.querySelector("[data-watch-save]")?.addEventListener("click", () => {
+    const saved = writeWatchlist(localStorage, { game: watchForm.elements.game.value, quantity: Number(watchForm.elements.quantity.value), budget: Number(watchForm.elements.maxTotal.value), zone: watchForm.elements.zone.value }, watchOptions);
+    if (watchStatus) watchStatus.textContent = saved ? "Watch saved only in this browser." : "Enter a budget before saving this watch.";
+  });
+  watchForm?.querySelector("[data-watch-reset]")?.addEventListener("click", () => {
+    resetWatchlist(localStorage); if (watchStatus) watchStatus.textContent = "Saved browser watch reset.";
+  });
 
   document.addEventListener("click", (event) => {
     const link = event.target?.closest?.("[data-ticket-outbound]");
