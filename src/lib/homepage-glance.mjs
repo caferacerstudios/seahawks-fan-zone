@@ -115,7 +115,7 @@ export function buildHomepageGlance({ nfl, standings, transactions = [], injurie
     season: Number(nfl.season),
     dataThrough: nfl.updatedAt ?? standings?.updatedAt ?? null,
     seasonStatus: {
-      label: labels[phase], record: record(phaseGames), href: phase === "regular" && rank ? "/standings" : "/schedule",
+      label: labels[phase], record: finals.length ? record(phaseGames) : null, href: phase === "regular" && rank ? "/standings" : "/schedule",
       rank: phase === "regular" ? rank : null,
       detail: phase === "regular" && regularFinals.length === 0 && firstRegular ? `Regular season begins ${formatKickoff(firstRegular, "date")}` : null,
       streak: finals.length && streak ? `${lastOutcome}${streak}` : null,

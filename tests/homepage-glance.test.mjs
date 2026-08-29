@@ -25,10 +25,10 @@ test("preseason record is explicit and never produces an NFC West rank", () => {
   assert.equal(model.lastResult.phase, "Preseason");
 });
 
-test("first regular-season week shows the opener state instead of standings", () => {
+test("first regular-season week shows the opener state instead of a zero record", () => {
   const model = buildHomepageGlance({ nfl: payload([game("opener", "regular", "2026-09-13T17:00:00-07:00")]), standings, now: new Date("2026-09-13T12:00:00-07:00") });
   assert.equal(model.seasonStatus.label, "Regular Season");
-  assert.equal(model.seasonStatus.record, "0-0");
+  assert.equal(model.seasonStatus.record, null);
   assert.match(model.seasonStatus.detail, /^Regular season begins/);
   assert.equal(model.seasonStatus.rank, null);
 });
@@ -52,7 +52,7 @@ test("live postseason and completed postseason use postseason records", () => {
   const live = game("wild-card", "postseason", "2027-01-10T17:00:00-08:00", { status: "In Progress" });
   const model = buildHomepageGlance({ nfl: payload([final("regular", "regular", "2026-09-13T17:00:00-07:00"), live]), now: new Date("2027-01-10T18:00:00-08:00") });
   assert.equal(model.seasonStatus.label, "Postseason");
-  assert.equal(model.seasonStatus.record, "0-0");
+  assert.equal(model.seasonStatus.record, null);
   live.status = "Final"; live.home_team_score = 27; live.visitor_team_score = 20;
   const complete = buildHomepageGlance({ nfl: payload([final("regular", "regular", "2026-09-13T17:00:00-07:00"), live]), now: new Date("2027-02-01T12:00:00-08:00") });
   assert.equal(complete.seasonStatus.record, "1-0");
@@ -64,6 +64,7 @@ test("unsupported cards and metrics are omitted without fake zeroes", () => {
   assert.equal(missing.leaders, null);
   assert.equal(missing.rosterPulse, null);
   assert.equal(missing.lastResult, null);
+  assert.equal(missing.seasonStatus.record, null);
 });
 
 test("roster pulse distinguishes unavailable injury data from sourced entries", () => {

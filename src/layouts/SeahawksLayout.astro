@@ -22,7 +22,7 @@ const {
   seo,
   breadcrumbs,
 } = Astro.props;
-const nonMonetizedPaths = new Set(["/privacy-policy", "/disclosure", "/404"]);
+const nonMonetizedPaths = new Set(["/about", "/contact", "/privacy-policy", "/disclosure", "/methodology", "/sources", "/404"]);
 const pageCanBeMonetized = monetizationEligible && !nonMonetizedPaths.has(Astro.url.pathname.replace(/\/$/, "") || "/");
 
 const resolvedSeo = seo ?? pageMetadata(Astro.url.pathname) ?? { title, description, canonicalPath: canonical ?? Astro.url.pathname, article };
@@ -60,6 +60,7 @@ const morePages: Array<{ href: string; label: string; match?: string[] }> = [
   { href: "/team/injuries", label: "Injuries" },
   { href: "/about", label: "About" },
   { href: "/methodology", label: "Methodology" },
+  { href: "/contact", label: "Contact" },
 ];
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 const isActive = (href: string) => currentPath === href || (href !== "/" && currentPath.startsWith(`${href}/`));
@@ -131,10 +132,10 @@ const moreIsActive = morePages.some((page) => page.match?.some((path) => isActiv
   <footer class="lr-footer">
     <div class="footer-inner">
       <div class="footer-brand"><span class="footer-mark">SFZ</span><span>Independent football coverage for the 12s.</span></div>
-      <nav class="footer-links" aria-label="Footer">
-        <a href="/news">News</a><a href="/schedule">Schedule</a><a href="/team">Team Stats</a><a href="/players">Player Stats</a><a href="/history">History</a><a href="/about">About</a><a href="/disclosure">Disclosure</a><a href="/methodology">Methodology</a><a href="/sources">Data Updates</a><a href="/privacy-policy">Privacy</a><a href="#" data-manage-privacy>Manage Privacy Choices</a>
+      <nav class="footer-links" aria-label="Publication information">
+        <a href="/about">About</a><a href="/contact">Contact</a><a href="/contact#corrections">Corrections</a><a href="/methodology">Methodology</a><a href="/sources">Sources</a><a href="/disclosure">Disclosure</a><a href="/privacy-policy">Privacy</a><a href="#" data-manage-privacy>Privacy Choices</a>
       </nav>
-      <p class="lr-footer-note">Seahawks Fan Zone is an independent fan site and is not affiliated with the NFL or the Seattle Seahawks. Data refreshes during scheduled site builds.</p>
+      <p class="lr-footer-note">Seahawks Fan Zone is an independently operated fan publication. It is not affiliated with, endorsed by, or sponsored by the Seattle Seahawks, the NFL, or their affiliates.</p>
       <div class="lr-copyright">&copy; {new Date().getFullYear()} Seahawks Fan Zone</div>
     </div>
   </footer>

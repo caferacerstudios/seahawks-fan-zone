@@ -301,11 +301,11 @@ const articles: NewsArticle[] = [
       "Seahawks Fan Zone is expanding beyond schedules and stat tables. This newsroom is built to connect the news of the day to the questions Seattle fans ask next: what a move means for the depth chart, where a performance fits statistically and how a result changes the road ahead.",
       "Every story here will be dated, attributed and written in original language. When reporting begins with information from another outlet or an official announcement, the story will link to that source and clearly separate reported facts from our analysis.",
       "The goal is useful context, not volume for its own sake. Roster stories should explain role and competition. Game-week coverage should connect opponent tendencies to Seattle's personnel. Analysis should show its work and avoid presenting a hunch as a fact.",
-      "Readers can browse by category, search the archive or subscribe to the RSS feed. Empty desks will stay visible as a promise of coverage, but they will not be indexed as thin pages until they contain published work.",
+      "Readers can browse published work by category, search the archive or subscribe to the RSS feed. Category pages without published coverage are excluded from search indexing until they contain a substantive story.",
     ],
     sources: [
       { label: "Seahawks Fan Zone methodology", url: "/methodology" },
-      { label: "Corrections and feedback", url: "/sources" },
+      { label: "Corrections and feedback", url: "/contact#corrections" },
     ],
     hero: sharedHero,
     featured: true,
@@ -377,6 +377,18 @@ export const publishedArticles = articles
   .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
 export const NEWS_PAGE_SIZE = 6;
+export const populatedNewsCategories = NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category));
 export const categorySlug = (category: NewsCategory) => category.toLowerCase().replaceAll(" ", "-");
 export const formatArticleDate = (value: string) => new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(value));
 export const materiallyUpdated = (article: NewsArticle) => new Date(article.updatedAt).getTime() - new Date(article.publishedAt).getTime() >= 60 * 60 * 1000;
+export const articleReadingMinutes = (article: NewsArticle) => {
+  const text = article.body.map((block) => {
+    if (typeof block === "string") return block;
+    if (block.type === "heading") return block.heading;
+    if (block.type === "paragraph") return block.html;
+    if (block.type === "table") return [block.caption, block.note, ...block.rows.flatMap((row) => row.cells)].join(" ");
+    if (block.type === "timeline" || block.type === "watchlist") return block.items.map((item) => `${item.label} ${item.html}`).join(" ");
+    return [block.heading, ...block.known, ...block.unknown, block.milestone].join(" ");
+  }).join(" ").replace(/<[^>]*>/g, " ").replace(/&[a-z0-9#]+;/gi, " ");
+  return Math.max(1, Math.ceil(text.split(/\s+/).filter(Boolean).length / 225));
+};

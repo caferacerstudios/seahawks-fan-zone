@@ -518,11 +518,13 @@ const opponentLeaderRows = game?.opponent_player_season_stats ?? game?.opponentP
 const opponentLeaders = leaders(opponentLeaderRows, opp).slice(0, 3);
 const turningPoints = game?.turning_points ?? game?.turningPoints ?? game?.scoring_plays ?? game?.scoringPlays ?? recap?.turningPoints ?? [];
 const recapText = recap?.text ?? (Array.isArray(recap?.segments) ? recap.segments.map((segment) => segment?.name ?? segment?.v ?? "").join("") : "");
+const recapWordCount = [recapText, ...(recap?.bullets ?? []), ...(recap?.turningPoints ?? []).map((point) => point?.text ?? point?.description ?? "")].join(" ").replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length;
+const recapReadingMinutes = recapText ? Math.max(1, Math.ceil(recapWordCount / 225)) : null;
 const canonicalPath = `/games/${encodeURIComponent(String(gameId))}`;
 const publishedTime = recap?.publishedAt ?? recap?.createdAt ?? gameRecaps?.updatedAt ?? null;
 const modifiedTime = recap?.updatedAt ?? gameRecaps?.updatedAt ?? publishedTime;
 const articleImage = teamLogo("SEA");
-const articleData = completed && recapText && publishedTime ? { headline: pageTitle, author: "Seahawks Fan Zone", publishedTime, modifiedTime, image: articleImage, section: "Game Recaps" } : null;
+const articleData = completed && recapText && publishedTime ? { headline: pageTitle, author: "Seahawks Fan Zone Editorial Team", publishedTime, modifiedTime, image: articleImage, section: "Game Recaps" } : null;
 const structuredData = articleData ? {
   "@context": "https://schema.org",
   "@type": "NewsArticle",
@@ -532,7 +534,7 @@ const structuredData = articleData ? {
   dateModified: modifiedTime,
   mainEntityOfPage: new URL(canonicalPath, Astro.site ?? Astro.url).toString(),
   image: new URL(articleImage, Astro.site ?? Astro.url).toString(),
-  author: { "@type": "Organization", name: "Seahawks Fan Zone" },
+  author: { "@type": "Organization", name: "Seahawks Fan Zone Editorial Team" },
   publisher: { "@type": "Organization", name: "Seahawks Fan Zone", logo: { "@type": "ImageObject", url: new URL("/favicon.svg", Astro.site ?? Astro.url).toString() } },
   about: { "@type": "SportsEvent", name: `Seattle Seahawks vs ${opponentName}`, startDate: game?.date },
 } : null;
@@ -568,6 +570,9 @@ const continueGroups = game ? [
     seaScore={validSeaScore}
     opponentScore={validOpponentScore}
     {recapText}
+    publishedAt={publishedTime}
+    modifiedAt={modifiedTime}
+    readingMinutes={recapReadingMinutes}
     recapBullets={recap?.bullets ?? []}
     {quarters}
     {comparison}
@@ -648,7 +653,7 @@ const continueGroups = game ? [
         <h3 class="section-title">Game recap</h3>
 
         {!recap ? (
-          <div class="empty">Recap coming soon.</div>
+          <div class="empty">No authored recap is attached to this game.</div>
         ) : (
           <article class="recap-card">
             <p class="recap-text" set:html={recapHtml} />

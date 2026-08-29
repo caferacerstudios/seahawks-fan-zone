@@ -348,6 +348,7 @@ async function main() {
       category: current.category ?? "Recap",
       publishedAt: firstPublished,
       updatedAt: current.updatedAt ?? firstPublished,
+      game: current.game ?? game,
       ...current,
     };
   }
@@ -383,6 +384,7 @@ async function main() {
       publishedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
+      game: g,
       ...recap,
     };
 

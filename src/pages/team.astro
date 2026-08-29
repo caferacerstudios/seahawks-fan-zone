@@ -4,13 +4,13 @@ import path from "node:path";
 
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../components/SeasonContext.astro";
-import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../lib/season-context";
+import SeasonState from "../components/SeasonState.astro";
+import ContinueFanZone from "../components/ContinueFanZone.astro";
+import { getSeasonContext } from "../lib/season-context";
 import data from "../data/nfl/seahawks.json";
 
 const t = data.team;
-const seasonContext = getSeasonContext(data, "regular season");
-const seasonOptions = getAvailableSeasonContexts(data, "regular season");
-const pageTitle = `Team Stats (${seasonContext.label})`;
+const currentSeasonContext = getSeasonContext(data, "regular season");
 
 const logoRelBase = "/images/nfl/teams";
 const projectRoot = Astro.root ?? process.cwd();
@@ -199,6 +199,11 @@ const games_played_from_scores = scoredGames.length;
 const total_points_from_scores = scoredGames.reduce((acc, x) => acc + n(x.sea), 0);
 const total_points_per_game_from_scores =
   games_played_from_scores > 0 ? total_points_from_scores / games_played_from_scores : null;
+const points_allowed_from_scores = games_played_from_scores > 0 ? scoredGames.reduce((sum, game) => sum + n(game.opp), 0) : null;
+const wins_from_scores = scoredGames.filter((game) => game.sea > game.opp).length;
+const losses_from_scores = scoredGames.filter((game) => game.sea < game.opp).length;
+const ties_from_scores = scoredGames.filter((game) => game.sea === game.opp).length;
+const record_from_scores = games_played_from_scores > 0 ? `${wins_from_scores}-${losses_from_scores}${ties_from_scores ? `-${ties_from_scores}` : ""}` : null;
 
 // ------------------------------
 // 3) Player season stats yards (robust)
@@ -327,10 +332,36 @@ const rushYds = read(s, ["rushing_yards", "rush_yards", "rushingYards"]);
 const rushYdsPerGame = read(s, ["rushing_yards_per_game", "rush_yards_per_game", "rushingYardsPerGame"]);
 
 const recYds = read(s, ["receiving_yards", "receivingYards"]);
+const statisticsSeason = Number(data?.playerStatsSeason ?? currentSeasonContext.sourceSeason ?? currentSeasonContext.seasonYear);
+const currentSeason = Number(currentSeasonContext.seasonYear);
+const showingPriorSeason = Number.isInteger(statisticsSeason) && statisticsSeason < currentSeason;
+const hasMeaningfulStatistics = Boolean(s) && [gamesPlayed, totalPoints, totalOffYds, passYds, rushYds, recYds]
+  .some((value) => isNum(value) && Number(value) > 0);
+const statisticsContext = {
+  ...currentSeasonContext,
+  seasonYear: Number.isInteger(statisticsSeason) ? statisticsSeason : currentSeasonContext.seasonYear,
+  sourceSeason: Number.isInteger(statisticsSeason) ? statisticsSeason : currentSeasonContext.sourceSeason,
+  seasonStatus: showingPriorSeason ? "complete" : currentSeasonContext.seasonStatus,
+  label: `${Number.isInteger(statisticsSeason) ? statisticsSeason : "Unknown"} Regular Season`,
+  hasData: hasMeaningfulStatistics,
+  hasStatistics: hasMeaningfulStatistics,
+};
+const pageTitle = `Seattle Seahawks Team Statistics`;
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team" pageType="team" season={seasonContext.seasonYear}>
-  <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
+<SeahawksLayout title={`${statisticsContext.label} Seattle Seahawks Team Statistics`} description={`Verified Seattle Seahawks team totals for the ${statisticsContext.label.toLowerCase()}, with current-season availability clearly identified.`} pageTitle={pageTitle} pageTagline={`Verified scoring and offensive totals, labeled for the season they describe.`} activePath="/team" pageType="team" season={statisticsContext.seasonYear}>
+  {showingPriorSeason && <SeasonState
+    title={`Showing final ${statisticsSeason} statistics`}
+    explanation={`${currentSeason} regular-season statistics will appear once games are played. Showing final ${statisticsSeason} results below.`}
+    actionHref="/schedule"
+    actionLabel={`View the ${currentSeason} schedule`}
+    priorHref="/players"
+    priorLabel={`${statisticsSeason} player statistics`}
+    icon="ST"
+  />}
+  <div class:list={{ "context-after-state": showingPriorSeason }}>
+    <SeasonContextView context={statisticsContext} options={[statisticsContext]} prefix="Data through" />
+  </div>
   <div class="sfz-team-header">
     {seahawksLogo ? (
       <img class="sfz-team-logo" src={seahawksLogo} alt="SEA logo" width="64" height="64" loading="lazy" decoding="async" />
@@ -348,18 +379,23 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
     </div>
   </div>
 
-  {!seasonContext.hasStatistics || seasonContext.seasonStatus === "upcoming" || !s ? (
-    <div class="sfz-empty">
-      <strong>No team season stats found.</strong>
-      <div class="sfz-empty-sub">{unavailableMessage(seasonContext)}</div>
-    </div>
+  {!hasMeaningfulStatistics ? (
+    <SeasonState
+      title={`${currentSeason} statistics are not available yet`}
+      explanation={`${currentSeason} regular-season statistics will appear once games are played. No unavailable values have been converted to zero.`}
+      actionHref="/schedule"
+      actionLabel="View the schedule"
+      priorHref="/history"
+      priorLabel="Explore Seahawks history"
+      icon="ST"
+    />
   ) : (
     <div class="sfz-cards">
       {s.__computed && (
         <div class="sfz-computed">
           <strong>Computed totals</strong>
           <div class="sfz-computed-sub">
-            Computed from available {seasonContext.label} source values.
+            Computed from available {statisticsContext.label} source values.
           </div>
         </div>
       )}
@@ -367,6 +403,11 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
       <section class="sfz-card">
         <div class="sfz-card-title">Overview</div>
         <div class="sfz-stat-grid">
+          {record_from_scores && <div class="sfz-stat">
+            <div class="sfz-k">Team record</div>
+            <div class="sfz-v">{record_from_scores}</div>
+            <div class="sfz-note">Win–loss{ties_from_scores ? "–tie" : ""}</div>
+          </div>}
           <div class="sfz-stat">
             <div class="sfz-k">Games played</div>
             <div class="sfz-v">{v(gamesPlayed)}</div>
@@ -376,6 +417,11 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
             <div class="sfz-v">{v(totalPoints)}</div>
             <div class="sfz-note">{v(totalPointsPerGame)} per game</div>
           </div>
+          {points_allowed_from_scores !== null && <div class="sfz-stat">
+            <div class="sfz-k">Points allowed</div>
+            <div class="sfz-v">{points_allowed_from_scores}</div>
+            <div class="sfz-note">Verified final scores</div>
+          </div>}
           <div class="sfz-stat">
             <div class="sfz-k">Total offense</div>
             <div class="sfz-v">{v(totalOffYds)}</div>
@@ -405,6 +451,16 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
       </section>
     </div>
   )}
+
+  <section class="team-context" aria-labelledby="team-context-title">
+    <div><p>Interpreting the totals</p><h2 id="team-context-title">A season-level view of Seattle</h2></div>
+    <p>Scoring values and the record are calculated only from games with verified final scores. Offensive totals use the existing team or player-stat feed and remain labeled to the season supplied by that source.</p>
+  </section>
+  <p class="team-source">Data source: existing Seahawks Fan Zone season feed · <a href="/methodology">Methodology and update policy</a>.</p>
+  <ContinueFanZone groups={[
+    { title:"Explore the data", links:[{href:"/players",label:"Roster and category leaders"},{href:"/standings",label:"NFC West standings"}] },
+    { title:"Season context", links:[{href:"/schedule",label:`${currentSeason} schedule`},{href:"/history",label:"Seahawks history"}] },
+  ]} />
 
   <style>
     .sfz-team-header,
@@ -449,6 +505,9 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
     .sfz-updated{ margin-top:.35rem; color:rgba(15,23,32,0.6); font-weight:700; font-size:.92rem; }
 
     .sfz-cards{ display:grid; grid-template-columns:1fr; gap:.9rem; }
+    .context-after-state{margin-top:.85rem}
+    .team-context{display:grid;grid-template-columns:minmax(180px,.45fr) 1fr;gap:1rem;margin-top:1rem;padding:1rem;border-left:5px solid var(--action-green);background:var(--slate-100)}
+    .team-context h2,.team-context p{margin:.1rem 0}.team-context>div>p{color:#398000;font-size:.7rem;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.team-source{color:var(--slate-700);font-size:.72rem}.team-source a{color:#2f660b;font-weight:900}
 
     .sfz-computed{
       border-radius:16px; border:1px solid rgba(0,34,68,0.14);
@@ -485,6 +544,7 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
 
     @media (max-width:980px){
       .sfz-stat-grid{ grid-template-columns:1fr; }
+      .team-context{grid-template-columns:1fr}
       .sfz-team-logo, .sfz-team-logo-fallback{ width:56px; height:56px; }
     }
   </style>

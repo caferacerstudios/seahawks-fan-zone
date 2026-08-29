@@ -41,6 +41,12 @@ const advertisingConfigured = adsEnabled && monetizationEligible && Boolean(vali
     <meta property="og:type" content={resolvedArticle ? "article" : "website"} />
     <meta property="og:url" content={canonicalUrl} />
     {seo.openGraphImage && <meta property="og:image" content={absoluteUrl(seo.openGraphImage)} />}
+    {seo.openGraphImage && <meta property="og:image:alt" content={seo.openGraphImageAlt ?? seo.openGraphTitle ?? seo.title} />}
+    <meta name="twitter:card" content={seo.openGraphImage ? "summary_large_image" : "summary"} />
+    <meta name="twitter:title" content={seo.openGraphTitle ?? seo.title} />
+    <meta name="twitter:description" content={seo.openGraphDescription ?? seo.description} />
+    {seo.openGraphImage && <meta name="twitter:image" content={absoluteUrl(seo.openGraphImage)} />}
+    {seo.openGraphImage && <meta name="twitter:image:alt" content={seo.openGraphImageAlt ?? seo.openGraphTitle ?? seo.title} />}
     {resolvedArticle?.publishedTime && <meta property="article:published_time" content={resolvedArticle.publishedTime} />}
     {resolvedArticle?.modifiedTime && <meta property="article:modified_time" content={resolvedArticle.modifiedTime} />}
     {resolvedArticle?.section && <meta property="article:section" content={resolvedArticle.section} />}

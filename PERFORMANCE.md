@@ -17,7 +17,7 @@ Use field data segmented by page type and mobile/desktop whenever enough visits 
 - Images: five 1024×1536 player PNG originals account for roughly 12.8 MB. Logos and editorial carousel images also use public assets. `ResponsiveImage.astro` is the required path for new editorial images: provide AVIF/WebP sources and width-based `srcset` values, retain a fallback, and set intrinsic dimensions.
 - Embeds: no iframe or video embeds exist. Future noncritical embeds should use a click-to-load placeholder with the same aspect ratio as the final player.
 - Analytics: Cloudflare Insights is loaded after `load` during idle time so it can provide real-user data without competing with critical rendering.
-- Advertising: AdSense is no longer loaded on every page. `DeferredAdSlot.astro` reserves dimensions and requests advertising only as a slot approaches the viewport.
+- Advertising: AdSense is not loaded unless advertising, a valid publisher ID, a CMP URL, and an eligible slot are configured. Active slots reserve dimensions before requesting an ad, preventing the placement itself from causing layout shift.
 - Third parties: initial HTML has no third-party script request. Analytics is delayed; advertising is conditional. External marketplace images remain lazy-loaded.
 - Caching: Astro’s fingerprinted `/_astro/` assets are immutable for one year. Stable-name public assets use a seven-day cache and remain revalidatable.
 

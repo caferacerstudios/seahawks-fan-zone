@@ -33,6 +33,17 @@ export function schedulePhase(game) {
   if (value.includes("pre")) return "preseason";
   if (value.includes("post") || value.includes("playoff") || game?.postseason === true || game?.is_postseason === true) return "postseason";
   if (value.includes("regular")) return "regular";
+  if (!value && (game?.postseason === false || game?.is_postseason === false)) {
+    const season = integer(game?.season);
+    const kickoffValue = sourceDate(game);
+    const kickoff = kickoffValue ? new Date(kickoffValue) : null;
+    if (season && kickoff && Number.isFinite(kickoff.getTime())) {
+      const septemberFirst = new Date(Date.UTC(season, 8, 1));
+      const laborDay = 1 + ((8 - septemberFirst.getUTCDay()) % 7);
+      const regularSeasonOpener = Date.UTC(season, 8, laborDay + 3);
+      return kickoff.getTime() < regularSeasonOpener ? "preseason" : "regular";
+    }
+  }
   return null;
 }
 

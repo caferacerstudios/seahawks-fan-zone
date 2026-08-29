@@ -6,8 +6,9 @@ import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../../components/SeasonContext.astro";
 import TopicChips from "../../components/TopicChips.astro";
 import ContinueFanZone from "../../components/ContinueFanZone.astro";
-import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../../lib/season-context";
+import { getSeasonContext, unavailableMessage } from "../../lib/season-context";
 import rosterData from "../../data/nfl/players.json";
+import currentRosterData from "../../data/team/roster.json";
 import seasonData from "../../data/nfl/seahawks.json";
 import playerProfilesData from "../../data/nfl/playerProfiles.json";
 import { formatUpdateDate, injuryStatuses, transactions } from "../../lib/team-updates";
@@ -43,6 +44,13 @@ function getRosterLocal(playersData) {
   const seen = new Set();
   const out = [];
 
+  for (const player of (currentRosterData?.players || [])) {
+    const key = String(player?.id || "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ params: { playerId: key } });
+  }
+
   for (const p of roster) {
     const id = pidLocal(p);
     if (id === null || id === undefined) continue;
@@ -69,6 +77,7 @@ function getRosterLocal(playersData) {
     ["leonard-williams", "Leonard Williams"],
   ]);
   for (const [alias, wantedName] of aliases) {
+    if (seen.has(alias)) continue;
     const match = roster.find((player) => playerNameLocal(player).toLowerCase() === wantedName.toLowerCase())
       ?? statRows.find((row) => playerNameLocal(row).toLowerCase() === wantedName.toLowerCase());
     const resolvedPlayerId = match ? pidLocal(match) : null;
@@ -108,6 +117,8 @@ function playerNameFromAny(obj) {
 }
 
 function findRosterPlayer(id) {
+  const current = (currentRosterData?.players || []).find((p) => String(p?.id) === String(id));
+  if (current) return current;
   const roster = getRoster(rosterData);
   const key = String(id);
   return roster.find((p) => String(pid(p)) === key) || null;
@@ -125,10 +136,11 @@ function bestStatRowForPlayer(id) {
   }
 
   let best = null;
+  const currentName = (currentRosterData?.players || []).find((player) => String(player?.id) === key)?.name?.toLowerCase();
   for (const r of rows) {
     const rid = r?.player?.id ?? r?.player_id ?? null;
     if (rid === null || rid === undefined) continue;
-    if (String(rid) !== key) continue;
+    if (String(rid) !== key && (!currentName || playerNameFromAny(r).toLowerCase() !== currentName)) continue;
     if (!best || totalYards(r) > totalYards(best)) best = r;
   }
   return best;
@@ -413,20 +425,17 @@ const experience =
   "—";
 
 const statDefinitions = [
-  ["Games", ["games_played"]], ["Pass yards", ["passing_yards"]], ["Pass TD", ["passing_touchdowns"]],
-  ["Completions", ["completions"]], ["Attempts", ["passing_attempts", "attempts"]],
-  ["Rush yards", ["rushing_yards"]], ["Carries", ["rushing_attempts", "carries"]], ["Rush TD", ["rushing_touchdowns"]],
-  ["Receptions", ["receptions"]], ["Rec yards", ["receiving_yards"]], ["Rec TD", ["receiving_touchdowns"]],
-  ["Tackles", ["total_tackles", "tackles"]], ["Sacks", ["sacks"]], ["Interceptions", ["defensive_interceptions", "interceptions"]],
-  ["Passes defended", ["passes_defended", "passes_defensed"]], ["Forced fumbles", ["forced_fumbles"]],
-  ["Field goals", ["field_goals_made"]], ["FG attempts", ["field_goals_attempted"]], ["Extra points", ["extra_points_made"]],
-  ["Punts", ["punts"]], ["Punt average", ["punt_average", "punting_average"]],
+  ["Passing", [["Games played",["games_played"]],["Passing yards",["passing_yards"]],["Passing TD",["passing_touchdowns"]],["Completions",["completions"]],["Attempts",["passing_attempts","attempts"]]]],
+  ["Rushing", [["Carries",["rushing_attempts","carries"]],["Rushing yards",["rushing_yards"]],["Rushing TD",["rushing_touchdowns"]]]],
+  ["Receiving", [["Receptions",["receptions"]],["Receiving yards",["receiving_yards"]],["Receiving TD",["receiving_touchdowns"]]]],
+  ["Defense", [["Total tackles",["total_tackles","tackles"]],["Sacks",["sacks"]],["Defensive INT",["defensive_interceptions","interceptions"]],["Passes defended",["passes_defended","passes_defensed"]],["Forced fumbles",["forced_fumbles"]]]],
+  ["Kicking", [["Field goals made",["field_goals_made"]],["Field goals attempted",["field_goals_attempted"]],["Extra points made",["extra_points_made"]],["Punts",["punts"]],["Punt average",["punt_average","punting_average"]]]],
 ];
 function firstNumber(row, keys) {
   for (const key of keys) if (typeof row?.[key] === "number" && Number.isFinite(row[key])) return row[key];
   return null;
 }
-const statTiles = statDefinitions.map(([label, keys]) => ({ label, value: firstNumber(statRow, keys) })).filter((item) => item.value !== null);
+const statGroups = statDefinitions.map(([label, definitions]) => ({ label, items:definitions.map(([itemLabel,keys]) => ({ label:itemLabel, value:firstNumber(statRow,keys) })).filter((item) => item.value !== null) })).filter((group) => group.items.length);
 
 const rosterForNavigation = getRoster(rosterData)
   .filter((item) => String(item?.position_abbreviation ?? item?.player?.position_abbreviation ?? "").toUpperCase() === String(position).toUpperCase())
@@ -438,7 +447,17 @@ const nextPlayer = navigationIndex >= 0 && navigationIndex < rosterForNavigation
 const updatedAtForPage =
   playerProfilesData?.updatedAt ?? seasonData?.updatedAt ?? null;
 const seasonContext = getSeasonContext(seasonData, "regular season");
-const seasonOptions = getAvailableSeasonContexts(seasonData, "regular season");
+const statisticsSeason = Number(seasonData?.playerStatsSeason ?? seasonContext.sourceSeason ?? seasonContext.seasonYear);
+const playerStatisticsContext = {
+  ...seasonContext,
+  seasonYear: statisticsSeason,
+  sourceSeason: statisticsSeason,
+  seasonStatus: statisticsSeason < Number(currentRosterData?.season) ? "complete" : seasonContext.seasonStatus,
+  label: `${statisticsSeason} Regular Season`,
+  hasData: Boolean(statRow),
+  hasStatistics: Boolean(statRow),
+};
+const currentRosterRecord = (currentRosterData?.players || []).find((p) => String(p?.id) === String(playerId));
 
 const pageTitle = `${displayName} — Player Profile`;
 
@@ -447,11 +466,15 @@ const abbr = teamAbbrFromAny(rosterPlayer, statRow);
 const fallbackImg = teamLogoUrl(abbr);
 const headshotImg = findHeadshotForName(displayName);
 const canonicalPath = `/players/${encodeURIComponent(String(playerId))}`;
-const pageDescription = `${displayName} ${String(position).toUpperCase()} profile, roster information, and ${seasonContext.label} statistics for Seattle.`;
+const pageDescription = `${displayName} ${String(position).toUpperCase()} profile, current roster information, and ${playerStatisticsContext.label} statistics for Seattle.`;
 ---
 
 <SeahawksLayout title={pageTitle} description={pageDescription} canonical={canonicalPath} activePath="/players" pageType="player" season={seasonContext.seasonYear} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Players", href: "/players" }, { name: displayName, href: canonicalPath }]}>
-  <SeasonContextView context={{ ...seasonContext, updatedAt: updatedAtForPage }} options={seasonOptions} prefix="Data through" />
+  <div class="profile-contexts">
+    <div><span>Current roster</span><strong>{currentRosterData?.season}</strong><small>{currentRosterRecord?.status || "Not listed on current roster"}</small></div>
+    <div><span>Performance shown</span><strong>{playerStatisticsContext.label}</strong><small>Historical season totals</small></div>
+  </div>
+  <SeasonContextView context={{ ...playerStatisticsContext, updatedAt: updatedAtForPage }} options={[playerStatisticsContext]} prefix="Data through" />
   <TopicChips topics={["Players", "Roster", "Position Groups", ...(injuryMatches.length ? ["Injuries"] : [])]} />
   <div class="meta-line">
     <span><strong>Back:</strong> <a href="/players">Players</a></span>
@@ -495,17 +518,17 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
         {profile?.bio ? (
           <p class="body">{profile.bio}</p>
         ) : (
-          <div class="empty">Bio coming soon.</div>
+          <div class="empty">No verified biography is available in the current player data.</div>
         )}
       </div>
 
       <div class="panel">
-        <div class="panel-title">Season snapshot</div>
+        <div class="panel-title">{playerStatisticsContext.label} snapshot</div>
 
-        {!seasonContext.hasStatistics || seasonContext.seasonStatus === "upcoming" || !statRow ? (
-          <div class="empty">{unavailableMessage(seasonContext)}</div>
+        {!statRow ? (
+          <div class="empty">{unavailableMessage(playerStatisticsContext)}</div>
         ) : (
-          <div class="stats">{statTiles.map((item) => <div class="stat"><span class="k">{item.label}</span><span class="v">{item.value}</span></div>)}</div>
+          <div class="stat-groups">{statGroups.map((group) => <section class="stat-group"><h3>{group.label}</h3><div class="stats">{group.items.map((item) => <div class="stat"><span class="k">{item.label}</span><span class="v">{item.value}</span></div>)}</div></section>)}</div>
         )}
 
         <div class="mini">
@@ -528,7 +551,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
           )}
         </>
       ) : (
-        <div class="empty">Recap coming soon.</div>
+        <div class="empty">No authored gameplay summary is available for this player.</div>
       )}
     </div>
 
@@ -575,6 +598,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
   ]} />
 
   <style>
+    .profile-contexts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin-bottom:.75rem}.profile-contexts>div{display:grid;padding:.7rem .8rem;border-left:4px solid #69be28;background:rgba(0,34,68,.05)}.profile-contexts span,.profile-contexts small{color:rgba(15,23,32,.68);font-size:.72rem;font-weight:800}.profile-contexts strong{color:var(--navy);font-size:1rem}
     .meta-line,
     .card,
     .card-top,
@@ -687,6 +711,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
     }
 
     @media (max-width: 520px) {
+      .profile-contexts { grid-template-columns:1fr; }
       .card-top { align-items: flex-start; }
       .avatar-wrap { width: 88px; height: 88px; }
       .avatar { width: 88px; height: 88px; }
@@ -727,6 +752,8 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
       gap: .5rem .75rem;
       margin-top: .2rem;
     }
+    .stat-groups { display:grid; gap:.65rem; }
+    .stat-group h3 { margin:0 0 .35rem; color:rgba(0,34,68,.72); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
 
     .stat {
       display: flex;
