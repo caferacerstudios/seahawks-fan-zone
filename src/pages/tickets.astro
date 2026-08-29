@@ -43,7 +43,7 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
   {TICKET_FINDER_STATE === "disabled" ? (
     <section class="ticket-empty" aria-labelledby="tickets-disabled"><h2 id="tickets-disabled">Ticket Finder unavailable</h2><p>This preview is currently disabled. Upcoming games remain available on the <a href="/schedule">Seahawks schedule</a>.</p></section>
   ) : (
-    <div id="ticket-finder">
+    <div id="ticket-finder" data-runtime={beta ? "true" : "false"}>
       {preview && <p class="preview-banner" role="status"><strong>Preview:</strong> Prices and providers below are deterministic test fixtures, not live inventory.</p>}
       {beta && <p class="preview-banner" role="status"><strong>Live beta:</strong> Ticket information comes from connected providers. Coverage varies by marketplace and availability can change before checkout.</p>}
 
@@ -115,11 +115,11 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
             </article>;
           })}
         </div>
-        {beta && <div class="ticket-results" id="ticketmaster-results" aria-live="polite"></div>}
+        {beta && <div class="ticket-results" id="runtime-listings" aria-live="polite"></div>}
         <div class="ticket-empty" id="no-results" hidden><h3>No matching tickets</h3><p>Try another quantity, budget, source, or seat zone. Provider inventory may also have changed.</p></div>
         <div class="ticket-empty" id="no-fee-results" hidden><h3>No fee-complete offers</h3><p>Matching offers exist, but none supplies a safe all-in group total for this quantity. Turn off “all-in-comparable only” to review them without a price ranking.</p></div>
         <div class="ticket-empty" id="game-unmatched" hidden><h3>Game unmatched</h3><p>The selected schedule game does not have a verified event match in this fixture. Use the official links or check back after matching review.</p></div>
-        <div class="ticket-empty" id="runtime-unavailable" hidden={!beta && events.length > 0}><h3>Live ticket data is temporarily unavailable</h3><p>No validated live ticket snapshot is available. Please check back shortly.</p></div>
+        <div class="ticket-empty" id="runtime-unavailable" hidden={!beta && events.length > 0}><h3>Live comparison inventory is unavailable</h3><p>No fresh listing-level offers are available from an authorized connected provider. Matched event links, when available, are shown below and are not individual listings or price comparisons.</p></div>
         <div class="reference-links" aria-labelledby="other-provider-heading">
           <h3 id="other-provider-heading">Other connected provider paths</h3>
           <p>Event-summary and deep-link sources are kept separate from listing-level price rankings.</p>
@@ -158,36 +158,45 @@ const historyReady = TICKET_PRICE_HISTORY_STATE !== "disabled" && history.points
   @media(max-width:600px){.trust-panel{grid-template-columns:1fr}.compact-toggle{display:inline-flex;min-height:44px;align-items:center;padding:.5rem .7rem;border:2px solid var(--navy-900);background:#fff;color:var(--navy-900);font-weight:900}.filter-fields{display:none;grid-template-columns:1fr}.filter-fields.is-open{display:grid}.filter-fields .wide{grid-column:auto}.control-actions{display:grid}.apply-button{width:100%}.selected-game>article{grid-template-columns:1fr}.game-links{grid-column:auto}.results-heading,.coverage-heading{display:block}.coverage-list{grid-template-columns:1fr}.ticket-card{padding:.85rem}.provider-button{position:sticky;bottom:.5rem}.coverage-heading>p{margin-top:0}}
 </style>
 
-<script is:inline define:vars={{ beta }}>
-  if (beta) (async () => {
-    const results = document.getElementById('ticketmaster-results');
+<script>
+  import { runtimeEventUrl, runtimeTicketView } from "../lib/tickets/runtime-view.mjs";
+  if (document.getElementById('ticket-finder')?.dataset.runtime === 'true') (async () => {
+    const results = document.getElementById('runtime-listings');
+    const references = document.querySelector('.reference-links');
     const unavailable = document.getElementById('runtime-unavailable');
     const selected = new URLSearchParams(location.search).get('game');
     const safeLink = (value) => {
-      try { const url = new URL(value); const secret = [...url.searchParams.keys()].some((key) => /token|key|secret|signature|auth/i.test(key)); return url.protocol === 'https:' && ['ticketmaster.com', 'www.ticketmaster.com'].includes(url.hostname) && !url.username && !url.password && !secret ? url.href : null; } catch { return null; }
+      try { const url = new URL(value); const secret = [...url.searchParams.keys()].some((key) => /token|key|secret|signature|auth/i.test(key)); return url.protocol === 'https:' && !url.username && !url.password && !secret ? url.href : null; } catch { return null; }
     };
     const text = (tag, value, className) => { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node; };
+    const providerName = (value) => String(value).replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
     try {
       const indexResponse = await fetch('/data/tickets/index.json', { headers: { accept: 'application/json' } });
       if (!indexResponse.ok) throw new Error('snapshot unavailable');
       const index = await indexResponse.json();
       const rows = selected ? index.events.filter((event) => String(event.gameId) === selected) : index.events;
-      const files = await Promise.all(rows.map(async (row) => { if (!/^events\/sea_[A-Za-z0-9._-]+\.json$/.test(row.eventFile)) throw new Error('invalid event path'); const response = await fetch(`/data/tickets/${row.eventFile}`); if (!response.ok) throw new Error('event unavailable'); return response.json(); }));
-      let shown = 0;
-      for (const event of files) for (const reference of event.providerReferences ?? []) {
-        if (reference.provider !== 'ticketmaster' || reference.mode !== 'event-summary') continue;
+      const files = await Promise.all(rows.map(async (row) => { const response = await fetch(runtimeEventUrl(row)); if (!response.ok) throw new Error('event unavailable'); return response.json(); }));
+      let listingCount = 0;
+      for (const event of files) {
+        const view = runtimeTicketView(event);
+        for (const listing of view.listings) {
+          const href = safeLink(listing.affiliateUrl ?? listing.canonicalUrl); if (!href) continue;
+          const card = document.createElement('article'); card.className = 'ticket-card'; card.dataset.listing = listing.providerListingId;
+          card.append(text('p', new Intl.NumberFormat('en-US', { style: 'currency', currency: listing.currency }).format(listing.priceCents / 100), 'group-price'));
+          card.append(text('p', listing.feeStatus === 'all-in' ? 'Provider-reported all-in price' : 'Fees may be added at checkout', 'comparison-note'));
+          const line = document.createElement('div'); line.className = 'provider-line'; line.append(text('strong', providerName(listing.provider)), text('span', 'Listing-level offer', 'source-badge')); card.append(line);
+          const details = [listing.section && `Section ${listing.section}`, listing.row && `Row ${listing.row}`, listing.allowedQuantities?.length && `Quantities ${listing.allowedQuantities.join(', ')}`].filter(Boolean).join(' · '); card.append(text('p', details || 'Seat details not supplied'));
+          card.append(text('p', `Checked ${new Date(listing.fetchedAt).toLocaleString()}`, 'freshness'));
+          const link = text('a', 'View tickets at provider', 'provider-button'); link.href = href; link.target = '_blank'; link.rel = 'sponsored nofollow noopener'; card.append(link); results.append(card); listingCount++;
+        }
+        for (const reference of view.summaries) {
         const href = safeLink(reference.canonicalUrl); if (!href) continue;
-        const summary = reference.summary ?? {}; const card = document.createElement('article'); card.className = 'ticket-card';
-        card.append(text('h3', 'Ticketmaster'));
-        card.append(text('p', 'Official ticket source', 'source-badge'));
-        card.append(text('strong', summary.priceRanges?.length ? 'Provider-reported event price range available' : 'Price not supplied by Ticketmaster API'));
-        card.append(text('p', `${summary.name ?? event.event.opponent?.name ?? 'Seahawks game'}`));
-        card.append(text('p', `${summary.venue?.name ?? event.event.venue?.name ?? event.event.venue ?? 'Venue TBD'} · ${summary.startTimeUtc ? new Date(summary.startTimeUtc).toLocaleString() : 'Kickoff TBD'}`));
-        card.append(text('p', `Status: ${summary.eventStatus ?? 'not supplied'} · Last checked ${new Date(reference.fetchedAt).toLocaleString()}`, 'freshness'));
-        const link = text('a', 'View on Ticketmaster', 'provider-button'); link.href = href; link.target = '_blank'; link.rel = 'sponsored nofollow noopener'; card.append(link);
-        results.append(card); shown++;
+          const group = document.createElement('div'); group.dataset.referenceGame = String(event.event.gameId); group.append(text('strong', `${providerName(reference.provider)} — matched event summary (not a listing): `));
+          const link = text('a', 'View tickets at provider'); link.href = href; link.target = '_blank'; link.rel = 'sponsored nofollow noopener'; group.append(link); references.append(group);
+        }
       }
-      unavailable.hidden = shown > 0;
+      unavailable.hidden = listingCount > 0;
+      document.getElementById('result-count').textContent = `${listingCount} live listing-level ${listingCount === 1 ? 'offer' : 'offers'}`;
     } catch { unavailable.hidden = false; }
   })();
 </script>

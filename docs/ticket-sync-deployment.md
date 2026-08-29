@@ -38,10 +38,11 @@ and remain pending; retention stays under synchronizer control. Missing paths
 return a small JSON 404 with `no-store`. Malformed candidates never promote,
 so Nginx continues serving the last validated snapshot.
 
-The current `/tickets` Astro page still embeds its build-time development
-fixture. This deployment publishes the independent runtime endpoint for the
-separately reviewed consumer integration; it does not turn a static page into
-a provider-backed request handler.
+In `beta` state, `/tickets` reads the runtime index and only the selected
+event file(s). Fresh listing-level records populate the retained comparison
+card area. Matched event-summary records appear separately as clearly labeled
+provider links; their event price ranges never become listing cards. Preview
+state continues to use the explicitly labeled build-time development fixture.
 
 ## Proposed paths
 
@@ -80,6 +81,29 @@ or troubleshooting. Run only key-name checks against secrets; do not `cat`,
 `docker inspect`, `systemctl show-environment`, or run Compose with verbose
 environment output. The synchronizer emits bounded error codes rather than
 credential values.
+
+The exact runtime variables are:
+
+- `TICKETS_ENV=development` with
+  `TICKETS_OUTPUT_DIR_DEVELOPMENT=/var/lib/sfz-ticket-finder/dev/current`, or
+  `TICKETS_ENV=production` with
+  `TICKETS_OUTPUT_DIR_PRODUCTION=/var/lib/sfz-ticket-finder/prod/current` when
+  invoking Node directly. Compose maps the corresponding `TICKET_DATA_ROOT`
+  to `/srv/ticket-data` and sets `TICKETS_OUTPUT_DIR` inside the container.
+- `TICKETS_FIXTURE=false` for every page described as live.
+- `TICKETS_PROVIDERS_JSON` containing only reviewed provider IDs, modes,
+  refresh, and retention settings.
+- `TICKETS_LOCK_STALE_MS` and, for Ticketmaster event summaries,
+  `TICKETMASTER_API_KEY` plus optional `TICKETMASTER_ATTRACTION_ID`.
+
+A future listing provider cannot be configured generically without its actual
+contract. After approval, repository work must record its credential variable,
+exact API and outbound host allowlists, documented response-to-adapter mapping,
+and rights-approved retention in the provider registry/rights summary. Only
+then may its ID be enabled as `mode: "listing-level"` in
+`TICKETS_PROVIDERS_JSON`. No current variable can make TickPick, StubHub, or
+TicketNetwork live because all three deliberately have no credential variable,
+no allowed hosts, and a pending adapter.
 
 ## Review and disposable validation
 

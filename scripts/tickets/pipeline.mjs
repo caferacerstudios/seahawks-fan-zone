@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { normalizeSchedule } from "../../src/lib/schedule.mjs";
 import { evaluateProviderEvent, sfzEventKey, validateMatchOverrides } from "../../src/lib/tickets/match.mjs";
 import { configuredProviders } from "./providers.mjs";
+import { eventSummaryAdapterPayload, listingAdapterPayload } from "./listing-adapter.mjs";
 import { safeEventFilename, snapshotSchemaVersion, validateSnapshotFile } from "./snapshot.mjs";
 
 const safeCode = (error) => /^[A-Z][A-Z0-9_]{1,63}$/.test(error?.code) ? error.code : "PROVIDER_FAILED";
@@ -89,8 +90,8 @@ export async function runTicketSync(config, options = {}) {
       }
       const counts = { fresh: 0, stale: 0, rejected: 0, unmatched: 0 }; const rejectedEvents = []; const unmatchedEvents = [];
       try {
-        const payload = await provider.adapter.sync({ fixture: config.fixture, fixtureFile: config.fixtureFile, apiKey: provider.apiKey, attractionId: provider.attractionId, timeoutMs: provider.timeoutMs, fetch: options.fetch });
-        if (!Array.isArray(payload.events)) throw Object.assign(new Error("Invalid provider payload."), { code: "INVALID_RESPONSE" });
+        const rawPayload = await provider.adapter.sync({ fixture: config.fixture, fixtureFile: config.fixtureFile, apiKey: provider.apiKey, attractionId: provider.attractionId, timeoutMs: provider.timeoutMs, fetch: options.fetch });
+        const payload = provider.mode === "listing-level" ? listingAdapterPayload(rawPayload) : eventSummaryAdapterPayload(rawPayload);
         const additions = [];
         for (const rawEvent of payload.events.slice(0, 100)) {
           const evaluated = games.map((game) => ({ game, result: evaluateProviderEvent(game, { ...rawEvent, provider: provider.id }, { provider: provider.id, overrides }) }));
