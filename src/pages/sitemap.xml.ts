@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { absoluteUrl, PUBLIC_PAGES } from "../lib/seo";
 import { NEWS_CATEGORIES, categorySlug, publishedArticles } from "../lib/news";
+import { TICKET_FINDER_STATE } from "../lib/tickets/config";
 
 const SUBSTANTIVE_TOPIC_PATHS = ["/topics/players", "/topics/roster", "/topics/injuries", "/topics/opponents", "/topics/game-week", "/topics/nfc-west", "/topics/position-groups", "/topics/championship"];
 
@@ -29,6 +30,7 @@ export const GET: APIRoute = async () => {
   const hasRecaps = Object.values(recaps?.recaps ?? {}).some((recap: any) => String(recap?.summary ?? recap?.excerpt ?? recap?.text ?? "").trim());
   const hasStandings = Boolean((Array.isArray(standings?.data) && standings.data.length) || (Array.isArray(standings?.teams) && standings.teams.length));
   const includeStatic = (path: string) => {
+    if (path === "/tickets") return TICKET_FINDER_STATE === "live";
     if (path === "/weekly-recap") return hasRecaps;
     if (path === "/schedule") return games.length > 0;
     if (path === "/players") return roster.length > 0 || (nfl?.playerSeasonStats?.length ?? 0) > 0;

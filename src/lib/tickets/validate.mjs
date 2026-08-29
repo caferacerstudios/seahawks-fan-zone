@@ -1,3 +1,5 @@
+import { safeProviderUrl } from "./outbound-links.mjs";
+
 const SOURCE_KINDS = ["official-primary", "verified-resale", "resale-marketplace", "event-summary", "deep-link", "other-approved"];
 const LISTING_SOURCE_KINDS = ["official-primary", "verified-resale", "resale-marketplace", "other-approved"];
 const PROVIDER_STATUSES = ["connected-listings", "event-summary", "deep-link-only", "pending", "disabled", "stale", "error"];
@@ -9,6 +11,7 @@ const LOCAL_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
 const CURRENCY = /^[A-Z]{3}$/;
 const PROVIDER_ID = /^[a-z][a-z0-9-]{1,39}$/;
 const FORBIDDEN_KEYS = /^(seller|sellerName|sellerEmail|sellerPhone|sellerAddress|commission|providerCommission|rawError|errorMessage|token|accessToken)$/i;
+const UNSAFE_TEXT = /[\u0000-\u001F\u007F]|<[^>]*>|(?:javascript|data|file)\s*:/i;
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const fail = (path, message) => { throw new TypeError(`${path}: ${message}`); };
@@ -17,6 +20,11 @@ const array = (value, path) => { if (!Array.isArray(value)) fail(path, "must be 
 const string = (value, path, { nullable = false } = {}) => {
   if (nullable && value === null) return value;
   if (typeof value !== "string" || value.length === 0) fail(path, "must be a non-empty string");
+  return value;
+};
+const publicText = (value, path, options = {}) => {
+  string(value, path, options);
+  if (value !== null && (value.length > 500 || UNSAFE_TEXT.test(value))) fail(path, "must be bounded plain text without markup, controls, or URL schemes");
   return value;
 };
 const oneOf = (value, values, path) => { if (!values.includes(value)) fail(path, `must be one of ${values.join(", ")}`); return value; };
@@ -35,7 +43,7 @@ const cents = (value, path, { nullable = false } = {}) => {
   if (!Number.isSafeInteger(value) || value < 0) fail(path, "must be a non-negative safe integer number of cents");
   return value;
 };
-const url = (value, path, { nullable = false, fixture = false } = {}) => {
+const url = (value, path, { nullable = false, fixture = false, provider: providerId } = {}) => {
   if (nullable && value === null) return value;
   string(value, path);
   let parsed;
@@ -43,6 +51,7 @@ const url = (value, path, { nullable = false, fixture = false } = {}) => {
   if (parsed.protocol !== "https:") fail(path, "must use HTTPS");
   if (parsed.username || parsed.password) fail(path, "must not contain credentials");
   if (fixture && !parsed.hostname.endsWith(".example.invalid") && parsed.hostname !== "example.invalid") fail(path, "fixture URLs must use example.invalid");
+  if (providerId && safeProviderUrl(providerId, value) === null) fail(path, "host is not allowlisted for this provider");
   for (const key of parsed.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key)) fail(path, "must not contain secret-like query parameters");
   return value;
 };
@@ -63,8 +72,8 @@ function validateReference(value, path, fixture) {
   exactKeys(value, ["provider", "providerEventId", "canonicalUrl", "affiliateUrl", "sourceKind", "matchMethod", "matchConfidence", "lastFetchedAt", "expiresAt", "status", "errorCode"], path);
   provider(value.provider, `${path}.provider`);
   string(value.providerEventId, `${path}.providerEventId`);
-  url(value.canonicalUrl, `${path}.canonicalUrl`, { nullable: true, fixture });
-  url(value.affiliateUrl, `${path}.affiliateUrl`, { nullable: true, fixture });
+  url(value.canonicalUrl, `${path}.canonicalUrl`, { nullable: true, fixture, provider: value.provider });
+  url(value.affiliateUrl, `${path}.affiliateUrl`, { nullable: true, fixture, provider: value.provider });
   oneOf(value.sourceKind, SOURCE_KINDS, `${path}.sourceKind`);
   oneOf(value.matchMethod, ["provider-crosswalk", "teams-venue-time", "manual", "unmatched"], `${path}.matchMethod`);
   oneOf(value.matchConfidence, ["high", "medium", "low", "none"], `${path}.matchConfidence`);
@@ -84,13 +93,13 @@ function validateListing(value, path, event, fixture) {
   string(value.providerListingId, `${path}.providerListingId`);
   if (value.sfzGameId !== event.sfzGameId) fail(`${path}.sfzGameId`, "must match its event");
   oneOf(value.sourceKind, LISTING_SOURCE_KINDS, `${path}.sourceKind`);
-  string(value.sectionRaw, `${path}.sectionRaw`, { nullable: true });
-  string(value.sectionNormalized, `${path}.sectionNormalized`, { nullable: true });
-  string(value.rowRaw, `${path}.rowRaw`, { nullable: true });
+  publicText(value.sectionRaw, `${path}.sectionRaw`, { nullable: true });
+  publicText(value.sectionNormalized, `${path}.sectionNormalized`, { nullable: true });
+  publicText(value.rowRaw, `${path}.rowRaw`, { nullable: true });
   if (value.sectionNormalized !== null && value.sectionRaw === null) fail(`${path}.sectionRaw`, "must be preserved when a normalized section exists");
   if (value.seatRange !== null) {
     object(value.seatRange, `${path}.seatRange`); exactKeys(value.seatRange, ["from", "to"], `${path}.seatRange`);
-    string(value.seatRange.from, `${path}.seatRange.from`); string(value.seatRange.to, `${path}.seatRange.to`);
+    publicText(value.seatRange.from, `${path}.seatRange.from`); publicText(value.seatRange.to, `${path}.seatRange.to`);
   }
   array(value.allowedQuantities, `${path}.allowedQuantities`);
   if (value.allowedQuantities.length === 0 || new Set(value.allowedQuantities).size !== value.allowedQuantities.length || value.allowedQuantities.some((quantity) => !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 20)) fail(`${path}.allowedQuantities`, "must contain unique integers from 1 through 20");
@@ -110,9 +119,9 @@ function validateListing(value, path, event, fixture) {
   oneOf(value.accessibleStatus, ["accessible", "not-accessible", "unknown"], `${path}.accessibleStatus`);
   for (const key of ["obstructedView", "limitedView"]) if (value[key] !== null && typeof value[key] !== "boolean") fail(`${path}.${key}`, "must be boolean or null");
   oneOf(value.productType, PRODUCT_TYPES, `${path}.productType`);
-  array(value.sanitizedNotes, `${path}.sanitizedNotes`); value.sanitizedNotes.forEach((note, index) => string(note, `${path}.sanitizedNotes[${index}]`));
-  url(value.canonicalUrl, `${path}.canonicalUrl`, { fixture });
-  url(value.affiliateUrl, `${path}.affiliateUrl`, { nullable: true, fixture });
+  array(value.sanitizedNotes, `${path}.sanitizedNotes`); value.sanitizedNotes.forEach((note, index) => publicText(note, `${path}.sanitizedNotes[${index}]`));
+  url(value.canonicalUrl, `${path}.canonicalUrl`, { fixture, provider: value.provider });
+  url(value.affiliateUrl, `${path}.affiliateUrl`, { nullable: true, fixture, provider: value.provider });
   timestamp(value.fetchedAt, `${path}.fetchedAt`); timestamp(value.expiresAt, `${path}.expiresAt`);
   if (Date.parse(value.expiresAt) <= Date.parse(value.fetchedAt)) fail(`${path}.expiresAt`, "must be after fetchedAt");
 }

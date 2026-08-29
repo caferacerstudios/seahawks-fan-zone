@@ -61,6 +61,8 @@ No implementation should begin for a provider until its relevant matrix row is v
 
 **Gate F — launch:** approvals remain current, production credentials are server-side, fresh validated data meets minimum coverage, rollback is proven, and named owners sign off.
 
+- [ ] Operator and qualified legal/privacy review approve the disclosure, marketplace terms, provider rights, privacy statements, consent behavior, SEO/indexing state, and launch configuration. Repository controls support review but do not constitute legal advice or compliance certification.
+
 ## 7. Post-launch operations
 
 1. Review contracts and matrix entries on an operator-selected cadence and on provider notice.

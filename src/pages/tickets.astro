@@ -1,6 +1,7 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import { TICKET_FINDER_STATE } from "../lib/tickets/config";
+import { providerOutboundLink } from "../lib/tickets/outbound-links.mjs";
 import { selectScheduleSeason } from "../lib/schedule.mjs";
 import { scheduleRow } from "../lib/schedule-display.mjs";
 import rawSchedule from "../data/nfl/seahawks.json";
@@ -12,7 +13,8 @@ const games = schedule.games
   .map((game, index) => ({ game, row: scheduleRow(game, { index }) }));
 const gameIds = new Set(games.map(({ game }) => String(game.id)));
 const events = snapshot.events.filter((event) => gameIds.has(event.sfzGameId));
-const listings = events.flatMap((event) => event.listings.map((listing) => ({ ...listing, eventKey: event.eventKey, homeAway: event.homeAway, opponent: event.opponent.abbreviation })));
+const unavailableProviders = new Set(snapshot.providerStatuses.filter(({ status }) => ["stale", "error", "disabled"].includes(status)).map(({ provider }) => provider));
+const listings = events.flatMap((event) => event.listings.filter((listing) => !unavailableProviders.has(listing.provider)).map((listing) => ({ ...listing, eventKey: event.eventKey, homeAway: event.homeAway, opponent: event.opponent.abbreviation })));
 const providers = [...new Set(listings.map((listing) => listing.provider))].sort();
 const zones = [...new Set(listings.map((listing) => listing.sectionNormalized).filter(Boolean))].sort();
 const deliveries = [...new Set(listings.map((listing) => listing.deliveryType).filter((value) => value && value !== "unknown"))].sort();
@@ -25,11 +27,11 @@ const preview = TICKET_FINDER_STATE === "preview";
 ---
 
 <SeahawksLayout
-  title="Seahawks Ticket Finder"
+  title="Seahawks Ticket Comparison"
   pageTitle="Seahawks Ticket Finder"
   pageTagline="Compare ticket details from connected official and resale partners for upcoming Seahawks games."
-  description="Compare official and resale ticket options for upcoming Seattle Seahawks games."
-  seo={{ title: "Seahawks Ticket Finder | Seahawks Fan Zone", description: "Compare official and resale ticket options for upcoming Seattle Seahawks games.", canonicalPath: "/tickets", robots: preview ? "noindex, nofollow" : "index, follow" }}
+  description="Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details."
+  seo={{ title: "Seahawks Ticket Comparison | Seahawks Fan Zone", description: "Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details.", canonicalPath: "/tickets", robots: preview ? "noindex, nofollow" : "index, follow" }}
   activePath="/tickets"
   pageType="tickets"
   monetizationEligible={false}
@@ -41,8 +43,8 @@ const preview = TICKET_FINDER_STATE === "preview";
       {preview && <p class="preview-banner" role="status"><strong>Preview:</strong> Prices and providers below are deterministic test fixtures, not live inventory.</p>}
 
       <section class="trust-panel" aria-label="Important ticket information">
-        <p><strong>Affiliate disclosure:</strong> SFZ may earn a commission if you buy through a marked provider link. Compensation never changes the comparison order.</p>
-        <p>Seahawks Fan Zone is an independent fan site, not the Seahawks or the NFL. Prices and availability can change between our last check and checkout; confirm the final total and ticket details with the provider.</p>
+        <p><strong>Ticket link disclosure:</strong> We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect ticket rankings.</p>
+        <p>Seahawks Fan Zone is an independent fan site, not the Seahawks, NFL, or ticket seller. Prices and availability can change between refresh and checkout. Confirm the final price, availability, and ticket details on the provider site.</p>
       </section>
 
       <noscript><div class="ticket-empty"><h2>JavaScript is off</h2><p>You can still choose an upcoming game, open its SFZ preview, or use the official ticket links below. Turn on JavaScript to filter and sort fixture comparisons.</p></div></noscript>
@@ -66,6 +68,8 @@ const preview = TICKET_FINDER_STATE === "preview";
         <div class="control-actions"><button type="submit" class="apply-button">Apply comparison</button><a href="/tickets" data-clear>Clear filters</a></div>
       </form>
 
+      <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect ticket rankings.</p>
+
       <section class="selected-game" aria-labelledby="selected-game-heading">
         <div><p class="control-kicker">Selected matchup</p><h2 id="selected-game-heading">Upcoming Seahawks game</h2></div>
         {games.map(({ game, row }) => <article data-game-summary={game.id}>
@@ -86,20 +90,20 @@ const preview = TICKET_FINDER_STATE === "preview";
 
       <section class="results-section" aria-labelledby="results-heading">
         <div class="results-heading"><div><p class="control-kicker">Comparison results</p><h2 id="results-heading">Available offers</h2></div><p id="result-count" role="status" aria-live="polite" aria-atomic="true">Loading comparison…</p></div>
-        <p class="comparison-note">Group totals are ranked only when the fixture supplies a safe fee-complete total for the selected quantity. Taxes or delivery exclusions are never guessed.</p>
+        <p class="comparison-note">Prices can change between refresh and checkout. Rankings use all-in mandatory-price data only where a provider supplies enough information for the selected quantity. Taxes, delivery, or optional products are identified separately where applicable and never guessed. Event-summary and unknown-fee values are not ranked as cheapest. Confirm final price and availability on the provider site.</p>
         <div class="ticket-results" id="ticket-results">
           {listings.map((listing) => {
             const event = events.find((candidate) => candidate.eventKey === listing.eventKey);
             const status = snapshot.providerStatuses.find((candidate) => candidate.provider === listing.provider);
             const initialTotal = listing.allowedQuantities.length === 1 && listing.allInGroupTotalCents !== null ? listing.allInGroupTotalCents : listing.feeCompleteness === "all_in" && listing.allInPerTicketCents !== null ? listing.allInPerTicketCents * 2 : null;
-            const href = listing.affiliateUrl ?? listing.canonicalUrl;
+            const outbound = providerOutboundLink(listing.provider, listing.canonicalUrl, listing.affiliateUrl);
             return <article class="ticket-card" data-listing={listing.providerListingId} data-game={listing.sfzGameId} data-opponent={listing.opponent} data-location={listing.homeAway} data-provider={listing.provider} data-source={listing.sourceKind} data-zone={listing.sectionNormalized ?? "unknown"} data-delivery={listing.deliveryType} data-accessible={listing.accessibleStatus} data-product={listing.productType}>
               <div class="price-block"><p class="group-price" data-group-price>{initialTotal === null ? "Total unavailable" : money(initialTotal, listing.currency)}</p><p data-per-price>{initialTotal === null ? "Fee-complete group total not supplied" : `${money(initialTotal / 2, listing.currency)} per ticket, all-in`}</p></div>
               <div class="provider-line"><strong>{label(listing.provider)}</strong><span class="source-badge">{listing.sourceKind === "official-primary" ? "Official" : "Resale"}</span></div>
               <dl><div><dt>Section</dt><dd>{listing.sectionRaw ?? "Not supplied"}</dd></div><div><dt>Row</dt><dd>{listing.rowRaw ?? "Not supplied"}</dd></div><div><dt>Quantity</dt><dd>{listing.allowedQuantities.join(", ")}</dd></div><div><dt>Delivery</dt><dd>{label(listing.deliveryType)}</dd></div></dl>
               {(listing.obstructedView || listing.limitedView || listing.sanitizedNotes.length > 0) && <div class="restrictions"><strong>Notes and restrictions</strong><ul>{listing.obstructedView && <li>Obstructed view</li>}{listing.limitedView && <li>Limited view</li>}{listing.sanitizedNotes.map((note) => <li>{note}</li>)}</ul></div>}
               <p class="freshness">Checked {dateTime(listing.fetchedAt)}{status?.status === "stale" ? " · Provider stale" : ""}</p>
-              <a class="provider-button" href={href} target="_blank" rel={listing.affiliateUrl ? "sponsored nofollow noopener" : "nofollow noopener"} aria-label={`Go to ${label(listing.provider)} for ${listing.sectionRaw ?? "this offer"}`}>Go to provider</a>
+              {outbound ? <a class="provider-button" href={outbound.href} target="_blank" rel={outbound.rel} data-ticket-outbound data-provider={listing.provider} data-source-kind={listing.sourceKind} data-link-placement="result" aria-label={`Go to ${label(listing.provider)} for ${listing.sectionRaw ?? "this offer"}`}>Go to provider</a> : <p class="link-unavailable">Provider link unavailable</p>}
             </article>;
           })}
         </div>
@@ -110,23 +114,38 @@ const preview = TICKET_FINDER_STATE === "preview";
         <div class="reference-links" aria-labelledby="other-provider-heading">
           <h3 id="other-provider-heading">Other connected provider paths</h3>
           <p>Event-summary and deep-link sources are kept separate from listing-level price rankings.</p>
-          {events.map((event) => <div data-reference-game={event.sfzGameId}>{event.providerEventReferences.filter((reference) => ["event-summary", "deep-link-only"].includes(reference.status) && (reference.affiliateUrl || reference.canonicalUrl)).map((reference) => <a href={reference.affiliateUrl ?? reference.canonicalUrl} target="_blank" rel={reference.affiliateUrl ? "sponsored nofollow noopener" : "nofollow noopener"}>{label(reference.provider)} · {reference.status === "event-summary" ? "Event summary" : "Provider link"}</a>)}</div>)}
+          {events.map((event) => <div data-reference-game={event.sfzGameId}>{event.providerEventReferences.filter((reference) => ["event-summary", "deep-link-only"].includes(reference.status)).map((reference) => {
+            const outbound = providerOutboundLink(reference.provider, reference.canonicalUrl, reference.affiliateUrl);
+            return outbound && <a href={outbound.href} target="_blank" rel={outbound.rel} data-ticket-outbound data-provider={reference.provider} data-source-kind={reference.sourceKind} data-link-placement={reference.status === "event-summary" ? "event-summary" : "deep-link"}>{label(reference.provider)} · {reference.status === "event-summary" ? "Event summary — not price ranked" : "Provider link"}</a>;
+          })}</div>)}
         </div>
       </section>
 
       <section class="coverage" aria-labelledby="coverage-heading">
         <div class="coverage-heading"><div><p class="control-kicker">Source health</p><h2 id="coverage-heading">Provider coverage</h2></div><p>Last checked {dateTime(snapshot.generatedAt)}</p></div>
         <p>Coverage describes provider connections, not unique tickets. Similar inventory may appear at more than one provider.</p>
-        <ul class="coverage-list">{snapshot.providerStatuses.map((provider) => <li><span><strong>{label(provider.provider)}</strong><small>{provider.status === "connected-listings" ? "Connected listing provider" : provider.status === "event-summary" ? "Event-summary only" : provider.status === "deep-link-only" ? "Deep-link only" : provider.status === "stale" ? "Provider stale" : provider.status === "error" ? "Provider failed" : label(provider.status)}{provider.lastFetchedAt && <> · Checked {dateTime(provider.lastFetchedAt)}</>}</small></span><span class={`health health--${provider.status}`}>{provider.status === "stale" ? "Stale" : provider.status === "error" ? "Failed" : "Available"}</span></li>)}</ul>
+        <ul class="coverage-list">{snapshot.providerStatuses.map((provider) => <li><span><strong>{label(provider.provider)}</strong><small>{provider.status === "connected-listings" ? "Connected listing-level provider" : provider.status === "event-summary" ? "Event-summary provider — values not price ranked" : provider.status === "deep-link-only" ? "Deep-link-only provider — no listing data" : provider.status === "stale" ? "Provider stale — values not price ranked" : provider.status === "error" ? "Provider failed — no current data" : label(provider.status)}{provider.lastFetchedAt && <> · Last successful refresh {dateTime(provider.lastFetchedAt)}</>}</small></span><span class={`health health--${provider.status}`}>{provider.status === "stale" ? "Stale" : provider.status === "error" ? "Failed" : "Available"}</span></li>)}</ul>
         {snapshot.unmatchedProviderEvents.length > 0 && <p class="coverage-warning"><strong>Unmatched provider events:</strong> {snapshot.unmatchedProviderEvents.length}. Their links and inventory are not shown.</p>}
+      </section>
+
+      <section class="ticket-guidance" aria-labelledby="ticket-guidance-heading">
+        <h2 id="ticket-guidance-heading">How to compare Seahawks tickets</h2>
+        <div class="guidance-grid">
+          <article><h3>Official and resale inventory</h3><p>Official inventory comes from a team or authorized primary box-office path; resale inventory is offered through a marketplace. An official option remains visible for comparison, but SFZ does not call it cheapest unless it qualifies under the same fee-complete price rule.</p></article>
+          <article><h3>Choosing a seat</h3><p>Compare section, row, quantity, view restrictions, delivery method, and mobile-entry requirements—not price alone. Stadium sections can cover different sightlines, and provider-supplied seat details may be incomplete.</p></article>
+          <article><h3>Independent ranking</h3><p>Organic order uses the selected price, recency, zone, or official-first sort. Commission is not an input, and providers cannot buy a higher organic position. Any future sponsored placement must be labeled and visually separated from these results.</p></article>
+        </div>
+        <p>Read the complete <a href="/methodology#ticket-comparisons">ticket comparison methodology</a>, <a href="/disclosure">affiliate disclosure</a>, and <a href="/privacy-policy">privacy policy</a>.</p>
       </section>
     </div>
   )}
 </SeahawksLayout>
 
 <style>
+  .inline-disclosure{margin:0 0 1.5rem;padding:.8rem 1rem;border:var(--border-crisp);border-top:0;background:#fff}.link-unavailable{margin:0;padding:.6rem;border:1px solid var(--slate-300);text-align:center}.ticket-guidance{margin-top:2.5rem}.guidance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.guidance-grid article{padding:1rem;border:var(--border-crisp);background:#fff}.guidance-grid h3{margin-top:0}
   .preview-banner,.trust-panel,.ticket-empty,.coverage-warning{padding:1rem;border:var(--border-crisp);border-left:5px solid var(--action-green);background:var(--slate-100)}.preview-banner{margin-top:0}.trust-panel{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}.trust-panel p{margin:0}.ticket-controls{margin:1.5rem 0;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--action-green);background:var(--slate-100)}.controls-heading,.results-heading,.coverage-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}.controls-heading h2,.results-heading h2,.coverage-heading h2{margin:.1rem 0 .75rem}.control-kicker{margin:0;color:#4b711f;font-size:.7rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.compact-toggle{display:none}.filter-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.8rem}.filter-fields>label{display:grid;gap:.25rem;color:var(--slate-700);font-size:.72rem;font-weight:900;text-transform:uppercase}.filter-fields .wide{grid-column:span 2}.filter-fields :is(select,input){width:100%;padding:.45rem .55rem}.choice-group,.check-group{margin:0;padding:.65rem;border:1px solid var(--slate-300)}.choice-group{display:flex;gap:.75rem;flex-wrap:wrap}.choice-group legend{font-size:.72rem;font-weight:900;text-transform:uppercase}.choice-group label,.check-group label{display:flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:800}.choice-group input,.check-group input{min-height:0}.check-group{display:grid;gap:.45rem}.control-actions{display:flex;align-items:center;gap:1rem;margin-top:1rem}.apply-button,.provider-button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:.6rem .85rem;border:2px solid var(--navy-900);background:var(--navy-900);color:#fff;font-weight:900;text-decoration:none;cursor:pointer}.selected-game{margin:1.5rem 0}.selected-game>article{display:grid;grid-template-columns:1.5fr 1fr auto;gap:1rem;align-items:center;padding:1rem;border:var(--border-crisp);background:#fff}.selected-game h3{margin:.15rem 0}.selected-game p{margin:.2rem 0}.selected-game ul{margin:0;padding-left:1.1rem}.game-links{display:grid;gap:.35rem}.official-callouts,.results-section,.coverage{margin-top:2.5rem}.callout-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.callout-grid article{padding:1rem;border:var(--border-crisp);border-top:4px solid var(--navy-800)}.callout-grid h3{margin-top:0}.ticket-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.ticket-card{display:flex;flex-direction:column;gap:.75rem;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--navy-800);background:#fff}.price-block p{margin:0}.group-price{font:900 clamp(1.8rem,4vw,2.7rem)/1 var(--font-display);color:var(--navy-900)}.provider-line{display:flex;justify-content:space-between;gap:.5rem}.source-badge,.health{display:inline-flex;align-items:center;padding:.2rem .45rem;border:1px solid currentColor;font-size:.68rem;font-weight:900;text-transform:uppercase}.ticket-card dl{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:0}.ticket-card dl div{padding:.45rem;background:var(--slate-100)}.ticket-card dt{font-size:.65rem;font-weight:900;text-transform:uppercase}.ticket-card dd{margin:0}.restrictions{font-size:.78rem}.restrictions ul{margin:.25rem 0;padding-left:1.1rem}.freshness{margin:auto 0 0;color:var(--slate-700);font-size:.72rem}.provider-button{width:100%}.comparison-note{color:var(--slate-700);font-size:.8rem}.ticket-empty{margin:1rem 0}.ticket-empty h2,.ticket-empty h3{margin-top:0}.reference-links{margin-top:1.25rem;padding:1rem;border:var(--border-crisp)}.reference-links>div{display:flex;flex-wrap:wrap;gap:.5rem 1rem}.coverage-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;padding:0;list-style:none}.coverage-list li{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.7rem;border:1px solid var(--slate-300)}.coverage-list small{display:block;color:var(--slate-700)}.health--stale,.health--error{font-weight:900}.health--stale::before{content:"Warning: ";}.health--error::before{content:"Error: ";}
-  @media(max-width:800px){.filter-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.selected-game>article{grid-template-columns:1fr 1fr}.game-links{grid-column:1/-1;display:flex}.callout-grid{grid-template-columns:1fr}.ticket-results{grid-template-columns:1fr}}
+  .ticket-controls{margin-bottom:0}
+  @media(max-width:800px){.filter-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.selected-game>article{grid-template-columns:1fr 1fr}.game-links{grid-column:1/-1;display:flex}.callout-grid,.guidance-grid{grid-template-columns:1fr}.ticket-results{grid-template-columns:1fr}}
   @media(max-width:600px){.trust-panel{grid-template-columns:1fr}.compact-toggle{display:inline-flex;min-height:44px;align-items:center;padding:.5rem .7rem;border:2px solid var(--navy-900);background:#fff;color:var(--navy-900);font-weight:900}.filter-fields{display:none;grid-template-columns:1fr}.filter-fields.is-open{display:grid}.filter-fields .wide{grid-column:auto}.control-actions{display:grid}.apply-button{width:100%}.selected-game>article{grid-template-columns:1fr}.game-links{grid-column:auto}.results-heading,.coverage-heading{display:block}.coverage-list{grid-template-columns:1fr}.ticket-card{padding:.85rem}.provider-button{position:sticky;bottom:.5rem}.coverage-heading>p{margin-top:0}}
 </style>
 
@@ -170,4 +189,26 @@ const preview = TICKET_FINDER_STATE === "preview";
     form.querySelector('[data-clear]')?.addEventListener('click',(event)=>{event.preventDefault();history.pushState(null,'',location.pathname);apply(read());});
     addEventListener('popstate',()=>apply(read())); apply(read());
   })();
+</script>
+
+<script>
+  import { ticketClickEvent } from "../lib/tickets/analytics.mjs";
+
+  document.addEventListener("click", (event) => {
+    const link = event.target?.closest?.("[data-ticket-outbound]");
+    if (!link) return;
+    const form = document.querySelector("#ticket-controls");
+    const detail = ticketClickEvent(window.sfzPrivacy?.getState?.(), {
+      selectedGame: form?.elements?.game?.value,
+      provider: link.dataset.provider,
+      sourceKind: link.dataset.sourceKind,
+      linkPlacement: link.dataset.linkPlacement,
+      sortMode: form?.elements?.sort?.value,
+      quantity: Number(form?.elements?.quantity?.value),
+    });
+    if (!detail) return;
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push(detail);
+    window.dispatchEvent(new CustomEvent("sfz:analytics", { detail }));
+  });
 </script>

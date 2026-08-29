@@ -50,6 +50,13 @@ test("raw errors and secret-bearing URLs fail closed", () => {
   assert.throws(() => validateTicketFixture(secretUrl), /secret-like query/);
 });
 
+test("provider text and outbound hosts fail closed", () => {
+  const markup = clone(); markup.events[0].listings[0].sectionRaw = '<img src=x onerror="alert(1)">';
+  assert.throws(() => validateTicketFixture(markup), /bounded plain text/);
+  const wrongHost = clone(); wrongHost.events[0].listings[0].canonicalUrl = "https://fictional-verified.example.invalid/listing";
+  assert.throws(() => validateTicketFixture(wrongHost), /not allowlisted/);
+});
+
 test("listing identity and provider references remain consistent", () => {
   const wrongGame = clone(); wrongGame.events[0].listings[0].sfzGameId = "wrong-game";
   assert.throws(() => validateTicketFixture(wrongGame), /must match its event/);

@@ -38,6 +38,7 @@ export const PUBLIC_PAGES: SitemapPage[] = [
   { canonicalPath: "/team/transactions", title: "Seattle Seahawks Transactions | Seahawks Fan Zone", description: "Track sourced Seattle Seahawks signings, waivers, releases, claims, reserve-list moves, trades, and contract updates." },
   { canonicalPath: "/team/injuries", title: "Seattle Seahawks Injuries and Status | Seahawks Fan Zone", description: "Review sourced Seattle Seahawks injury and participation-status updates without medical speculation." },
   { canonicalPath: "/history", title: "Seattle Seahawks History and The 12s | Seahawks Fan Zone", description: "Explore defining Seattle Seahawks eras, franchise milestones, notable players, and the history of the 12s." },
+  { canonicalPath: "/tickets", title: "Seahawks Ticket Comparison | Seahawks Fan Zone", description: "Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details." },
   { canonicalPath: "/about", title: "About Seahawks Fan Zone", description: "Learn about Seahawks Fan Zone, an independent source for Seattle football statistics, recaps, and historical context." },
   { canonicalPath: "/contact", title: "Contact and Corrections | Seahawks Fan Zone", description: "Contact the Seahawks Fan Zone site owner about general feedback, corrections, rights concerns, or business inquiries." },
   { canonicalPath: "/methodology", title: "Data Methodology | Seahawks Fan Zone", description: "Learn how Seahawks Fan Zone sources, checks, and updates schedule, team, player, and recap information." },
