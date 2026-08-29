@@ -5,9 +5,34 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig } from "../scripts/tickets/config.mjs";
 import { runTicketSync } from "../scripts/tickets/pipeline.mjs";
+import { providerRegistry } from "../scripts/tickets/providers.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
+
+test("StubHub remains fail-closed while its rights summary is pending", async () => {
+  const adapter = providerRegistry().stubhub;
+  assert.equal(adapter.approvalStatus, "pending");
+  assert.equal(adapter.credentialEnv, null);
+  assert.deepEqual(adapter.allowedHosts, []);
+  assert.throws(
+    () => loadConfig({ TICKETS_PROVIDERS_JSON: JSON.stringify({ stubhub: { enabled: true, mode: "listing-level" } }) }, root),
+    /cannot be enabled until its operator-reviewed rights summary is complete/,
+  );
+  await assert.rejects(adapter.sync({}), { code: "RIGHTS_APPROVAL_REQUIRED" });
+});
+
+test("StubHub is reported disabled by default and makes no adapter call", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-stubhub-disabled-"));
+  try {
+    const config = loadConfig({ TICKETS_OUTPUT_DIR: join(temporary, "snapshot") }, root);
+    const status = await runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), log: () => {} });
+    const stubhub = status.providers.find(({ provider }) => provider === "stubhub");
+    assert.equal(stubhub.state, "disabled");
+    assert.equal(stubhub.lastAttempt, null);
+    assert.deepEqual(stubhub.counts, { fresh: 0, stale: 0, rejected: 0, unmatched: 0 });
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
 
 test("fixture mode publishes a complete lightweight snapshot without network", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-sync-"));

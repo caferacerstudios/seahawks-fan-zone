@@ -28,6 +28,8 @@ TICKETS_FIXTURE=true TICKETS_OUTPUT_DIR=/var/tmp/sfz-tickets npm run tickets:syn
 
 Normal one-shot invocation is `npm run tickets:sync`. There are no live provider implementations in this change: `provider-shell` is disabled and pending by default. Fixture mode activates only `fixture-market` using `scripts/tickets/fixtures/provider.json` and needs no credentials or network.
 
+The `stubhub` registry entry is also unconditionally pending and disabled. It has no credential variable or hostname allowlist, and configuration rejects attempts to enable it until the operator-reviewed checklist in `docs/ticket-finder/provider-rights/StubHub.md` is complete and the approval matrix is updated.
+
 ## Snapshot contract and lifecycle
 
 The configured directory contains:

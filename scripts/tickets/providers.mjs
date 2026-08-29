@@ -3,6 +3,13 @@ import { readFile } from "node:fs/promises";
 export const PROVIDER_MODES = Object.freeze(["listing-level", "event-summary", "deep-link-only", "pending"]);
 
 const shells = Object.freeze({
+  stubhub: Object.freeze({
+    id: "stubhub",
+    approvalStatus: "pending",
+    credentialEnv: null,
+    allowedHosts: [],
+    async sync() { throw Object.assign(new Error("StubHub rights approval is incomplete."), { code: "RIGHTS_APPROVAL_REQUIRED" }); },
+  }),
   "provider-shell": Object.freeze({
     id: "provider-shell",
     credentialEnv: "TICKETS_PROVIDER_SHELL_API_KEY",

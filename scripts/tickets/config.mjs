@@ -33,6 +33,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     const enabled = raw.enabled === true;
     const mode = raw.mode || "pending";
     if (!PROVIDER_MODES.includes(mode)) throw new Error(`Provider ${id} has an invalid mode.`);
+    if (enabled && registry[id].approvalStatus === "pending") throw new Error(`Provider ${id} cannot be enabled until its operator-reviewed rights summary is complete.`);
     if (enabled && mode === "pending") throw new Error(`Provider ${id} cannot be enabled while pending.`);
     if (enabled && registry[id].credentialEnv && !env[registry[id].credentialEnv]) throw new Error(`Provider ${id} requires ${registry[id].credentialEnv}.`);
     providers[id] = {
