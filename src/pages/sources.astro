@@ -1,36 +1,41 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 
-const pageTitle = "Contact";
-const pageTagline = "Corrections, feedback, and rights requests";
+const pageTitle = "Sources";
+const pageTagline = "How Seahawks Fan Zone selects, attributes, and checks information.";
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/contact">
+<SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/sources">
   <section class="sfz-card">
-    <h2>Fastest way</h2>
+    <h2>Source standards</h2>
     <p>
-      Email: <a href="mailto:contact@seahawksfanzone.com">contact@seahawksfanzone.com</a>
-    </p>
-    <p class="sfz-muted">
-      Replace this email address with the one you actually want to use.
+      The site favors primary sources for team announcements, schedules, transactions, rules, and direct statements.
+      Established news organizations and specialist data providers may be used when they offer original reporting or context
+      that a primary source does not provide.
     </p>
   </section>
 
   <section class="sfz-card">
-    <h2>What to include</h2>
+    <h2>Attribution and verification</h2>
     <ul class="sfz-list">
-      <li><strong>Stats issue:</strong> which page and what looks wrong</li>
-      <li><strong>Schedule issue:</strong> week, opponent, and the date shown</li>
-      <li><strong>Rights request:</strong> the specific team/logo/asset and the page where it appears</li>
-      <li><strong>General feedback:</strong> what you wish was easier to find or compare</li>
+      <li>Article-specific references are listed under “Sources and further reading.”</li>
+      <li>Direct quotations and claims originating elsewhere are attributed to their source.</li>
+      <li>Reported information is distinguished from Seahawks Fan Zone analysis.</li>
+      <li>Conflicting or incomplete information is described as uncertain until it can be verified.</li>
     </ul>
   </section>
 
   <section class="sfz-card">
-    <h2>Response expectation</h2>
+    <h2>Automated data</h2>
     <p>
-      This is a small site. If you contact us about a clear factual error or a rights concern, we will review it and respond.
+      Schedule, score, standings, roster, and statistics pages use structured data refreshed during site builds. Update timing can
+      differ from live game coverage. The page timestamp and source note should be used to judge how current a data view is.
     </p>
+  </section>
+
+  <section class="sfz-card">
+    <h2>Questions or corrections</h2>
+    <p>To question a source or report an error, use the <a href="/contact#corrections">Contact and Corrections page</a> and include the page URL and supporting source.</p>
   </section>
 
   <style>
@@ -68,11 +73,5 @@ const pageTagline = "Corrections, feedback, and rights requests";
       margin: 0.3rem 0;
     }
 
-    .sfz-muted {
-      margin-top: 0.25rem;
-      color: rgba(15, 23, 32, 0.6);
-      font-weight: 650;
-      font-size: 0.95rem;
-    }
   </style>
 </SeahawksLayout>

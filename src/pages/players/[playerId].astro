@@ -495,7 +495,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
         {profile?.bio ? (
           <p class="body">{profile.bio}</p>
         ) : (
-          <div class="empty">Bio coming soon.</div>
+          <div class="empty">No verified biography is available in the current player data.</div>
         )}
       </div>
 
@@ -528,7 +528,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
           )}
         </>
       ) : (
-        <div class="empty">Recap coming soon.</div>
+        <div class="empty">No authored gameplay summary is available for this player.</div>
       )}
     </div>
 

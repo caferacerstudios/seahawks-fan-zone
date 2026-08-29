@@ -4,79 +4,66 @@ import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 const pageTitle = "Privacy Policy";
 const pageTagline = "How data is handled on this site";
 
-const updated = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/Los_Angeles",
-  dateStyle: "long",
-}).format(new Date());
+const updated = "August 29, 2026";
+const adsEnabled = import.meta.env.ADS_ENABLED === "true";
+const publisherId = String(import.meta.env.PUBLIC_ADSENSE_PUBLISHER_ID ?? "").trim();
+const cmpScriptUrl = String(import.meta.env.PUBLIC_CMP_SCRIPT_URL ?? "").trim();
+const advertisingConfigured = adsEnabled && /^ca-pub-\d+$/.test(publisherId) && /^https:\/\/(fundingchoicesmessages\.google\.com|[^/]+\.google\.com)\//.test(cmpScriptUrl);
+const analyticsConfigured = Boolean(String(import.meta.env.PUBLIC_CLOUDFLARE_ANALYTICS_TOKEN ?? "").trim());
 ---
 
 <SeahawksLayout pageTitle={pageTitle} pageTagline={pageTagline} activePath="/privacy-policy" monetizationEligible={false}>
   <section class="sfz-card">
-    <p class="sfz-updated"><strong>Last updated:</strong> {updated} (Pacific Time)</p>
+    <p class="sfz-updated"><strong>Last updated:</strong> {updated}</p>
 
     <h2>Overview</h2>
     <p>
-      Seahawks Fan Zone is a stats-focused fan site. We aim to collect as little personal information as possible.
-      This policy explains the site's current support for hosting logs, analytics, and Google advertising. Advertising and
-      optional browser analytics are disabled unless configured by the operator and permitted by the applicable consent signal.
+      Seahawks Fan Zone is an independent fan publication. We aim to collect as little personal information as possible.
+      This policy describes the site as configured in the version you are viewing, including hosting logs and any optional
+      analytics or advertising services enabled at build time.
     </p>
 
     <h2>Information we may collect</h2>
     <ul class="sfz-list">
       <li>
-        <strong>Basic usage data:</strong> like pages viewed and approximate device information, typically collected via server logs or analytics.
+        <strong>Basic request data:</strong> the hosting provider may record requested pages, browser or device information, and timestamps in server logs.
       </li>
       <li>
         <strong>IP address:</strong> may appear in server logs for security, abuse prevention, and basic diagnostics.
       </li>
       <li>
-        <strong>Cookies and similar technologies:</strong> used for site functionality and, if enabled, advertising and analytics.
+        <strong>Cookies and similar technologies:</strong> the site itself does not set an account or login cookie. Configured advertising, consent, or analytics services may use browser storage as described below.
       </li>
     </ul>
 
     <h2>Advertising</h2>
-    <p>
-      If advertising is enabled after account approval, this site may show ads provided by Google AdSense. Google and its
-      third-party advertising vendors may use cookies, local storage, device identifiers, or similar technologies to:
-    </p>
-    <ul class="sfz-list">
-      <li>deliver and measure advertisements</li>
-      <li>limit repeated ads</li>
-      <li>report aggregated performance metrics</li>
-      <li>in some cases, personalize ads based on your interests</li>
-    </ul>
-
-    <p>
-      Depending on your location and choices, Google may serve personalized or non-personalized ads. Where consent is required,
-      advertising does not load until the configured Google-certified consent management platform reports the required consent.
-      Rejecting optional consent does not prevent access to site content.
-    </p>
+    {advertisingConfigured ? <>
+      <p>This build is configured to show Google AdSense advertising after the site’s consent controls report that advertising is permitted. Google and its advertising vendors may use cookies, local storage, device identifiers, or similar technologies to deliver and measure ads, limit repetition, prevent fraud, and, where permitted, personalize advertising.</p>
+      <p>Rejecting optional consent does not prevent access to site content.</p>
+    </> : <p>This build is not configured to load Google AdSense advertising. The code supports advertising, but no ad service loads unless the operator supplies a valid publisher configuration and consent-platform configuration at build time.</p>}
 
     <h2>Analytics</h2>
-    <p>
-      If configured and permitted by your consent choice, this site uses Cloudflare Web Analytics to understand page usage and
-      improve performance. Optional browser analytics is not loaded before the centralized consent state allows it. The hosting
-      provider may separately process request information in server logs for delivery, security, abuse prevention, and diagnostics.
-    </p>
+    {analyticsConfigured ? <p>This build is configured for Cloudflare Web Analytics. Its browser script loads only after the consent state permits analytics. The hosting provider may separately process request information in server logs for delivery, security, abuse prevention, and diagnostics.</p> : <p>This build is not configured to load browser analytics. The hosting provider may still process request information in server logs for delivery, security, abuse prevention, and diagnostics.</p>}
 
     <h2>Cookies</h2>
     <p>
-      Cookies are small text files stored by your browser. Local storage is another way a browser can retain information on a
-      device. Google, its vendors, and the configured consent platform may use these technologies for consent choices, ad delivery,
-      frequency limits, fraud prevention, measurement, and personalization. This site does not create a separate custom consent cookie.
+      Cookies and local storage allow a browser to retain information on a device. When configured, Google and its vendors may use
+      these technologies for consent choices, ad delivery, frequency limits, fraud prevention, measurement, and personalization.
+      The site does not create an account, login, or separate custom consent cookie.
     </p>
 
     <h3 id="privacy-choices">Your privacy choices</h3>
     <p>
-      Use <a href="#" data-manage-privacy>Manage Privacy Choices</a> in the footer at any time to reopen the configured consent
-      platform and change or withdraw a choice. If the control redirects back here, the production consent platform is not configured.
-      You may also use browser controls and Google's ad settings; browser restrictions can affect site or advertising features.
+      The footer’s Privacy Choices link opens the configured consent controls when they are available. If none are configured, it
+      returns to this section instead of pretending to save a preference. You may also clear or restrict cookies and local storage
+      through your browser.
     </p>
 
     <h3>Sharing and third-party vendors</h3>
     <p>
-      We do not sell your personal information. Information may be processed by service providers only as needed to operate the site,
-      including hosting providers, Cloudflare when analytics is enabled, Google, and Google's advertising vendors when advertising is enabled.
+      The site owner does not sell personal information. Request data may be processed by the hosting provider to operate and secure
+      the site. Cloudflare processes browser analytics only when that service is configured and permitted; Google and its advertising
+      vendors process advertising data only when advertising is configured and permitted.
     </p>
 
     <h2>External links</h2>
@@ -91,7 +78,7 @@ const updated = new Intl.DateTimeFormat("en-US", {
 
     <h2>Contact</h2>
     <p>
-      If you have privacy questions, contact: <a href="mailto:laura@caferacerstudios.com">laura@caferacerstudios.com</a>
+      For privacy questions, contact the site owner through the <a href="/contact">Contact page</a>.
     </p>
   </section>
 

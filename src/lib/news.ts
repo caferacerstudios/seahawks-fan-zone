@@ -301,11 +301,11 @@ const articles: NewsArticle[] = [
       "Seahawks Fan Zone is expanding beyond schedules and stat tables. This newsroom is built to connect the news of the day to the questions Seattle fans ask next: what a move means for the depth chart, where a performance fits statistically and how a result changes the road ahead.",
       "Every story here will be dated, attributed and written in original language. When reporting begins with information from another outlet or an official announcement, the story will link to that source and clearly separate reported facts from our analysis.",
       "The goal is useful context, not volume for its own sake. Roster stories should explain role and competition. Game-week coverage should connect opponent tendencies to Seattle's personnel. Analysis should show its work and avoid presenting a hunch as a fact.",
-      "Readers can browse by category, search the archive or subscribe to the RSS feed. Empty desks will stay visible as a promise of coverage, but they will not be indexed as thin pages until they contain published work.",
+      "Readers can browse published work by category, search the archive or subscribe to the RSS feed. Category pages without published coverage are excluded from search indexing until they contain a substantive story.",
     ],
     sources: [
       { label: "Seahawks Fan Zone methodology", url: "/methodology" },
-      { label: "Corrections and feedback", url: "/sources" },
+      { label: "Corrections and feedback", url: "/contact#corrections" },
     ],
     hero: sharedHero,
     featured: true,

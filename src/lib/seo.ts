@@ -38,13 +38,14 @@ export const PUBLIC_PAGES: SitemapPage[] = [
   { canonicalPath: "/team/injuries", title: "Seattle Seahawks Injuries and Status | Seahawks Fan Zone", description: "Review sourced Seattle Seahawks injury and participation-status updates without medical speculation." },
   { canonicalPath: "/history", title: "Seattle Seahawks History and The 12s | Seahawks Fan Zone", description: "Explore defining Seattle Seahawks eras, franchise milestones, notable players, and the history of the 12s." },
   { canonicalPath: "/about", title: "About Seahawks Fan Zone", description: "Learn about Seahawks Fan Zone, an independent source for Seattle football statistics, recaps, and historical context." },
+  { canonicalPath: "/contact", title: "Contact and Corrections | Seahawks Fan Zone", description: "Contact the Seahawks Fan Zone site owner about general feedback, corrections, rights concerns, or business inquiries." },
   { canonicalPath: "/methodology", title: "Data Methodology | Seahawks Fan Zone", description: "Learn how Seahawks Fan Zone sources, checks, and updates schedule, team, player, and recap information." },
+  { canonicalPath: "/sources", title: "Sources | Seahawks Fan Zone", description: "Learn how Seahawks Fan Zone selects, attributes, and verifies editorial and structured-data sources." },
   { canonicalPath: "/disclosure", title: "Advertising and Affiliate Disclosure | Seahawks Fan Zone", description: "Read the advertising, affiliate-link, and editorial-independence disclosure for Seahawks Fan Zone." },
 ];
 
 export const PRIVATE_UTILITY_PAGES: SitemapPage[] = [
   { canonicalPath: "/privacy-policy", title: "Privacy Policy | Seahawks Fan Zone", description: "Read how Seahawks Fan Zone handles basic usage data, cookies, analytics, advertising, and privacy requests.", robots: "noindex, follow" },
-  { canonicalPath: "/sources", title: "Corrections and Feedback | Seahawks Fan Zone", description: "Contact Seahawks Fan Zone about factual corrections, data issues, feedback, or rights requests.", robots: "noindex, follow" },
 ];
 
 export function pageMetadata(pathname: string): SeoMetadata | undefined {
