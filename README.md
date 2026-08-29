@@ -19,10 +19,15 @@ ADS_ENABLED=true
 PUBLIC_ADSENSE_PUBLISHER_ID=ca-pub-<real numeric publisher ID>
 PUBLIC_CMP_SCRIPT_URL=https://<Google Privacy & Messaging script URL>
 ADS_TXT_RECORD=google.com, pub-<real numeric publisher ID>, DIRECT, f08c47fec0942fa0
+PUBLIC_ADSENSE_ARTICLE_INLINE_SLOT=<real numeric slot ID>
+PUBLIC_ADSENSE_ARTICLE_END_SLOT=<real numeric slot ID>
+PUBLIC_ADSENSE_FEED_BREAK_SLOT=<real numeric slot ID>
+PUBLIC_ADSENSE_DESKTOP_RAIL_SLOT=<real numeric slot ID, if used>
+PUBLIC_ADSENSE_STATS_BREAK_SLOT=<real numeric slot ID, if used>
 PUBLIC_CLOUDFLARE_ANALYTICS_TOKEN=<real site token>
 ```
 
-Do not commit production values. `ADS_ENABLED` must be exactly `true`; otherwise AdSense stays disabled. The publisher ID must be `ca-pub-` followed by digits. Analytics is independently disabled when its token is absent.
+Do not commit production values. `ADS_ENABLED` must be exactly `true`; otherwise AdSense stays disabled. The publisher ID must be `ca-pub-` followed by digits, and each placement renders only when its real slot ID is also present. Analytics is independently disabled when its token is absent.
 
 Configure Google Privacy & Messaging in the AdSense account. Copy its exact Google deployment URL into `PUBLIC_CMP_SCRIPT_URL`; do not implement or emulate TCF locally. Confirm that the message covers the EEA, UK, and Switzerland as required, presents fair choices, and supports withdrawal. The persistent **Manage Privacy Choices** footer link opens the Google Privacy & Messaging revocation UI. Test accept, reject, withdrawal, and non-GDPR regions before enabling ads.
 

@@ -22,7 +22,7 @@ const {
   seo,
   breadcrumbs,
 } = Astro.props;
-const nonMonetizedPaths = new Set(["/privacy-policy", "/disclosure", "/404"]);
+const nonMonetizedPaths = new Set(["/about", "/contact", "/privacy-policy", "/disclosure", "/methodology", "/sources", "/404"]);
 const pageCanBeMonetized = monetizationEligible && !nonMonetizedPaths.has(Astro.url.pathname.replace(/\/$/, "") || "/");
 
 const resolvedSeo = seo ?? pageMetadata(Astro.url.pathname) ?? { title, description, canonicalPath: canonical ?? Astro.url.pathname, article };

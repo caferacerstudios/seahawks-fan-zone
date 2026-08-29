@@ -18,6 +18,7 @@ export interface SeoMetadata {
   openGraphTitle?: string;
   openGraphDescription?: string;
   openGraphImage?: string;
+  openGraphImageAlt?: string;
   article?: ArticleMetadata;
 }
 
