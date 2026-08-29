@@ -45,6 +45,34 @@ export interface TicketListing {
   expiresAt: string;
 }
 
+export type TicketRankingSort = "lowest_total" | "lowest_per_ticket" | "best_zone_within_budget" | "official_first" | "most_recent";
+export type TicketProductMode = "admission" | "parking";
+
+export interface TicketRankingOptions {
+  quantity: number;
+  now?: string;
+  sort?: TicketRankingSort;
+  productMode?: TicketProductMode;
+  budgetCents?: number | null;
+  zoneOrder?: string[];
+  staleAfterMs?: number | null;
+  staleProviders?: string[];
+  currency?: string | null;
+  priceToleranceCents?: number;
+  priceToleranceRatio?: number;
+}
+
+export interface NormalizedTicketPrice {
+  groupTotalCents: number;
+  perTicketCents: number;
+  currency: string;
+}
+
+export interface RankedTicketOffer {
+  listing: TicketListing;
+  comparison: NormalizedTicketPrice;
+}
+
 export interface TicketEvent {
   eventKey: string;
   sfzGameId: string;
