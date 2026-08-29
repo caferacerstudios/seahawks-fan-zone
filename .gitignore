@@ -5,6 +5,8 @@ dist/
 
 # server-generated ticket snapshots
 runtime/tickets/
+public/data/tickets/**
+!public/data/tickets/.gitkeep
 
 # dependencies
 node_modules/
