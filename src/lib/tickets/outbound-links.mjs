@@ -1,4 +1,5 @@
 const PROVIDER_HOSTS = Object.freeze({
+  ticketmaster: ["www.ticketmaster.com", "ticketmaster.com"],
   "fictional-box-office": ["fictional-box-office.example.invalid"],
   "fictional-verified": ["fictional-verified.example.invalid"],
   "fictional-market-a": ["fictional-market-a.example.invalid"],

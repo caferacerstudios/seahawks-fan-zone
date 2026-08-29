@@ -38,6 +38,12 @@ export function validateSnapshotFile(value, kind, allowedHosts = {}) {
         if (url.protocol !== "https:" || !allowedHosts[reference.provider]?.includes(url.hostname) || url.username || url.password) throw new TypeError("Provider event URL host is not allowlisted.");
         for (const key of url.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key)) throw new TypeError("Provider event URL contains a secret-like query parameter.");
       }
+      if (reference.mode === "event-summary") {
+        object(reference.summary, "event.providerReferences[].summary");
+        if (!Array.isArray(reference.summary.priceRanges)) throw new TypeError("Event summary priceRanges must be an array.");
+        if (reference.summary.priceRanges.some((price) => !Number.isFinite(price.min) || !Number.isFinite(price.max) || typeof price.currency !== "string")) throw new TypeError("Invalid provider event price range.");
+        timestamp(reference.fetchedAt, "event.providerReferences[].fetchedAt"); timestamp(reference.expiresAt, "event.providerReferences[].expiresAt");
+      }
     }
     for (const listing of Object.values(value.listings).flat()) {
       if (!Number.isSafeInteger(listing.priceCents) || listing.priceCents < 0) throw new TypeError("Listing price must be non-negative integer cents.");

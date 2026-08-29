@@ -81,6 +81,10 @@ function rejectionReasons(game, event, attractionIds) {
   const type = clean(event?.eventType ?? event?.type ?? event?.category);
   if (/\bparking\b|parking only/.test(text)) reasons.push("parking-event");
   if (/\btailgate\b/.test(text)) reasons.push("tailgate-package");
+  if (/\bhalf price\b/.test(text)) reasons.push("promotional-event-shell");
+  if (/hotel package|travel package/.test(text)) reasons.push("travel-package");
+  if (/season ticket.*(?:notification|interest|wait|list)|(?:notification|interest|wait) list/.test(text)) reasons.push("season-ticket-interest-list");
+  if (/\bdeposit\b/.test(text)) reasons.push("deposit-product");
   if (/\bhospitality\b|vip experience|club access only/.test(text)) reasons.push("hospitality-only");
   if (/watch party|viewing party/.test(text)) reasons.push("watch-party");
   if (event?.speculative === true || event?.placeholder === true || event?.eventStatus === "speculative") reasons.push("speculative-shell");

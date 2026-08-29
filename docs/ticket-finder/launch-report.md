@@ -27,7 +27,7 @@ The required fail-safe state is preserved: `TICKET_FINDER_STATE` remains `previe
 
 | Provider | Access/approval level | Launch contribution |
 | --- | --- | --- |
-| Ticketmaster | `PENDING`; access level and rights unresolved | None |
+| Ticketmaster | Discovery API approved for event-summary fields only; no listing or Inventory Status access | Event summaries only; excluded from listing-price ranking |
 | StubHub | `PENDING`; adapter disabled and fail-closed | None |
 | TickPick | `PENDING`; adapter disabled and fail-closed | None |
 | TicketNetwork | `PENDING`; adapter disabled and fail-closed | None |

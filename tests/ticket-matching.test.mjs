@@ -41,6 +41,14 @@ test("rejects parking and regular-season preseason products", () => {
   assert.equal(preseason.publishable, false);
 });
 
+test("rejects Ticketmaster promotional, travel, and signup products", () => {
+  for (const [name, reason] of [
+    ["HALF PRICE: Denver Broncos v Seattle Seahawks", "promotional-event-shell"],
+    ["Las Vegas Raiders vs. Seattle Seahawks | Official Hotel Packages", "travel-package"],
+    ["Seattle Seahawks Season Ticket Notification List", "season-ticket-interest-list"],
+  ]) assert.ok(evaluateProviderEvent(home, { ...admission, id: name, name }).reasons.includes(reason));
+});
+
 test("rejects similarly named non-NFL events and reversed home/away games", () => {
   const concert = evaluateProviderEvent(home, { ...admission, id: "CONCERT", eventType: "concert" });
   const reversed = evaluateProviderEvent(home, { ...admission, id: "REVERSED", homeTeam: "SF", awayTeam: "SEA" });

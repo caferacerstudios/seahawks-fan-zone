@@ -43,9 +43,11 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
       timeoutMs: integer(raw.timeoutMs, 8_000, `${id}.timeoutMs`, 100),
       maxRetries: integer(raw.maxRetries, 2, `${id}.maxRetries`, 0),
       rateLimitMs: integer(raw.rateLimitMs, 250, `${id}.rateLimitMs`, 0),
+      apiKey: registry[id].credentialEnv ? env[registry[id].credentialEnv] : null,
+      attractionId: id === "ticketmaster" ? (env.TICKETMASTER_ATTRACTION_ID || "K8vZ9171oU7") : null,
     };
   }
-  for (const id of Object.keys(registry)) if (!providers[id]) providers[id] = { enabled: false, mode: "pending", minRefreshMs: 300_000, retentionMs: 0, timeoutMs: 8_000, maxRetries: 2, rateLimitMs: 250 };
+  for (const id of Object.keys(registry)) if (!providers[id]) providers[id] = { enabled: false, mode: "pending", minRefreshMs: 300_000, retentionMs: 0, timeoutMs: 8_000, maxRetries: 2, rateLimitMs: 250, apiKey: null, attractionId: null };
   return {
     environment, fixture, outputDir,
     gamesFile: resolve(cwd, env.TICKETS_GAMES_FILE || "src/data/nfl/seahawks.json"),

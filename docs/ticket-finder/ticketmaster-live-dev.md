@@ -1,0 +1,75 @@
+# Ticketmaster live development runbook
+
+This runbook is for the development instance only. Ticketmaster Discovery is
+an official event-summary source, not listing inventory. Attraction ID:
+`K8vZ9171oU7`.
+
+| Setting | Development value |
+| --- | --- |
+| Credential variable | `TICKETMASTER_API_KEY` |
+| Environment file | `/etc/sfz-ticket-finder/dev.env` (root:root, `0600`) |
+| Runtime root | `/var/lib/sfz-ticket-finder/dev` |
+| Published data | `/var/lib/sfz-ticket-finder/dev/current` |
+| Service | `sfz-ticket-sync@dev.service` |
+| Timer | `sfz-ticket-sync@dev.timer` |
+| Web mount | current snapshot at `/usr/share/nginx/html/data/tickets:ro` (or the repository Nginx alias-equivalent) |
+| Build mode | `SFZ_TICKET_DATA_MODE=beta` |
+
+The env file sets `TICKETS_ENV=development`, `TICKETS_FIXTURE=false`,
+`TICKETMASTER_ATTRACTION_ID=K8vZ9171oU7`, `TICKETMASTER_API_KEY`, and:
+
+```text
+TICKETS_PROVIDERS_JSON={"ticketmaster":{"enabled":true,"mode":"event-summary","minRefreshMs":900000,"retentionMs":3600000}}
+TICKET_DATA_ROOT=/var/lib/sfz-ticket-finder/dev
+TICKET_SYNC_ENV_FILE=/etc/sfz-ticket-finder/dev.env
+```
+
+Never display the env file. Enter the key through a non-echoing interactive
+editor or `read -rsp` in an authorized root shell. The Consumer Secret is not
+used. Only `current/` is public; credentials, `previous/`, `tmp/`, and `logs/`
+must not be mounted.
+
+Commands:
+
+```sh
+sudo systemctl start sfz-ticket-sync@dev.service
+sudo systemctl status sfz-ticket-sync@dev.service sfz-ticket-sync@dev.timer --no-pager
+sudo journalctl -u sfz-ticket-sync@dev.service --since today --no-pager -o cat
+```
+
+The journal is designed to contain bounded event names/counts and error codes,
+never request URLs or credentials. The timer refreshes every 15 minutes with a
+random delay and persistent catch-up. Publication is validated, locked, and
+atomic; failure preserves the last-good snapshot.
+
+The matcher rejects promotional shells (including `HALF PRICE`), parking,
+tailgates, hospitality-only products, hotel/travel packages, season-ticket
+notification/interest lists, deposits, and watch parties. Ambiguous duplicate
+candidates are suppressed. Unmatched games receive no fabricated URL.
+
+Discovery may omit `priceRanges`; the beta then says that Ticketmaster did not
+supply a price. If ranges later appear they remain provider-reported event
+summaries and are not cheapest-sort eligible. Quantity, section, row, seats,
+listing IDs, and fee-complete totals require separately approved listing APIs.
+Inventory Status API access remains future work, as do listing-level
+marketplaces and their rights/retention reviews.
+
+## Rollback
+
+Replace the timestamp placeholder with the backup created immediately before
+installation; do not remove last-good runtime data.
+
+```sh
+sudo systemctl disable --now sfz-ticket-sync@dev.timer
+sudo systemctl stop sfz-ticket-sync@dev.service
+sudo cp -a /path/to/dev/docker-compose.yml.before-ticket-sync.TIMESTAMP /path/to/dev/docker-compose.yml
+sudo cp -a /path/to/dev/default.conf.before-ticket-sync.TIMESTAMP /path/to/dev/default.conf
+sudo systemctl disable sfz-ticket-sync@dev.service
+sudo systemctl daemon-reload
+docker compose -f /path/to/dev/docker-compose.yml config
+docker compose -f /path/to/dev/docker-compose.yml up -d --no-deps --force-recreate web
+SFZ_TICKET_DATA_MODE=preview npm run build:offline
+```
+
+Use the dev integrator's release activation command for the final preview
+build. Do not run these commands against production or port 4322.

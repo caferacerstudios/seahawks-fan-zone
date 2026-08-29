@@ -87,28 +87,38 @@ export async function runTicketSync(config, options = {}) {
         for (const item of cached.events) { const target = eventMap.get(item.eventKey); if (target) { if (item.reference) target.references.push({ ...item.reference, state: "cached" }); target.listings.push(...item.listings); } }
         providerStatuses.push({ ...prior, state: "cached", nextEligibleAttempt: iso(eligibleAt) }); log(sink, "info", "provider_complete", { provider: provider.id, state: "cached", counts: prior.counts }); continue;
       }
-      const counts = { fresh: 0, stale: 0, rejected: 0, unmatched: 0 };
+      const counts = { fresh: 0, stale: 0, rejected: 0, unmatched: 0 }; const rejectedEvents = []; const unmatchedEvents = [];
       try {
-        const payload = await provider.adapter.sync({ fixture: config.fixture, fixtureFile: config.fixtureFile });
+        const payload = await provider.adapter.sync({ fixture: config.fixture, fixtureFile: config.fixtureFile, apiKey: provider.apiKey, attractionId: provider.attractionId, timeoutMs: provider.timeoutMs, fetch: options.fetch });
         if (!Array.isArray(payload.events)) throw Object.assign(new Error("Invalid provider payload."), { code: "INVALID_RESPONSE" });
         const additions = [];
         for (const rawEvent of payload.events.slice(0, 100)) {
-          const candidates = games.map((game) => ({ game, result: evaluateProviderEvent(game, { ...rawEvent, provider: provider.id }, { provider: provider.id, overrides }) })).filter(({ result }) => result.publishable);
-          if (candidates.length !== 1) { if (candidates.length === 0) counts.unmatched += 1; else counts.rejected += 1; continue; }
+          const evaluated = games.map((game) => ({ game, result: evaluateProviderEvent(game, { ...rawEvent, provider: provider.id }, { provider: provider.id, overrides }) }));
+          const candidates = evaluated.filter(({ result }) => result.publishable);
+          if (candidates.length !== 1) {
+            const reasons = [...new Set(evaluated.flatMap(({ result }) => result.reasons))];
+            if (reasons.some((reason) => ["promotional-event-shell", "travel-package", "season-ticket-interest-list", "parking-event", "tailgate-package", "hospitality-only", "watch-party", "deposit-product"].includes(reason))) { counts.rejected += 1; rejectedEvents.push({ providerEventId: String(rawEvent.id ?? ""), name: String(rawEvent.name ?? "").slice(0, 160), reasons }); }
+            else { counts.unmatched += 1; unmatchedEvents.push({ providerEventId: String(rawEvent.id ?? ""), name: String(rawEvent.name ?? "").slice(0, 160), reasons }); }
+            continue;
+          }
           const { game, result } = candidates[0];
           if (rawEvent.canonicalUrl != null) {
             const eventUrl = new URL(rawEvent.canonicalUrl);
             if (eventUrl.protocol !== "https:" || !provider.adapter.allowedHosts.includes(eventUrl.hostname) || eventUrl.username || eventUrl.password) throw Object.assign(new Error("Invalid provider event URL."), { code: "INVALID_RESPONSE" });
             for (const key of eventUrl.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key)) throw Object.assign(new Error("Secret-like provider event URL."), { code: "INVALID_RESPONSE" });
           }
-          const addition = { eventKey: result.eventKey, reference: { provider: provider.id, providerEventId: String(rawEvent.id), mode: provider.mode, matchConfidence: result.confidence, canonicalUrl: rawEvent.canonicalUrl ?? null, state: "fresh", fetchedAt: now }, listings: [] };
+          const addition = { eventKey: result.eventKey, reference: { provider: provider.id, providerEventId: String(rawEvent.id), mode: provider.mode, matchConfidence: result.confidence, canonicalUrl: rawEvent.canonicalUrl ?? null, state: "fresh", fetchedAt: now, expiresAt: iso(started + provider.minRefreshMs), summary: provider.mode === "event-summary" ? { name: rawEvent.name, attractions: rawEvent.attractions, venue: rawEvent.venue, startTimeUtc: rawEvent.startTimeUtc, localDate: rawEvent.localDate, localTime: rawEvent.localTime, timeZone: rawEvent.timeZone, eventStatus: rawEvent.eventStatus, salesStatus: rawEvent.salesStatus, classifications: rawEvent.classifications, priceRanges: rawEvent.priceRanges, allInclusivePricing: rawEvent.allInclusivePricing } : null }, listings: [] };
           if (provider.mode === "listing-level") for (const rawListing of (rawEvent.listings || []).slice(0, 2_000)) {
             try { addition.listings.push(listing(rawListing, provider, game, now)); counts.fresh += 1; } catch { counts.rejected += 1; }
           }
           additions.push(addition);
         }
-        for (const addition of additions) { const target = eventMap.get(addition.eventKey); target.references.push(addition.reference); target.listings.push(...addition.listings); }
-        providerStatuses.push({ provider: provider.id, mode: provider.mode, state: "success", errorCode: null, lastSuccess: now, lastAttempt: now, nextEligibleAttempt: iso(started + provider.minRefreshMs), counts });
+        const ambiguousKeys = new Set(additions.map(({ eventKey }) => eventKey).filter((key, index, all) => all.indexOf(key) !== index));
+        for (const addition of additions) {
+          if (ambiguousKeys.has(addition.eventKey)) { counts.rejected += 1; rejectedEvents.push({ providerEventId: addition.reference.providerEventId, name: addition.reference.summary?.name ?? "", reasons: ["multiple-high-confidence-candidates"] }); continue; }
+          const target = eventMap.get(addition.eventKey); target.references.push(addition.reference); target.listings.push(...addition.listings);
+        }
+        providerStatuses.push({ provider: provider.id, mode: provider.mode, state: "success", errorCode: null, lastSuccess: now, lastAttempt: now, nextEligibleAttempt: iso(started + provider.minRefreshMs), counts, rejectedEvents, unmatchedEvents });
         log(sink, "info", "provider_complete", { provider: provider.id, state: "success", counts });
       } catch (error) {
         degraded = true; const retained = priorProviderData(previous, provider.id, started, provider.retentionMs, true);

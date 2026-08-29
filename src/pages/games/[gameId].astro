@@ -544,6 +544,7 @@ const relatedPlayers = [...seaLeaders, ...seaSeasonLeaders].filter((leader, lead
 const continueGroups = game ? [
   { title: `${weekLabel} and ${opponentName}`, links: [
     { href: "/schedule", label: "Schedule entry" },
+    ...(!completed && !/cancel/i.test(String(game?.status ?? "")) ? [{ href: `/tickets?game=${encodeURIComponent(String(game?.id ?? game?.game_id))}`, label: "Compare tickets" }] : []),
     ...sameOpponentGames.map((row) => ({ href: `/games/${encodeURIComponent(gameKey(row, ordered.indexOf(row)))}`, label: `${isFinal(row) ? "Recap" : "Game center"}: ${teamName(seaIsHome(row) ? row?.visitor_team : row?.home_team, oppAbbr(row))}` })),
   ] },
   { title: "Season context", links: [{ href: "/standings", label: "NFC West standings" }, { href: "/team", label: "Team stats" }, { href: "/weekly-recap", label: "Recap archive" }] },

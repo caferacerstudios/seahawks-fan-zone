@@ -52,6 +52,7 @@ const navPages = [
   { href: "/history", label: "History" },
 ];
 const morePages: Array<{ href: string; label: string; match?: string[] }> = [
+  ...(import.meta.env.SFZ_TICKET_DATA_MODE === "beta" ? [{ href: "/tickets", label: "Tickets Beta" }] : []),
   { href: "/standings", label: "Standings" },
   { href: latestRecapHref, label: "Latest Recap", match: ["/games"] },
   { href: "/weekly-recap", label: "Recap Archive" },
