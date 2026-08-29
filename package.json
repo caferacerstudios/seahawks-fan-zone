@@ -12,6 +12,10 @@
     "prebuild": "node scripts/fetch-nfl.mjs && node scripts/generate-game-recaps.mjs && node scripts/generate-player-profiles.mjs",
     "build": "npm run prebuild && astro build",
 
+    "test:tickets": "node --test tests/tickets.test.mjs",
+    "validate:tickets": "node scripts/tickets/validate-fixtures.mjs",
+    "build:offline": "ASTRO_TELEMETRY_DISABLED=1 astro build",
+
     "preview": "astro preview",
     "astro": "astro",
     "fetch-ebay": "node scripts/fetch-ebay.mjs"
