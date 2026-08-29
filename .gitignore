@@ -3,6 +3,9 @@ dist/
 # generated types
 .astro/
 
+# server-generated ticket snapshots
+runtime/tickets/
+
 # dependencies
 node_modules/
 
