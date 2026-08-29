@@ -4,11 +4,13 @@ import ArticleCard from "../../../components/ArticleCard.astro";
 import { NEWS_PAGE_SIZE, publishedArticles, type NewsArticle } from "../../../lib/news";
 
 export function getStaticPaths() {
-  const pageCount = Math.ceil(Math.max(0, publishedArticles.length - 1) / NEWS_PAGE_SIZE);
+  const lead = publishedArticles.find((article) => article.featured) ?? publishedArticles[0];
+  const archiveArticles = publishedArticles.filter((article) => article !== lead);
+  const pageCount = Math.ceil(archiveArticles.length / NEWS_PAGE_SIZE);
   return Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) => {
     const page = index + 2;
-    const start = 1 + (page - 1) * NEWS_PAGE_SIZE;
-    return { params: { page: String(page) }, props: { page, pageCount, articles: publishedArticles.slice(start, start + NEWS_PAGE_SIZE) } };
+    const start = (page - 1) * NEWS_PAGE_SIZE;
+    return { params: { page: String(page) }, props: { page, pageCount, articles: archiveArticles.slice(start, start + NEWS_PAGE_SIZE) } };
   });
 }
 interface Props { page: number; pageCount: number; articles: NewsArticle[]; }

@@ -377,6 +377,18 @@ export const publishedArticles = articles
   .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
 export const NEWS_PAGE_SIZE = 6;
+export const populatedNewsCategories = NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category));
 export const categorySlug = (category: NewsCategory) => category.toLowerCase().replaceAll(" ", "-");
 export const formatArticleDate = (value: string) => new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(value));
 export const materiallyUpdated = (article: NewsArticle) => new Date(article.updatedAt).getTime() - new Date(article.publishedAt).getTime() >= 60 * 60 * 1000;
+export const articleReadingMinutes = (article: NewsArticle) => {
+  const text = article.body.map((block) => {
+    if (typeof block === "string") return block;
+    if (block.type === "heading") return block.heading;
+    if (block.type === "paragraph") return block.html;
+    if (block.type === "table") return [block.caption, block.note, ...block.rows.flatMap((row) => row.cells)].join(" ");
+    if (block.type === "timeline" || block.type === "watchlist") return block.items.map((item) => `${item.label} ${item.html}`).join(" ");
+    return [block.heading, ...block.known, ...block.unknown, block.milestone].join(" ");
+  }).join(" ").replace(/<[^>]*>/g, " ").replace(/&[a-z0-9#]+;/gi, " ");
+  return Math.max(1, Math.ceil(text.split(/\s+/).filter(Boolean).length / 225));
+};

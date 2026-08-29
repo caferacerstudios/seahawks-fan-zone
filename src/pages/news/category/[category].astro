@@ -1,16 +1,16 @@
 ---
 import SeahawksLayout from "../../../layouts/SeahawksLayout.astro";
 import ArticleCard from "../../../components/ArticleCard.astro";
-import { NEWS_CATEGORIES, categorySlug, publishedArticles, type NewsArticle, type NewsCategory } from "../../../lib/news";
+import { categorySlug, populatedNewsCategories, publishedArticles, type NewsArticle, type NewsCategory } from "../../../lib/news";
 
-export function getStaticPaths() { return NEWS_CATEGORIES.map((category) => ({ params: { category: categorySlug(category) }, props: { category, articles: publishedArticles.filter((article) => article.category === category) } })); }
+export function getStaticPaths() { return populatedNewsCategories.map((category) => ({ params: { category: categorySlug(category) }, props: { category, articles: publishedArticles.filter((article) => article.category === category) } })); }
 interface Props { category: NewsCategory; articles: NewsArticle[]; }
 const { category, articles } = Astro.props;
 const hasArticles = articles.length > 0;
 const seo = { title: `${category} | Seahawks Fan Zone Newsroom`, description: `Original Seattle Seahawks ${category.toLowerCase()} coverage and context from Seahawks Fan Zone.`, canonicalPath: `/news/category/${categorySlug(category)}`, robots: hasArticles ? "index, follow" : "noindex, follow" };
 ---
 <SeahawksLayout {seo} activePath="/news" pageTitle={category} pageTagline={`Seahawks ${category.toLowerCase()} from the Fan Zone newsroom.`} pageType="news-category" articleCategory={category} monetizationEligible={hasArticles} quickLinks={[{href:"/news",label:"All news"},{href:"/news/rss.xml",label:"RSS feed"}]}>
-  <nav class="category-nav" aria-label="Other news categories">{NEWS_CATEGORIES.filter((item) => item !== category).map((item) => <a href={`/news/category/${categorySlug(item)}/`}>{item}</a>)}</nav>
+  <nav class="category-nav" aria-label="Other news categories">{populatedNewsCategories.filter((item) => item !== category).map((item) => <a href={`/news/category/${categorySlug(item)}/`}>{item}</a>)}</nav>
   {hasArticles ? <div class="category-grid">{articles.map((article) => <ArticleCard article={article} />)}</div> : <section class="category-empty"><p>Category archive</p><h2>No published {category.toLowerCase()} stories</h2><span>This category currently contains no published coverage and is excluded from search indexing. Browse the newsroom for available reporting and analysis.</span><a href="/news">Return to the newsroom →</a></section>}
   <style>.category-nav{display:flex;gap:.4rem;overflow:auto;margin-bottom:1.5rem}.category-nav a{white-space:nowrap;padding:.45rem .65rem;background:var(--slate-100);color:var(--navy-900);font-size:.75rem;font-weight:850;text-decoration:none}.category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.category-empty{padding:clamp(1.3rem,5vw,2.5rem);border:1px dashed var(--slate-500);background:linear-gradient(135deg,#edf2f4,#fff)}.category-empty p{color:#386f13;font:900 .72rem var(--font-display);letter-spacing:.1em;text-transform:uppercase}.category-empty h2{margin:.3rem 0}.category-empty span{display:block;max-width:620px;color:var(--slate-700)}.category-empty a{display:inline-block;margin-top:1rem;font-weight:900}@media(max-width:600px){.category-grid{grid-template-columns:1fr}}</style>
 </SeahawksLayout>

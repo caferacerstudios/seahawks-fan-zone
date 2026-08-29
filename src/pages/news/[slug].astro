@@ -2,23 +2,14 @@
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import ArticleCard from "../../components/ArticleCard.astro";
 import { absoluteUrl, SITE_NAME } from "../../lib/seo";
-import { categorySlug, formatArticleDate, materiallyUpdated, publishedArticles, type NewsArticle } from "../../lib/news";
+import { articleReadingMinutes, categorySlug, formatArticleDate, materiallyUpdated, publishedArticles, type NewsArticle } from "../../lib/news";
 
 export function getStaticPaths() { return publishedArticles.map((article) => ({ params: { slug: article.slug }, props: { article } })); }
 interface Props { article: NewsArticle; }
 const { article } = Astro.props;
 const related = publishedArticles.filter((candidate) => candidate.slug !== article.slug && (candidate.category === article.category || candidate.tags.some((tag) => article.tags.includes(tag)))).slice(0, 2);
 const canonicalPath = `/news/${article.slug}`;
-const articleText = article.body.map((block) => {
-  if (typeof block === "string") return block;
-  if (block.type === "heading") return block.heading;
-  if (block.type === "paragraph") return block.html;
-  if (block.type === "table") return [block.caption, block.note, ...block.rows.flatMap((row) => row.cells)].join(" ");
-  if (block.type === "timeline" || block.type === "watchlist") return block.items.map((item) => `${item.label} ${item.html}`).join(" ");
-  if (block.type === "factbox") return [block.heading, ...block.known, ...block.unknown, block.milestone].join(" ");
-  return "";
-}).join(" ").replace(/<[^>]*>/g, " ").replace(/&[a-z0-9#]+;/gi, " ");
-const readingMinutes = Math.max(1, Math.ceil(articleText.split(/\s+/).filter(Boolean).length / 225));
+const readingMinutes = articleReadingMinutes(article);
 const showUpdatedDate = materiallyUpdated(article);
 const seo = { title: `${article.headline} | Seahawks Fan Zone`, description: article.dek, canonicalPath, openGraphTitle: article.headline, openGraphDescription: article.dek, openGraphImage: article.hero.src, article: { headline: article.headline, author: article.author, publishedTime: article.publishedAt, modifiedTime: article.updatedAt, image: article.hero.src, section: article.category } };
 const structuredData = { "@context":"https://schema.org", "@type":"Article", headline:article.headline, description:article.dek, datePublished:article.publishedAt, dateModified:article.updatedAt, mainEntityOfPage:absoluteUrl(canonicalPath), articleSection:article.category, keywords:article.tags.join(", "), author:{"@type":"Organization",name:article.author}, publisher:{"@type":"Organization",name:SITE_NAME,url:absoluteUrl("/")}, image:[absoluteUrl(article.hero.src)], isAccessibleForFree:true };
