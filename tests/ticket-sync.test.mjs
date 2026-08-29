@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { loadConfig } from "../scripts/tickets/config.mjs";
 import { runTicketSync } from "../scripts/tickets/pipeline.mjs";
 import { normalizeTicketmasterEvent, providerRegistry } from "../scripts/tickets/providers.mjs";
+import { evaluateProviderEvent, normalizeNflTeam, sfzEventKey } from "../src/lib/tickets/match.mjs";
+import { games as realSchedule, legitimateEvents, providerEvents, rejectedEvents } from "./fixtures/ticketmaster-discovery.mjs";
 
 test("Ticketmaster is approved only as a credentialed event-summary source", () => {
   const adapter = providerRegistry().ticketmaster;
@@ -18,6 +20,72 @@ test("Ticketmaster normalization preserves genuine summary capability without li
   const event = normalizeTicketmasterEvent({ id: "tm-1", name: "Seattle Seahawks vs. New England Patriots", url: "https://www.ticketmaster.com/event/tm-1", dates: { start: { dateTime: "2026-09-01T00:00:00Z", localDate: "2026-08-31", localTime: "17:00:00" }, timezone: "America/Los_Angeles", status: { code: "onsale" } }, _embedded: { attractions: [{ id: "K8vZ9171oU7", name: "Seattle Seahawks" }], venues: [{ name: "Lumen Field", city: { name: "Seattle" }, state: { stateCode: "WA" } }] }, classifications: [{ segment: { name: "Sports" }, genre: { name: "Football" } }] });
   assert.equal(event.id, "tm-1"); assert.deepEqual(event.priceRanges, []); assert.equal(event.allInclusivePricing, null);
   assert.equal(Object.hasOwn(event, "listings"), false);
+});
+
+test("all canonical NFL aliases used by the schedule normalize deterministically", () => {
+  const aliases = {
+    SEA: "Seattle Seahawks", ARI: "Arizona Cardinals", ATL: "Atlanta Falcons", BAL: "Baltimore Ravens",
+    BUF: "Buffalo Bills", CAR: "Carolina Panthers", CHI: "Chicago Bears", CIN: "Cincinnati Bengals",
+    CLE: "Cleveland Browns", DAL: "Dallas Cowboys", DEN: "Denver Broncos", DET: "Detroit Lions",
+    GB: "Green Bay Packers", HOU: "Houston Texans", IND: "Indianapolis Colts", JAX: "Jacksonville Jaguars",
+    KC: "Kansas City Chiefs", LV: "Las Vegas Raiders", LAC: "Los Angeles Chargers", LAR: "Los Angeles Rams",
+    MIA: "Miami Dolphins", MIN: "Minnesota Vikings", NE: "New England Patriots", NO: "New Orleans Saints",
+    NYG: "New York Giants", NYJ: "New York Jets", PHI: "Philadelphia Eagles", PIT: "Pittsburgh Steelers",
+    SF: "San Francisco 49ers", TB: "Tampa Bay Buccaneers", TEN: "Tennessee Titans", WAS: "Washington Commanders",
+  };
+  for (const [abbreviation, name] of Object.entries(aliases)) {
+    assert.equal(normalizeNflTeam(abbreviation), abbreviation);
+    assert.equal(normalizeNflTeam({ id: `tm-${abbreviation}`, name }), abbreviation);
+  }
+});
+
+test("realistic normalized Ticketmaster Discovery events match the canonical schedule", (t) => {
+  const matched = []; const rejected = []; const unmatched = [];
+  for (const event of providerEvents) {
+    const evaluations = realSchedule.map((game) => ({ game, result: evaluateProviderEvent(game, event) }));
+    const publishable = evaluations.filter(({ result }) => result.publishable);
+    if (publishable.length === 1) matched.push({ event, ...publishable[0] });
+    else {
+      const reasons = [...new Set(evaluations.flatMap(({ result }) => result.reasons))];
+      if (rejectedEvents.includes(event)) rejected.push({ event, reasons });
+      else unmatched.push({ event, reasons });
+    }
+  }
+
+  assert.equal(matched.length, 16);
+  assert.equal(rejected.length, 3);
+  assert.equal(unmatched.length, 0);
+  assert.deepEqual(realSchedule.filter((game) => !matched.some(({ game: found }) => found === game)).map(sfzEventKey), ["sea:2026-regular-17-away-lar"]);
+  for (const { event, game, result } of matched) t.diagnostic(`${event.name} -> ${result.eventKey} -> ${game.opponent.abbreviation} -> ${game.isHome ? "home" : "away"} -> ${event.localDate} -> ${game.date} -> ${result.confidence}`);
+  for (const { event, reasons } of rejected) t.diagnostic(`${event.name} -> rejected -> ${reasons.filter((reason) => ["promotional-event-shell", "travel-package", "season-ticket-interest-list"].includes(reason)).join(",")}`);
+});
+
+test("provider team arrays accept names and normalized attraction objects without weakening order", () => {
+  const event = legitimateEvents[0]; const game = realSchedule[0];
+  assert.equal(evaluateProviderEvent(game, { ...event, teams: event.teams.map(({ name }) => name), attractions: [] }).publishable, true);
+  assert.equal(evaluateProviderEvent(game, event).evidence.homeAway, true);
+  assert.equal(evaluateProviderEvent({ ...game, homeTeam: game.awayTeam, awayTeam: game.homeTeam }, event).publishable, false);
+});
+
+test("non-admission product shells remain rejected even with exact game metadata", () => {
+  const event = legitimateEvents[0]; const game = realSchedule[0];
+  for (const [suffix, reason] of [
+    ["Parking Only", "parking-event"], ["Official Tailgate", "tailgate-package"],
+    ["Travel Package", "travel-package"], ["Hospitality Only", "hospitality-only"],
+    ["Deposit", "deposit-product"], ["Watch Party", "watch-party"],
+  ]) assert.ok(evaluateProviderEvent(game, { ...event, id: `shell-${reason}`, name: `${event.name} | ${suffix}` }).reasons.includes(reason));
+});
+
+test("Ticketmaster UTC rollovers use the provider local game date", () => {
+  const ids = ["vvG1HZ_F5JLE3p", "tm-den-away", "tm-kc-home", "tm-chi-home", "tm-dal-home", "tm-lar-home"];
+  for (const id of ids) {
+    const event = legitimateEvents.find((item) => item.id === id);
+    const game = realSchedule.find((item) => item.date === event.localDate && [item.homeTeam, item.awayTeam].some((team) => normalizeNflTeam(team) === normalizeNflTeam(event.teams.find((team) => normalizeNflTeam(team) !== "SEA"))));
+    const result = evaluateProviderEvent(game, event);
+    assert.notEqual(event.startTimeUtc.slice(0, 10), event.localDate);
+    assert.equal(result.evidence.date, true);
+    assert.equal(result.publishable, true);
+  }
 });
 
 const root = new URL("..", import.meta.url).pathname;

@@ -68,6 +68,21 @@ function providerTeams(event, attractionIds) {
   }).filter(Boolean);
   if (!home && event?.homeTeamId != null) home = attractionIds[String(event.homeTeamId)] ?? null;
   if (!away && event?.awayTeamId != null) away = attractionIds[String(event.awayTeamId)] ?? null;
+  if (!home || !away) {
+    // Discovery attractions identify the participants but do not identify their
+    // sides. Ticketmaster NFL titles consistently present HOME vs. AWAY, so use
+    // only an explicit separator and exact NFL aliases to recover that order.
+    const title = String(event?.name ?? event?.title ?? "").normalize("NFKD");
+    const parts = title.split(/\s+(?:vs?\.?|versus)\s+/i);
+    if (parts.length === 2) {
+      const titleHome = normalizeNflTeam(parts[0]);
+      const titleAway = normalizeNflTeam(parts[1]);
+      if (titleHome && titleAway && titleHome !== titleAway) {
+        home ??= titleHome;
+        away ??= titleAway;
+      }
+    }
+  }
   return { home, away, teams: new Set([home, away, ...teams].filter(Boolean)) };
 }
 
@@ -138,7 +153,14 @@ function dateEvidence(game, event) {
   const gameTime = game?.startsAt ? new Date(game.startsAt).getTime() : null;
   const providerTime = timestamps(event);
   const gameDate = game?.date ?? (Number.isFinite(gameTime) ? new Date(gameTime).toISOString().slice(0, 10) : null);
-  const providerDate = event?.localDate ?? event?.date ?? (Number.isFinite(providerTime) ? new Date(providerTime).toISOString().slice(0, 10) : null);
+  let providerDate = event?.localDate ?? event?.date ?? null;
+  if (!providerDate && Number.isFinite(providerTime) && event?.timeZone) {
+    try {
+      const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: event.timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(providerTime)).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+      providerDate = `${parts.year}-${parts.month}-${parts.day}`;
+    } catch { /* Fall through to UTC only when the provider supplied no usable zone. */ }
+  }
+  providerDate ??= Number.isFinite(providerTime) ? new Date(providerTime).toISOString().slice(0, 10) : null;
   return {
     dateKnown: Boolean(gameDate && providerDate),
     dateMatch: Boolean(gameDate && providerDate && gameDate === providerDate),
