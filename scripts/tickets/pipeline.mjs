@@ -9,7 +9,10 @@ const safeCode = (error) => /^[A-Z][A-Z0-9_]{1,63}$/.test(error?.code) ? error.c
 const iso = (ms) => new Date(ms).toISOString();
 const log = (sink, level, event, fields = {}) => sink(JSON.stringify({ level, event, ...fields }));
 const json = async (path) => JSON.parse(await readFile(path, "utf8"));
-const writeJson = (path, value) => writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+// Published snapshots are public HTTP data. Keep them owner-writable but
+// readable by the unrelated Nginx container UID; credentials never enter this
+// validated contract or output tree.
+const writeJson = (path, value) => writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
 
 function sanitizeNotes(notes) {
   if (!Array.isArray(notes)) return [];
