@@ -26,6 +26,19 @@ test("normalizes preseason and selects it as the next same-day event", () => {
   assert.equal(nextScheduleEvent(schedule.games, new Date("2026-08-28T12:00:00Z")).id, "pre-1");
 });
 
+test("classifies provider games when postseason is the only season-type field", () => {
+  const schedule = normalizeSchedule({ season: 2026, games: [
+    game("provider-pre", 3, "2026-08-28T19:00:00Z", { season_type: undefined, postseason: false }),
+    game("provider-regular", 1, "2026-09-13T20:00:00Z", { season_type: undefined, postseason: false }),
+    game("provider-post", 1, "2027-01-17T20:00:00Z", { season_type: undefined, postseason: true }),
+  ] });
+  assert.deepEqual(schedule.games.map(({ id, phase }) => [id, phase]), [
+    ["provider-pre", "preseason"],
+    ["provider-regular", "regular"],
+    ["provider-post", "postseason"],
+  ]);
+});
+
 test("represents the missing week in a 17-game slate as a bye", () => {
   const games = Array.from({ length: 18 }, (_, index) => index + 1)
     .filter((week) => week !== 11)
