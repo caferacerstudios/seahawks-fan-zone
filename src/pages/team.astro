@@ -4,13 +4,12 @@ import path from "node:path";
 
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import SeasonContextView from "../components/SeasonContext.astro";
-import { getAvailableSeasonContexts, getSeasonContext, unavailableMessage } from "../lib/season-context";
+import SeasonState from "../components/SeasonState.astro";
+import { getSeasonContext } from "../lib/season-context";
 import data from "../data/nfl/seahawks.json";
 
 const t = data.team;
-const seasonContext = getSeasonContext(data, "regular season");
-const seasonOptions = getAvailableSeasonContexts(data, "regular season");
-const pageTitle = `Team Stats (${seasonContext.label})`;
+const currentSeasonContext = getSeasonContext(data, "regular season");
 
 const logoRelBase = "/images/nfl/teams";
 const projectRoot = Astro.root ?? process.cwd();
@@ -327,10 +326,36 @@ const rushYds = read(s, ["rushing_yards", "rush_yards", "rushingYards"]);
 const rushYdsPerGame = read(s, ["rushing_yards_per_game", "rush_yards_per_game", "rushingYardsPerGame"]);
 
 const recYds = read(s, ["receiving_yards", "receivingYards"]);
+const statisticsSeason = Number(data?.playerStatsSeason ?? currentSeasonContext.sourceSeason ?? currentSeasonContext.seasonYear);
+const currentSeason = Number(currentSeasonContext.seasonYear);
+const showingPriorSeason = Number.isInteger(statisticsSeason) && statisticsSeason < currentSeason;
+const hasMeaningfulStatistics = Boolean(s) && [gamesPlayed, totalPoints, totalOffYds, passYds, rushYds, recYds]
+  .some((value) => isNum(value) && Number(value) > 0);
+const statisticsContext = {
+  ...currentSeasonContext,
+  seasonYear: Number.isInteger(statisticsSeason) ? statisticsSeason : currentSeasonContext.seasonYear,
+  sourceSeason: Number.isInteger(statisticsSeason) ? statisticsSeason : currentSeasonContext.sourceSeason,
+  seasonStatus: showingPriorSeason ? "complete" : currentSeasonContext.seasonStatus,
+  label: `${Number.isInteger(statisticsSeason) ? statisticsSeason : "Unknown"} Regular Season`,
+  hasData: hasMeaningfulStatistics,
+  hasStatistics: hasMeaningfulStatistics,
+};
+const pageTitle = `Seattle Seahawks Team Statistics`;
 ---
 
-<SeahawksLayout pageTitle={pageTitle} pageTagline="Season totals and splits" activePath="/team" pageType="team" season={seasonContext.seasonYear}>
-  <SeasonContextView context={seasonContext} options={seasonOptions} prefix="Data through" />
+<SeahawksLayout title={`${statisticsContext.label} Seattle Seahawks Team Statistics`} description={`Verified Seattle Seahawks team totals for the ${statisticsContext.label.toLowerCase()}, with current-season availability clearly identified.`} pageTitle={pageTitle} pageTagline={`Verified scoring and offensive totals, labeled for the season they describe.`} activePath="/team" pageType="team" season={statisticsContext.seasonYear}>
+  {showingPriorSeason && <SeasonState
+    title={`Showing final ${statisticsSeason} statistics`}
+    explanation={`${currentSeason} regular-season statistics will appear once games are played. Showing final ${statisticsSeason} results below.`}
+    actionHref="/schedule"
+    actionLabel={`View the ${currentSeason} schedule`}
+    priorHref="/players"
+    priorLabel={`${statisticsSeason} player statistics`}
+    icon="ST"
+  />}
+  <div class:list={{ "context-after-state": showingPriorSeason }}>
+    <SeasonContextView context={statisticsContext} options={[statisticsContext]} prefix="Data through" />
+  </div>
   <div class="sfz-team-header">
     {seahawksLogo ? (
       <img class="sfz-team-logo" src={seahawksLogo} alt="SEA logo" width="64" height="64" loading="lazy" decoding="async" />
@@ -348,18 +373,23 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
     </div>
   </div>
 
-  {!seasonContext.hasStatistics || seasonContext.seasonStatus === "upcoming" || !s ? (
-    <div class="sfz-empty">
-      <strong>No team season stats found.</strong>
-      <div class="sfz-empty-sub">{unavailableMessage(seasonContext)}</div>
-    </div>
+  {!hasMeaningfulStatistics ? (
+    <SeasonState
+      title={`${currentSeason} statistics are not available yet`}
+      explanation={`${currentSeason} regular-season statistics will appear once games are played. No unavailable values have been converted to zero.`}
+      actionHref="/schedule"
+      actionLabel="View the schedule"
+      priorHref="/history"
+      priorLabel="Explore Seahawks history"
+      icon="ST"
+    />
   ) : (
     <div class="sfz-cards">
       {s.__computed && (
         <div class="sfz-computed">
           <strong>Computed totals</strong>
           <div class="sfz-computed-sub">
-            Computed from available {seasonContext.label} source values.
+            Computed from available {statisticsContext.label} source values.
           </div>
         </div>
       )}
@@ -449,6 +479,7 @@ const recYds = read(s, ["receiving_yards", "receivingYards"]);
     .sfz-updated{ margin-top:.35rem; color:rgba(15,23,32,0.6); font-weight:700; font-size:.92rem; }
 
     .sfz-cards{ display:grid; grid-template-columns:1fr; gap:.9rem; }
+    .context-after-state{margin-top:.85rem}
 
     .sfz-computed{
       border-radius:16px; border:1px solid rgba(0,34,68,0.14);

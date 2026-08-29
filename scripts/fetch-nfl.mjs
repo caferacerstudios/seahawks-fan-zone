@@ -139,6 +139,27 @@ function assertNonEmptyArray(name, arr) {
   }
 }
 
+// Recap copy is durable across season rollovers. Before replacing the schedule,
+// attach the old game's sourced metadata to each existing recap so the archive
+// can still render dates, opponents, and final scores without another request.
+function preserveRecapGameSnapshots(existingSchedulePath, recapPath) {
+  if (!fs.existsSync(existingSchedulePath) || !fs.existsSync(recapPath)) return;
+  const existingSchedule = JSON.parse(fs.readFileSync(existingSchedulePath, "utf8"));
+  const recapStore = JSON.parse(fs.readFileSync(recapPath, "utf8"));
+  const games = Array.isArray(existingSchedule?.games)
+    ? existingSchedule.games
+    : [...(existingSchedule?.gamesPreseason || []), ...(existingSchedule?.gamesRegular || []), ...(existingSchedule?.gamesPostseason || [])];
+  const gamesById = new Map(games.map((game, index) => [String(game?.id ?? game?.game_id ?? index), game]));
+  let changed = false;
+  for (const [id, recap] of Object.entries(recapStore?.recaps ?? {})) {
+    if (recap?.game || !gamesById.has(id)) continue;
+    recap.game = gamesById.get(id);
+    recap.season ??= existingSchedule?.season ?? null;
+    changed = true;
+  }
+  if (changed) safeWriteJson(recapPath, recapStore);
+}
+
 async function main() {
   if (!API_KEY) throw new Error("Missing BALLDONTLIE_API_KEY env var.");
   // 1) Find Seahawks team id
@@ -237,7 +258,7 @@ async function main() {
   const updatedAt = new Date().toISOString();
   const phasedStandings = buildPhasedStandings({ season: SEASON, updatedAt, games: leagueGames, teams });
 
-  const outCombined = {
+  const currentSeasonPayload = {
     team: {
       id: team.id,
       abbreviation: team.abbreviation,
@@ -262,11 +283,18 @@ async function main() {
   const combinedPath = path.join(outDir, "seahawks.json");
   const playersPath = path.join(outDir, "players.json");
   const standingsPath = path.join(outDir, "standings.json");
+  const recapsPath = path.join(outDir, "gameRecaps.json");
+  const previousSnapshot = fs.existsSync(combinedPath) ? JSON.parse(fs.readFileSync(combinedPath, "utf8")) : null;
+  const previousSeasons = (Array.isArray(previousSnapshot?.seasons) ? previousSnapshot.seasons : previousSnapshot ? [previousSnapshot] : [])
+    .filter((record) => Number(record?.season) !== Number(SEASON))
+    .map(({ seasons, ...record }) => record);
+  const outCombined = { ...currentSeasonPayload, seasons: [...previousSeasons, currentSeasonPayload] };
 
   // Safety checks: don't overwrite with obviously broken payloads
   assertNonEmptyArray("gamesRegular", gamesRegular);
   assertNonEmptyArray("playerSeasonStats", enriched);
 
+  preserveRecapGameSnapshots(combinedPath, recapsPath);
   safeWriteJson(combinedPath, outCombined);
   console.log(`wrote ${path.relative(process.cwd(), combinedPath)}`);
 
