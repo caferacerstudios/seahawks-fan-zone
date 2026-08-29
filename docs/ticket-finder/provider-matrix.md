@@ -9,7 +9,7 @@ Repository evidence contains no provider contracts, credentials, API clients, ap
 | Ticketmaster | PENDING | PENDING (event-level or listing-level) | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
 | SeatGeek | PENDING | PENDING (event-level or listing-level) | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
 | StubHub | PENDING | PENDING (event-level or listing-level) | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | Blocked checklist: `provider-rights/StubHub.md` (not approval evidence) | DISABLED — rights summary incomplete |
-| TickPick | PENDING | PENDING (event-level or listing-level) | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
+| TickPick | PENDING | PENDING (event-level or listing-level) | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | Blocked checklist: `provider-rights/TickPick.md` (not approval evidence) | DISABLED — rights summary incomplete |
 | TicketNetwork | PENDING | PENDING (event-level or listing-level) | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
 | Vivid Seats | PENDING | PENDING (event-level or listing-level) | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
 | Gametime | PENDING | PENDING (event-level or listing-level) | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |

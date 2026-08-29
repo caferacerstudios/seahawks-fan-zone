@@ -10,6 +10,13 @@ const shells = Object.freeze({
     allowedHosts: [],
     async sync() { throw Object.assign(new Error("StubHub rights approval is incomplete."), { code: "RIGHTS_APPROVAL_REQUIRED" }); },
   }),
+  tickpick: Object.freeze({
+    id: "tickpick",
+    approvalStatus: "pending",
+    credentialEnv: null,
+    allowedHosts: [],
+    async sync() { throw Object.assign(new Error("TickPick rights approval is incomplete."), { code: "RIGHTS_APPROVAL_REQUIRED" }); },
+  }),
   "provider-shell": Object.freeze({
     id: "provider-shell",
     credentialEnv: "TICKETS_PROVIDER_SHELL_API_KEY",

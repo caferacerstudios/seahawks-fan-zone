@@ -34,6 +34,30 @@ test("StubHub is reported disabled by default and makes no adapter call", async 
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 
+test("TickPick remains fail-closed while its rights summary is pending", async () => {
+  const adapter = providerRegistry().tickpick;
+  assert.equal(adapter.approvalStatus, "pending");
+  assert.equal(adapter.credentialEnv, null);
+  assert.deepEqual(adapter.allowedHosts, []);
+  assert.throws(
+    () => loadConfig({ TICKETS_PROVIDERS_JSON: JSON.stringify({ tickpick: { enabled: true, mode: "listing-level" } }) }, root),
+    /cannot be enabled until its operator-reviewed rights summary is complete/,
+  );
+  await assert.rejects(adapter.sync({}), { code: "RIGHTS_APPROVAL_REQUIRED" });
+});
+
+test("TickPick is reported disabled by default and makes no adapter call", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-tickpick-disabled-"));
+  try {
+    const config = loadConfig({ TICKETS_OUTPUT_DIR: join(temporary, "snapshot") }, root);
+    const status = await runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), log: () => {} });
+    const tickpick = status.providers.find(({ provider }) => provider === "tickpick");
+    assert.equal(tickpick.state, "disabled");
+    assert.equal(tickpick.lastAttempt, null);
+    assert.deepEqual(tickpick.counts, { fresh: 0, stale: 0, rejected: 0, unmatched: 0 });
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
 test("fixture mode publishes a complete lightweight snapshot without network", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-sync-"));
   try {
