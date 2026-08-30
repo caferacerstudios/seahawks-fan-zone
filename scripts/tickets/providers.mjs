@@ -50,9 +50,22 @@ export function ticketmasterSeasonWindow(games) {
   return { startDate: dates[0], endDate: dates.at(-1) };
 }
 
-const ticketmasterEvents = (body) => {
-  if (!body || typeof body !== "object" || Array.isArray(body) || (body._embedded != null && (!body._embedded || typeof body._embedded !== "object" || Array.isArray(body._embedded))) || (body._embedded?.events != null && !Array.isArray(body._embedded.events)) || (body.page != null && (!Number.isSafeInteger(body.page.number) || !Number.isSafeInteger(body.page.totalPages)))) throw Object.assign(new Error("Ticketmaster Discovery returned a malformed response."), { code: "INVALID_RESPONSE" });
-  return body._embedded?.events ?? [];
+const ticketmasterEvents = (body, expectedPage) => {
+  const events = body?._embedded?.events ?? [];
+  const invalidPage = body?.page != null && (
+    !Number.isSafeInteger(body.page.number) || body.page.number < 0 || body.page.number !== expectedPage ||
+    !Number.isSafeInteger(body.page.totalPages) || body.page.totalPages < 0
+  );
+  const invalidEvents = !Array.isArray(events) || events.some((event) =>
+    !event || typeof event !== "object" || Array.isArray(event) ||
+    typeof event.id !== "string" || !event.id.trim() || typeof event.name !== "string" || !event.name.trim()
+  );
+  if (!body || typeof body !== "object" || Array.isArray(body) ||
+      (body._embedded != null && (!body._embedded || typeof body._embedded !== "object" || Array.isArray(body._embedded))) ||
+      invalidPage || invalidEvents) {
+    throw Object.assign(new Error("Ticketmaster Discovery returned a malformed response."), { code: "INVALID_RESPONSE" });
+  }
+  return events;
 };
 
 async function syncTicketmaster(context) {
@@ -73,14 +86,14 @@ async function syncTicketmaster(context) {
     const response = await request(url); requests += 1;
     let body;
     try { body = await response.json(); } catch { throw Object.assign(new Error("Ticketmaster Discovery returned invalid JSON."), { code: "INVALID_RESPONSE" }); }
-    collected.push(...ticketmasterEvents(body));
+    collected.push(...ticketmasterEvents(body, page));
     const totalPages = body.page?.totalPages ?? 1;
     page += 1;
     if (!season || page >= totalPages || page >= maxPages || requests >= maxRequests) break;
   } while (true);
   if (!season) return { events: [normalizeTicketmasterEvent(matchTicketmasterEvent(collected, context))] };
   const unique = new Map();
-  for (const event of collected) if (event?.id != null && !unique.has(String(event.id))) unique.set(String(event.id), event);
+  for (const event of collected) if (!unique.has(event.id)) unique.set(event.id, event);
   return { events: [...unique.values()].map(normalizeTicketmasterEvent) };
 }
 

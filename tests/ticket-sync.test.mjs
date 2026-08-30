@@ -97,6 +97,13 @@ test("Ticketmaster season discovery caps provider-declared pagination and reques
 test("Ticketmaster season discovery rejects malformed pages and honors timeout/retry/spacing settings", async () => {
   const base = { apiKey: "test", discoveryMode: "season", attractionId: "verified", games: realSchedule, timeoutMs: 10, pageSize: 10, maxPages: 2, maxRequests: 2 };
   await assert.rejects(providerRegistry().ticketmaster.sync({ ...base, maxRetries: 0, rateLimitMs: 0, fetch: async () => ({ ok: true, json: async () => ({ _embedded: { events: {} } }) }) }), { code: "INVALID_RESPONSE" });
+  for (const body of [
+    { _embedded: { events: [{ name: "Missing provider ID" }] } },
+    { _embedded: { events: [{ id: "missing-name" }] } },
+    { _embedded: { events: [] }, page: { number: -1, totalPages: 1 } },
+    { _embedded: { events: [] }, page: { number: 1, totalPages: 2 } },
+    { _embedded: { events: [] }, page: { number: 0, totalPages: -1 } },
+  ]) await assert.rejects(providerRegistry().ticketmaster.sync({ ...base, maxRetries: 0, rateLimitMs: 0, fetch: async () => ({ ok: true, json: async () => body }) }), { code: "INVALID_RESPONSE" });
   await assert.rejects(providerRegistry().ticketmaster.sync({ ...base, maxRetries: 0, rateLimitMs: 0, fetch: async (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }))))) }), { code: "REQUEST_TIMEOUT" });
   let calls = 0; const sleeps = [];
   await providerRegistry().ticketmaster.sync({ ...base, maxRetries: 1, rateLimitMs: 25, sleep: async (ms) => sleeps.push(ms), random: () => 0, fetch: async () => ++calls === 1 ? { ok: false, status: 429 } : { ok: true, json: async () => ({ _embedded: { events: [] }, page: { number: 0, totalPages: 1 } }) } });
