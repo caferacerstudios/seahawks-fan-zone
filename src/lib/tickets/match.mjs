@@ -34,7 +34,7 @@ const TEAM_ALIASES = new Map(Object.entries({
   TB: ["tb", "tampa bay", "tampa bay buccaneers", "buccaneers", "bucs"],
   TEN: ["ten", "tennessee", "tennessee titans", "titans"],
   WAS: ["was", "wsh", "washington", "washington commanders", "commanders"],
-}).flatMap(([abbr, aliases]) => aliases.map((alias) => [alias, abbr]))));
+}).flatMap(([abbr, aliases]) => aliases.map((alias) => [alias, abbr])));
 
 const clean = (value) => String(value ?? "").normalize("NFKD").replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
 const teamValue = (team) => team?.abbreviation ?? team?.abbr ?? team?.name ?? team?.full_name ?? team?.fullName ?? team;

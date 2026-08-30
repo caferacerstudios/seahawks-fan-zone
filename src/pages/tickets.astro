@@ -50,7 +50,6 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
       {beta && <p class="preview-banner" role="status"><strong>Live beta:</strong> Ticket information comes from connected providers. Coverage varies by marketplace and availability can change before checkout.</p>}
 
       <section class="trust-panel" aria-label="Important ticket information">
-        <p><strong>Ticket link disclosure:</strong> We may earn a commission if you purchase tickets through some links on this page. {runtime ? "Ticketmaster event summaries are not ranked." : "Commission arrangements do not affect ticket rankings."}</p>
         <p>Seahawks Fan Zone is an independent fan site, not the Seahawks, NFL, or ticket seller. Prices and availability can change between refresh and checkout. Confirm the final price, availability, and ticket details on the provider site.</p>
       </section>
 
@@ -81,7 +80,7 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
         <p class="watch-status">Detailed listing comparison requires a connected listing-level provider. Ticketmaster Discovery supplies event summaries only, so seat zone, row, delivery, accessibility, parking, quantity, budget, and cheapest-price controls are unavailable.</p>
       </form>}
 
-      <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. {runtime ? "Ticketmaster event summaries are not ranked." : "Commission arrangements do not affect ticket rankings."}</p>
+      <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect ticket rankings. {runtime && "Ticketmaster event summaries are not ranked."}</p>
 
       <section class="selected-game" aria-labelledby="selected-game-heading">
         <div><p class="control-kicker">Selected matchup</p><h2 id="selected-game-heading">Upcoming Seahawks game</h2></div>

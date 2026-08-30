@@ -104,11 +104,12 @@ function dateParts(game) {
   const explicitDateTbd = game?.date_tbd === true || game?.dateTbd === true || game?.date_confirmed === false || game?.dateConfirmed === false;
   const explicitTimeTbd = game?.time_tbd === true || game?.timeTbd === true || game?.time_confirmed === false || game?.timeConfirmed === false;
   const placeholderMidnight = parsed.getUTCHours() === 0 && parsed.getUTCMinutes() === 0 && parsed.getUTCSeconds() === 0;
+  const placeholderDate = explicitTimeTbd && placeholderMidnight ? calendarDate(text(raw).slice(0, 10)) : null;
   const dateConfirmed = !explicitDateTbd;
   const timeConfirmed = dateConfirmed && !explicitTimeTbd && (game?.timeConfirmed === true || !placeholderMidnight);
   return {
     startsAt: timeConfirmed ? parsed.toISOString() : null,
-    date: dateConfirmed ? pacificCalendarDay(parsed) : null,
+    date: dateConfirmed ? placeholderDate ?? pacificCalendarDay(parsed) : null,
     dateConfirmed,
     timeConfirmed,
   };

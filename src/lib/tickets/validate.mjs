@@ -51,8 +51,8 @@ const url = (value, path, { nullable = false, fixture = false, provider: provide
   if (parsed.protocol !== "https:") fail(path, "must use HTTPS");
   if (parsed.username || parsed.password) fail(path, "must not contain credentials");
   if (fixture && !parsed.hostname.endsWith(".example.invalid") && parsed.hostname !== "example.invalid") fail(path, "fixture URLs must use example.invalid");
-  if (providerId && safeProviderUrl(providerId, value) === null) fail(path, "host is not allowlisted for this provider");
   for (const key of parsed.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key)) fail(path, "must not contain secret-like query parameters");
+  if (providerId && safeProviderUrl(providerId, value) === null) fail(path, "host is not allowlisted for this provider");
   return value;
 };
 const provider = (value, path) => { string(value, path); if (!PROVIDER_ID.test(value)) fail(path, "must be a provider-neutral slug"); };
