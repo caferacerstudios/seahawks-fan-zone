@@ -57,7 +57,7 @@ test("listing adapter boundary fails closed when listings are absent", () => {
 });
 
 const now = Date.parse("2029-01-01T00:00:00Z");
-const status = { schemaVersion: "1.0.0", generatedAt: "2029-01-01T00:00:00Z", outcome: "success", fixture: false, providers: [{ provider: "ticketmaster", mode: "event-summary", state: "success", lastSuccess: "2029-01-01T00:00:00Z", counts: { fresh: 0, stale: 0, rejected: 2, unmatched: 1 } }] };
+const status = { schemaVersion: "1.0.0", generatedAt: "2029-01-01T00:00:00Z", outcome: "success", fixture: false, scheduleFixture: false, providers: [{ provider: "ticketmaster", mode: "event-summary", state: "success", lastSuccess: "2029-01-01T00:00:00Z", counts: { fresh: 0, stale: 0, rejected: 2, unmatched: 1 } }] };
 const index = { schemaVersion: "1.0.0", generatedAt: status.generatedAt, outcome: "success", events: [
   { eventKey: "sea:game-1", gameId: "game-1", eventFile: "events/sea_game-1.json" },
   { eventKey: "sea:game-2", gameId: "game-2", eventFile: "events/sea_game-2.json" },
@@ -67,6 +67,9 @@ const event = { schemaVersion: "1.0.0", generatedAt: status.generatedAt, event: 
 
 test("beta runtime rejects fixtures, stale snapshots, and malformed responses", () => {
   assert.throws(() => validateRuntimeStatus({ ...status, fixture: true }, now), /prohibited/);
+  assert.throws(() => validateRuntimeStatus({ ...status, scheduleFixture: true }, now), /schedule/);
+  const missing = { ...status }; delete missing.scheduleFixture;
+  assert.throws(() => validateRuntimeStatus(missing, now), /schedule/);
   assert.throws(() => validateRuntimeStatus({ ...status, generatedAt: past }, now), /stale/);
   assert.throws(() => validateRuntimeStatus({ ...status, schemaVersion: "2.0.0" }, now), /incompatible/);
 });
@@ -93,8 +96,8 @@ test("missing or malformed beta runtime data fails closed", async () => {
 test("Ticketmaster summary is official, allowlisted, and never converted to a listing", () => {
   const summary = ticketmasterSummaryModel(event.providerReferences[0]);
   assert.equal(summary.status, "On sale");
-  assert.equal(summary.priceCopy, "See current prices on Ticketmaster");
-  assert.equal(summary.rangeNotice, "This is a range, not an individual ticket listing.");
+  assert.equal(summary.priceCopy, "Check ticket availability on Ticketmaster");
+  assert.match(summary.rangeNotice, /not an individual offer/);
   assert.equal(new URL(summary.href).hostname, "www.ticketmaster.com");
   assert.equal(runtimeTicketView(event, now).listings.length, 0);
   const unsafe = structuredClone(event); unsafe.providerReferences[0].canonicalUrl = "https://evil.example/event";
@@ -105,8 +108,8 @@ test("Ticketmaster range copy is explicit and does not imply a live seat listing
   const ranged = structuredClone(event.providerReferences[0]);
   ranged.summary.priceRanges = [{ currency: "USD", min: 85.5, max: 640 }];
   const summary = ticketmasterSummaryModel(ranged);
-  assert.equal(summary.priceCopy, "Ticketmaster advertised price range");
-  assert.equal(summary.disclaimer, "Price and availability may change on Ticketmaster.");
+  assert.equal(summary.priceRanges.length, 0);
+  assert.match(summary.disclaimer, /Numeric price ranges are hidden/);
   assert.equal(Object.hasOwn(summary, "listings"), false);
 });
 

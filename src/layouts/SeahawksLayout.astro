@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 import { absoluteUrl, pageMetadata, SITE_NAME } from "../lib/seo";
+import { TICKET_FEATURE } from "../lib/tickets/config";
 
 const {
   title = "Seahawks Fan Zone",
@@ -52,7 +53,7 @@ const navPages = [
   { href: "/history", label: "History" },
 ];
 const morePages: Array<{ href: string; label: string; match?: string[] }> = [
-  ...(import.meta.env.SFZ_TICKET_DATA_MODE === "beta" ? [{ href: "/tickets", label: "Tickets Beta" }] : []),
+  ...(TICKET_FEATURE.enabled ? [{ href: "/tickets", label: TICKET_FEATURE.mode === "beta" ? "Tickets Beta" : "Tickets" }] : []),
   { href: "/standings", label: "Standings" },
   { href: latestRecapHref, label: "Latest Recap", match: ["/games"] },
   { href: "/weekly-recap", label: "Recap Archive" },

@@ -15,7 +15,7 @@ const {
   seo = { title, description, canonicalPath: canonical ?? Astro.url.pathname },
 } = Astro.props;
 const resolvedArticle = seo.article ?? article;
-const canonicalUrl = absoluteUrl(seo.canonicalPath);
+const canonicalUrl = seo.canonicalPath ? absoluteUrl(seo.canonicalPath) : null;
 const jsonLd = structuredData ? (Array.isArray(structuredData) ? structuredData : [structuredData]) : [];
 const adsEnabled = import.meta.env.ADS_ENABLED === "true";
 const publisherId = String(import.meta.env.PUBLIC_ADSENSE_PUBLISHER_ID ?? "").trim();
@@ -34,12 +34,12 @@ const advertisingConfigured = adsEnabled && monetizationEligible && Boolean(vali
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={seo.description} />
     <meta name="robots" content={seo.robots ?? "index, follow"} />
-    <link rel="canonical" href={canonicalUrl} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
     <link rel="alternate" type="application/rss+xml" title="Seahawks Fan Zone News" href={absoluteUrl("/news/rss.xml")} />
     <meta property="og:title" content={seo.openGraphTitle ?? seo.title} />
     <meta property="og:description" content={seo.openGraphDescription ?? seo.description} />
     <meta property="og:type" content={resolvedArticle ? "article" : "website"} />
-    <meta property="og:url" content={canonicalUrl} />
+    {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
     {seo.openGraphImage && <meta property="og:image" content={absoluteUrl(seo.openGraphImage)} />}
     {seo.openGraphImage && <meta property="og:image:alt" content={seo.openGraphImageAlt ?? seo.openGraphTitle ?? seo.title} />}
     <meta name="twitter:card" content={seo.openGraphImage ? "summary_large_image" : "summary"} />

@@ -21,6 +21,7 @@ export function validateSnapshotFile(value, kind, allowedHosts = {}) {
       if (event.eventFile !== `events/${safeEventFilename(event.eventKey)}`) throw new TypeError("Invalid index event path.");
     }
   } else if (kind === "status") {
+    if (typeof value.fixture !== "boolean" || typeof value.scheduleFixture !== "boolean") throw new TypeError("Status fixture provenance must be explicit booleans.");
     if (!Array.isArray(value.providers) || !["success", "degraded"].includes(value.outcome)) throw new TypeError("Invalid status contract.");
     for (const status of value.providers) {
       if (!/^[a-z][a-z0-9-]{1,39}$/.test(status.provider)) throw new TypeError("Invalid provider id.");

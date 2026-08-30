@@ -1,7 +1,7 @@
+import { ticketFeatureState } from "./feature-state.mjs";
 export type TicketFinderState = "disabled" | "preview" | "beta" | "live";
-
-const requestedState = import.meta.env.SFZ_TICKET_DATA_MODE;
-export const TICKET_FINDER_STATE: TicketFinderState = ["disabled", "preview", "beta", "live"].includes(requestedState) ? requestedState : "preview";
+export const TICKET_FEATURE = ticketFeatureState(import.meta.env.SFZ_TICKET_DATA_MODE, import.meta.env.SFZ_TICKET_INDEXING_STATE);
+export const TICKET_FINDER_STATE = TICKET_FEATURE.mode as TicketFinderState;
 export type TicketPriceHistoryState = "disabled" | "preview" | "live";
 
 // Separate launch gate. Production remains disabled until approved provider

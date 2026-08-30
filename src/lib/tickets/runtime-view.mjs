@@ -30,7 +30,8 @@ export function validateRuntimeStatus(value, now = Date.now()) {
   version(status.schemaVersion, "status");
   const generated = timestamp(status.generatedAt, "status.generatedAt", now);
   if (now - generated > MAX_SNAPSHOT_AGE_MS) throw new TypeError("Runtime ticket status is stale.");
-  if (status.fixture !== false) throw new TypeError("Fixture runtime ticket data is prohibited in beta.");
+  if (status.fixture !== false) throw new TypeError("Fixture runtime ticket data is prohibited in beta and live.");
+  if (status.scheduleFixture !== false) throw new TypeError("Fixture or unproven schedule data is prohibited in beta and live.");
   if (!["success", "degraded"].includes(status.outcome) || !Array.isArray(status.providers)) throw new TypeError("Invalid runtime ticket status.");
   for (const provider of status.providers) {
     record(provider, "status.providers[]");
@@ -113,8 +114,7 @@ export function runtimeTicketView(event, now = Date.now()) {
 
 export function ticketmasterSummaryModel(reference) {
   if (reference?.provider !== "ticketmaster" || reference.mode !== "event-summary") throw new TypeError("Not a Ticketmaster event summary.");
-  const prices = reference.summary?.priceRanges ?? [];
-  return { provider: "Ticketmaster", source: "Official Discovery API event summary", status: reference.summary?.eventStatus === "onsale" ? "On sale" : reference.summary?.eventStatus === "offsale" ? "Off sale" : "Status unknown", checkedAt: reference.fetchedAt, stale: reference.state === "stale", href: safeProviderUrl("ticketmaster", reference.canonicalUrl), priceCopy: prices.length === 0 ? "See current prices on Ticketmaster" : "Ticketmaster advertised price range", rangeNotice: "This is a range, not an individual ticket listing.", disclaimer: "Price and availability may change on Ticketmaster.", priceRanges: prices };
+  return { provider: "Ticketmaster", source: "Official Discovery API event summary", status: reference.summary?.eventStatus === "onsale" ? "On sale" : reference.summary?.eventStatus === "offsale" ? "Off sale" : "Status unknown", checkedAt: reference.fetchedAt, stale: reference.state === "stale", href: safeProviderUrl("ticketmaster", reference.canonicalUrl), priceCopy: "Check ticket availability on Ticketmaster", rangeNotice: "Event-summary data is not an individual offer and is not used for price ranking.", disclaimer: "Numeric price ranges are hidden because mandatory-fee completeness is not documented.", priceRanges: [] };
 }
 
 export function runtimeProviderCoverage(status, event) {

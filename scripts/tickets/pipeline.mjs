@@ -1,4 +1,5 @@
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile, lstat, symlink } from "node:fs/promises";
+import { hostname } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { normalizeSchedule } from "../../src/lib/schedule.mjs";
 import { evaluateProviderEvent, sfzEventKey, validateMatchOverrides } from "../../src/lib/tickets/match.mjs";
@@ -14,6 +15,48 @@ const json = async (path) => JSON.parse(await readFile(path, "utf8"));
 // readable by the unrelated Nginx container UID; credentials never enter this
 // validated contract or output tree.
 const writeJson = (path, value) => writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
+
+async function acquireLock(lockDir, started, staleMs) {
+  const ownerFile = join(lockDir, "owner.json");
+  const owner = { pid: process.pid, hostname: hostname(), startedAt: iso(started) };
+  try { await mkdir(lockDir); await writeJson(ownerFile, owner); return; } catch (error) { if (error.code !== "EEXIST") throw error; }
+  let existing;
+  try { existing = await json(ownerFile); } catch { throw Object.assign(new Error("Ticket sync lock metadata is missing or malformed."), { code: "SYNC_LOCK_UNKNOWN" }); }
+  const age = started - Date.parse(existing.startedAt);
+  if (!Number.isSafeInteger(existing.pid) || existing.pid < 1 || existing.hostname !== hostname() || !Number.isFinite(age) || age < 0) throw Object.assign(new Error("Ticket sync lock ownership cannot be verified."), { code: "SYNC_LOCK_UNKNOWN" });
+  let live = false;
+  try { process.kill(existing.pid, 0); live = true; } catch (failure) { if (failure.code === "EPERM") live = true; else if (failure.code !== "ESRCH") throw failure; }
+  if (live || age <= staleMs) throw Object.assign(new Error("Another ticket sync is active."), { code: "SYNC_LOCKED" });
+  await rm(lockDir, { recursive: true });
+  await mkdir(lockDir);
+  await writeJson(ownerFile, owner);
+}
+
+async function publishSnapshot(outputDir, stage, versionId, inject = async () => {}, retentionMs = 0, nowMs = Date.now()) {
+  const parent = dirname(outputDir); const name = basename(outputDir);
+  const versions = join(parent, `.${name}.versions`); const version = join(versions, versionId);
+  await mkdir(versions, { recursive: true });
+  await inject("before-version-rename");
+  await rename(stage, version);
+  await inject("after-version-rename");
+  const pointer = join(parent, `.${name}.pointer-${process.pid}-${versionId}`);
+  await symlink(join(`.${name}.versions`, versionId), pointer);
+  await inject("after-pointer-create");
+  try {
+    const info = await lstat(outputDir);
+    if (!info.isSymbolicLink()) {
+      const legacy = join(versions, `legacy-${versionId}`);
+      await rename(outputDir, legacy);
+    }
+  } catch (error) { if (error.code !== "ENOENT") throw error; }
+  await rename(pointer, outputDir);
+  await inject("after-pointer-switch");
+  const entries = (await readdir(versions, { withFileTypes: true })).filter((entry) => entry.isDirectory()).sort((a, b) => b.name.localeCompare(a.name));
+  for (const [index, entry] of entries.entries()) {
+    const path = join(versions, entry.name); const info = await stat(path);
+    if (index >= 3 || (retentionMs >= 0 && nowMs - info.mtimeMs > retentionMs)) await rm(path, { recursive: true });
+  }
+}
 
 function sanitizeNotes(notes) {
   if (!Array.isArray(notes)) return [];
@@ -38,7 +81,7 @@ function listing(raw, provider, event, now) {
     allowedQuantities: Array.isArray(raw.allowedQuantities) ? [...new Set(raw.allowedQuantities.filter((n) => Number.isSafeInteger(n) && n > 0 && n <= 20))].sort((a, b) => a - b) : [],
     currency: raw.currency, priceCents: raw.priceCents, feeStatus: ["all-in", "estimated", "unknown"].includes(raw.feeStatus) ? raw.feeStatus : "unknown",
     sanitizedNotes: sanitizeNotes(raw.notes), canonicalUrl: raw.canonicalUrl, affiliateUrl: raw.affiliateUrl ?? null,
-    fetchedAt: now, expiresAt: iso(Date.parse(now) + provider.minRefreshMs), stale: false, rankEligible: true,
+    fetchedAt: now, expiresAt: iso(Date.parse(now) + provider.freshnessMs), stale: false, rankEligible: true,
   };
 }
 
@@ -66,15 +109,20 @@ export async function runTicketSync(config, options = {}) {
   const started = options.now?.getTime?.() ?? Date.now();
   const now = iso(started); const sink = options.log ?? console.log;
   const parent = dirname(config.outputDir); const name = basename(config.outputDir);
-  const lockDir = join(parent, `.${name}.lock`); const stage = join(parent, `.${name}.tmp-${process.pid}-${started}`); const backup = join(parent, `.${name}.previous-${process.pid}-${started}`);
+  const lockDir = join(parent, `.${name}.lock`); const stage = join(parent, `.${name}.tmp-${process.pid}-${started}`);
   await mkdir(parent, { recursive: true });
-  try { await mkdir(lockDir); } catch (error) { if (error.code === "EEXIST") throw Object.assign(new Error("Another ticket sync is active."), { code: "SYNC_LOCKED" }); throw error; }
-  let movedPrior = false;
+  await acquireLock(lockDir, started, config.lockStaleMs);
   try {
-    for (const entry of await readdir(parent, { withFileTypes: true })) if (entry.isDirectory() && entry.name.startsWith(`.${name}.tmp-`) && join(parent, entry.name) !== stage) {
-      const info = await stat(join(parent, entry.name)); if (started - info.mtimeMs > config.lockStaleMs) await rm(join(parent, entry.name), { recursive: true });
+    for (const entry of await readdir(parent, { withFileTypes: true })) {
+      const path = join(parent, entry.name);
+      if (entry.isDirectory() && entry.name.startsWith(`.${name}.tmp-`) && path !== stage) {
+        const info = await stat(path); if (started - info.mtimeMs > config.lockStaleMs) await rm(path, { recursive: true });
+      } else if (entry.isSymbolicLink() && entry.name.startsWith(`.${name}.pointer-`)) {
+        const info = await lstat(path); if (started - info.mtimeMs > config.lockStaleMs) await rm(path);
+      }
     }
     const [rawGames, overrides, previous] = await Promise.all([json(config.gamesFile), json(config.overridesFile).then(validateMatchOverrides), previousSnapshot(config.outputDir)]);
+    if (!config.fixture && rawGames.fixture !== false) throw Object.assign(new Error("Non-fixture sync requires a schedule explicitly marked fixture:false."), { code: "SCHEDULE_FIXTURE" });
     const games = normalizeSchedule(rawGames).games.filter((game) => ["upcoming", "tbd", "postponed"].includes(game.state) && !game.bye && game.opponentConfirmed);
     const eventMap = new Map(games.map((game) => [sfzEventKey(game), { game, references: [], listings: [] }]));
     const providerStatuses = []; const allowedHosts = {}; let degraded = false;
@@ -108,7 +156,7 @@ export async function runTicketSync(config, options = {}) {
             if (eventUrl.protocol !== "https:" || !provider.adapter.allowedHosts.includes(eventUrl.hostname) || eventUrl.username || eventUrl.password) throw Object.assign(new Error("Invalid provider event URL."), { code: "INVALID_RESPONSE" });
             for (const key of eventUrl.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key)) throw Object.assign(new Error("Secret-like provider event URL."), { code: "INVALID_RESPONSE" });
           }
-          const addition = { eventKey: result.eventKey, reference: { provider: provider.id, providerEventId: String(rawEvent.id), mode: provider.mode, matchConfidence: result.confidence, canonicalUrl: rawEvent.canonicalUrl ?? null, state: "fresh", fetchedAt: now, expiresAt: iso(started + provider.minRefreshMs), capabilities: provider.adapter.capabilities ?? null, summary: provider.mode === "event-summary" ? { name: rawEvent.name, venue: rawEvent.venue, startTimeUtc: rawEvent.startTimeUtc, localDate: rawEvent.localDate, localTime: rawEvent.localTime, timeZone: rawEvent.timeZone, eventStatus: rawEvent.eventStatus, currency: rawEvent.currency, priceRanges: rawEvent.priceRanges, inventoryDetailLevel: rawEvent.inventoryDetailLevel } : null }, listings: [] };
+          const addition = { eventKey: result.eventKey, reference: { provider: provider.id, providerEventId: String(rawEvent.id), mode: provider.mode, matchConfidence: result.confidence, canonicalUrl: rawEvent.canonicalUrl ?? null, state: "fresh", fetchedAt: now, expiresAt: iso(started + provider.freshnessMs), capabilities: provider.adapter.capabilities ?? null, summary: provider.mode === "event-summary" ? { name: rawEvent.name, venue: rawEvent.venue, startTimeUtc: rawEvent.startTimeUtc, localDate: rawEvent.localDate, localTime: rawEvent.localTime, timeZone: rawEvent.timeZone, eventStatus: rawEvent.eventStatus, currency: rawEvent.currency, priceRanges: [], inventoryDetailLevel: rawEvent.inventoryDetailLevel } : null }, listings: [] };
           if (provider.mode === "listing-level") for (const rawListing of (rawEvent.listings || []).slice(0, 2_000)) {
             try { addition.listings.push(listing(rawListing, provider, game, now)); counts.fresh += 1; } catch { counts.rejected += 1; }
           }
@@ -143,14 +191,16 @@ export async function runTicketSync(config, options = {}) {
     const totals = providerStatuses.reduce((all, item) => { for (const key of Object.keys(all)) all[key] += item.counts[key]; return all; }, { fresh: 0, stale: 0, rejected: 0, unmatched: 0 });
     const outcome = degraded ? "degraded" : "success";
     const index = { schemaVersion: snapshotSchemaVersion, generatedAt: now, outcome, events: indexEvents };
-    const status = { schemaVersion: snapshotSchemaVersion, generatedAt: now, outcome, environment: config.environment, fixture: config.fixture, durationMs, totals, providers: providerStatuses };
+    const status = { schemaVersion: snapshotSchemaVersion, generatedAt: now, outcome, environment: config.environment, fixture: config.fixture, scheduleFixture: rawGames.fixture === true, durationMs, totals, providers: providerStatuses };
     validateSnapshotFile(index, "index"); validateSnapshotFile(status, "status"); await writeJson(join(stage, "index.json"), index); await writeJson(join(stage, "status.json"), status);
     validateSnapshotFile(await json(join(stage, "index.json")), "index"); validateSnapshotFile(await json(join(stage, "status.json")), "status");
     for (const filename of await readdir(join(stage, "events"))) validateSnapshotFile(await json(join(stage, "events", filename)), "event", allowedHosts);
-    try { await rename(config.outputDir, backup); movedPrior = true; } catch (error) { if (error.code !== "ENOENT") throw error; }
-    try { await rename(stage, config.outputDir); } catch (error) { if (movedPrior) await rename(backup, config.outputDir); throw error; }
-    if (movedPrior) await rm(backup, { recursive: true }).catch(() => log(sink, "warn", "backup_cleanup_failed"));
+    await (options.injectFailure?.("after-validation") ?? Promise.resolve());
+    const maximumRetentionMs = Math.max(0, ...Object.values(config.providers).map((provider) => provider.retentionMs));
+    await publishSnapshot(config.outputDir, stage, `${started}-${process.pid}`, options.injectFailure, maximumRetentionMs, started);
     log(sink, "info", "sync_complete", { outcome, events: indexEvents.length, durationMs, ...totals });
     return status;
   } finally { await rm(stage, { recursive: true, force: true }); await rm(lockDir, { recursive: true, force: true }); }
 }
+
+export { acquireLock, publishSnapshot };

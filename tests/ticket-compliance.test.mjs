@@ -6,6 +6,8 @@ import { ticketClickEvent } from "../src/lib/tickets/analytics.mjs";
 
 const ticketsPage = await readFile(new URL("../src/pages/tickets.astro", import.meta.url), "utf8");
 const sitemap = await readFile(new URL("../src/pages/sitemap.xml.ts", import.meta.url), "utf8");
+const fetchNfl = await readFile(new URL("../scripts/fetch-nfl.mjs", import.meta.url), "utf8");
+const syncDockerfile = await readFile(new URL("../deployment/ticket-sync/Dockerfile", import.meta.url), "utf8");
 
 test("ticket disclosure is visible beside the comparison controls and outbound results", () => {
   const copy = "We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect ticket rankings.";
@@ -15,9 +17,18 @@ test("ticket disclosure is visible beside the comparison controls and outbound r
   assert.ok(nearbyCopy < ticketsPage.indexOf('class="results-section"'));
 });
 
-test("preview mode is noindex and omitted from the sitemap", () => {
-  assert.match(ticketsPage, /robots: preview \? "noindex, nofollow"/);
-  assert.match(sitemap, /path === "\/tickets".*TICKET_FINDER_STATE === "live"/);
+test("robots and sitemap use the shared, separately gated feature state", () => {
+  assert.match(ticketsPage, /robots: TICKET_FEATURE\.robots/);
+  assert.match(sitemap, /path === "\/tickets".*TICKET_FEATURE\.includeInSitemap/);
+});
+
+test("real schedule generation marks fixture provenance false", () => {
+  assert.match(fetchNfl, /fixture: false/);
+});
+
+test("ticket sync image requires an operator-supplied base image", () => {
+  assert.match(syncDockerfile, /^ARG NODE_BASE_IMAGE\nFROM \$\{NODE_BASE_IMAGE\}/);
+  assert.doesNotMatch(syncDockerfile, /ARG NODE_BASE_IMAGE=/);
 });
 
 test("ticket results contain no ads or ticket Offer structured data", () => {

@@ -259,6 +259,7 @@ async function main() {
   const phasedStandings = buildPhasedStandings({ season: SEASON, updatedAt, games: leagueGames, teams });
 
   const currentSeasonPayload = {
+    fixture: false,
     team: {
       id: team.id,
       abbreviation: team.abbreviation,
@@ -288,7 +289,7 @@ async function main() {
   const previousSeasons = (Array.isArray(previousSnapshot?.seasons) ? previousSnapshot.seasons : previousSnapshot ? [previousSnapshot] : [])
     .filter((record) => Number(record?.season) !== Number(SEASON))
     .map(({ seasons, ...record }) => record);
-  const outCombined = { ...currentSeasonPayload, seasons: [...previousSeasons, currentSeasonPayload] };
+  const outCombined = { ...currentSeasonPayload, fixture: false, seasons: [...previousSeasons, currentSeasonPayload] };
 
   // Safety checks: don't overwrite with obviously broken payloads
   assertNonEmptyArray("gamesRegular", gamesRegular);

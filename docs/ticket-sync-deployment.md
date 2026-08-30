@@ -21,9 +21,15 @@ and overrides, but no `.env`, credentials, dependencies, site build, or runtime
 snapshot. `Dockerfile.dockerignore` limits the build context accordingly.
 
 The pipeline writes owner-writable, public-readable mode `0644` JSON into a
-sibling staging directory,
-validates every file, and atomically renames that directory to `current`. Its
-existing internal lock prevents concurrent publishers. The systemd unit adds a
+sibling staging directory, validates every file, promotes it to an immutable
+version directory, and atomically switches a `current` symlink in the same
+stable parent. A killed publisher leaves the prior pointer intact and no
+unvalidated version is linked. The runtime mount must expose that stable parent,
+not the symlink target. Three local versions are retained at most. An existing
+`current` directory is migrated into the version store before installing the
+pointer. The internal lock records PID, hostname, and start time; live/recent
+locks return `SYNC_LOCKED`, verified same-host dead stale locks recover, and
+unknown or malformed ownership fails closed. The systemd unit adds a
 host-level non-blocking `flock`; overlap is a visible failed unit, not a second
 run. A preparation failure leaves `current` untouched. A provider failure can
 publish a validated degraded snapshot only within that provider's configured
@@ -38,10 +44,20 @@ and remain pending; retention stays under synchronizer control. Missing paths
 return a small JSON 404 with `no-store`. Malformed candidates never promote,
 so Nginx continues serving the last validated snapshot.
 
-In `beta` state, `/tickets` reads the runtime index and only the selected
+`SFZ_TICKET_DATA_MODE` has four states. `disabled` hides navigation and game
+CTAs while direct visits show an unavailable noindex/nofollow page. `preview`
+uses labeled fixtures and remains noindex/nofollow. `beta` and `live` both load
+validated non-fixture runtime JSON. The independent
+`SFZ_TICKET_INDEXING_STATE` defaults to `disabled`; only `live` plus `enabled`
+permits index/follow, canonical publication, and sitemap inclusion. Client data
+never controls static metadata.
+
+In `beta` or `live` state, `/tickets` reads the runtime index and only the selected
 event file(s). Fresh listing-level records populate the retained comparison
 card area. Matched event-summary records appear separately as clearly labeled
-provider links; their event price ranges never become listing cards. Preview
+provider links; Ticketmaster Discovery ranges are neither offers nor cheapest
+price evidence and are hidden numerically because total-fee completeness is not
+documented. Preview
 state continues to use the explicitly labeled build-time development fixture.
 
 ## Proposed paths
@@ -91,8 +107,18 @@ The exact runtime variables are:
   invoking Node directly. Compose maps the corresponding `TICKET_DATA_ROOT`
   to `/srv/ticket-data` and sets `TICKETS_OUTPUT_DIR` inside the container.
 - `TICKETS_FIXTURE=false` for every page described as live.
-- `TICKETS_PROVIDERS_JSON` containing only reviewed provider IDs, modes,
-  refresh, and retention settings.
+- `TICKETS_PROVIDERS_JSON` containing only reviewed provider IDs and modes.
+  `minRefreshMs` controls request eligibility, `freshnessMs` controls display
+  freshness, and `retentionMs` is only the rights-permitted stale ceiling;
+  validation requires `minRefreshMs <= freshnessMs <= retentionMs`. The dev
+  values `600000`, `1800000`, and `3600000` keep a 15-minute timer plus
+  two-minute jitter inside freshness. Retained records are explicitly stale
+  with their observation time, cannot rank or make current-price claims, and
+  disappear after retention.
+- Provider fixture and schedule fixture provenance are independent. A
+  non-fixture sync requires the schedule itself to contain exactly
+  `fixture:false`; status publishes both `fixture` and `scheduleFixture`, and
+  beta/live reject either missing or true field.
 - `TICKETS_LOCK_STALE_MS` and, for Ticketmaster event summaries,
   `TICKETMASTER_API_KEY` plus optional `TICKETMASTER_EVENT_NAME`,
   `TICKETMASTER_EVENT_DATE`, and `TICKETMASTER_LEGACY_EVENT_ID`.
@@ -110,12 +136,18 @@ no allowed hosts, and a pending adapter.
 
 Run these from a reviewed checkout. They create only disposable local data and
 do not contact providers. The fixture command explicitly disables networking.
+The sync image intentionally has no default base image: a build without
+`NODE_BASE_IMAGE` must fail. During manual image promotion, the operator reviews
+and records an immutable value shaped like
+`node:22-alpine@sha256:<reviewed-digest>`; this repository does not invent or
+pin that digest on the operator's behalf.
 
 ```sh
 docker compose --env-file deployment/ticket-sync/dev.compose.env config
 docker compose --env-file deployment/ticket-sync/prod.compose.env config
 
-docker build -f deployment/ticket-sync/Dockerfile -t sfz-ticket-sync:test .
+docker build --build-arg NODE_BASE_IMAGE='node:22-alpine@sha256:<reviewed-digest>' \
+  -f deployment/ticket-sync/Dockerfile -t sfz-ticket-sync:test .
 test_root="$(mktemp -d)"
 install -d -m 0700 "$test_root/tickets"
 chown 1000:1000 "$test_root/tickets"
@@ -247,7 +279,8 @@ cp -a -- "$installed_nginx" "$installed_nginx.before-ticket-sync.$backup_stamp"
 docker compose --file "$installed_compose" config >/dev/null
 docker compose --file "$installed_compose" config | \
   sed -n '/^[[:space:]]*ports:/,/^[^[:space:]]/p'
-docker build -f "$release_current/deployment/ticket-sync/Dockerfile" \
+docker build --build-arg NODE_BASE_IMAGE='node:22-alpine@sha256:<reviewed-digest>' \
+  -f "$release_current/deployment/ticket-sync/Dockerfile" \
   -t seahawksfanzone-ticket-sync:local "$release_current"
 
 for unit in sfz-ticket-sync@.service sfz-ticket-sync@.timer; do

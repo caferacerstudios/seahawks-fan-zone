@@ -1,7 +1,7 @@
 ---
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import PriceHistory from "../components/tickets/PriceHistory.astro";
-import { TICKET_FINDER_STATE, TICKET_PRICE_HISTORY_MINIMUM_POINTS, TICKET_PRICE_HISTORY_STATE } from "../lib/tickets/config";
+import { TICKET_FEATURE, TICKET_FINDER_STATE, TICKET_PRICE_HISTORY_MINIMUM_POINTS, TICKET_PRICE_HISTORY_STATE } from "../lib/tickets/config";
 import { providerOutboundLink } from "../lib/tickets/outbound-links.mjs";
 import { ticketModeUsesFixtures } from "../lib/tickets/runtime-view.mjs";
 import { selectScheduleSeason } from "../lib/schedule.mjs";
@@ -16,6 +16,7 @@ const games = schedule.games
   .map((game, index) => ({ game, row: scheduleRow(game, { index }) }));
 const gameIds = new Set(games.map(({ game }) => String(game.id)));
 const beta = TICKET_FINDER_STATE === "beta";
+const runtime = TICKET_FEATURE.runtime;
 const preview = TICKET_FINDER_STATE === "preview";
 const events = ticketModeUsesFixtures(TICKET_FINDER_STATE) ? snapshot.events.filter((event) => gameIds.has(event.sfzGameId)) : [];
 const unavailableProviders = new Set(snapshot.providerStatuses.filter(({ status }) => ["stale", "error", "disabled"].includes(status)).map(({ provider }) => provider));
@@ -36,7 +37,7 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
   pageTitle="Seahawks Ticket Finder"
   pageTagline={beta ? "Check official provider event availability for upcoming Seahawks games." : "Compare ticket details from connected official and resale partners for upcoming Seahawks games."}
   description={beta ? "Check official provider event summaries for upcoming Seahawks games." : "Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details."}
-  seo={{ title: beta ? "Seahawks Ticket Finder Beta | Seahawks Fan Zone" : "Seahawks Ticket Comparison | Seahawks Fan Zone", description: beta ? "Check official provider event summaries for upcoming Seahawks games." : "Compare official and resale Seahawks ticket options with fee, freshness, source, and ranking details.", canonicalPath: "/tickets", robots: preview || beta ? "noindex, nofollow" : "index, follow" }}
+  seo={{ title: beta ? "Seahawks Ticket Finder Beta | Seahawks Fan Zone" : "Seahawks Ticket Finder | Seahawks Fan Zone", description: runtime ? "Check official provider ticket availability for upcoming Seahawks games." : "Preview Seahawks ticket-finder functionality.", canonicalPath: TICKET_FEATURE.canonical ? "/tickets" : null, robots: TICKET_FEATURE.robots }}
   activePath="/tickets"
   pageType="tickets"
   monetizationEligible={false}
@@ -44,18 +45,18 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
   {TICKET_FINDER_STATE === "disabled" ? (
     <section class="ticket-empty" aria-labelledby="tickets-disabled"><h2 id="tickets-disabled">Ticket Finder unavailable</h2><p>This preview is currently disabled. Upcoming games remain available on the <a href="/schedule">Seahawks schedule</a>.</p></section>
   ) : (
-    <div id="ticket-finder" data-runtime={beta ? "true" : "false"}>
+    <div id="ticket-finder" data-runtime={runtime ? "true" : "false"}>
       {preview && <p class="preview-banner" role="status"><strong>Preview:</strong> Prices and providers below are deterministic test fixtures, not live inventory.</p>}
       {beta && <p class="preview-banner" role="status"><strong>Live beta:</strong> Ticket information comes from connected providers. Coverage varies by marketplace and availability can change before checkout.</p>}
 
       <section class="trust-panel" aria-label="Important ticket information">
-        <p><strong>Ticket link disclosure:</strong> We may earn a commission if you purchase tickets through some links on this page. {beta ? "Ticketmaster event summaries are not ranked." : "Commission arrangements do not affect ticket rankings."}</p>
+        <p><strong>Ticket link disclosure:</strong> We may earn a commission if you purchase tickets through some links on this page. {runtime ? "Ticketmaster event summaries are not ranked." : "Commission arrangements do not affect ticket rankings."}</p>
         <p>Seahawks Fan Zone is an independent fan site, not the Seahawks, NFL, or ticket seller. Prices and availability can change between refresh and checkout. Confirm the final price, availability, and ticket details on the provider site.</p>
       </section>
 
-      <noscript><div class="ticket-empty"><h2>JavaScript is off</h2><p>{beta ? "Live ticket data requires JavaScript. Upcoming games and the official Seahawks ticket link remain available." : "You can still choose an upcoming game, open its SFZ preview, or use the official ticket links below. Turn on JavaScript to filter and sort fixture comparisons."}</p></div></noscript>
+      <noscript><div class="ticket-empty"><h2>JavaScript is off</h2><p>{runtime ? "Live ticket data requires JavaScript. Upcoming games and the official Seahawks ticket link remain available." : "You can still choose an upcoming game, open its SFZ preview, or use the official ticket links below. Turn on JavaScript to filter and sort fixture comparisons."}</p></div></noscript>
 
-      <form class="ticket-controls" id="ticket-controls" method="get" aria-labelledby="comparison-heading" hidden={beta}>
+      <form class="ticket-controls" id="ticket-controls" method="get" aria-labelledby="comparison-heading" hidden={runtime}>
         <div class="controls-heading"><div><p class="control-kicker">Fixture-backed comparison</p><h2 id="comparison-heading">Find tickets</h2></div><button type="button" class="compact-toggle" aria-expanded="false" aria-controls="filter-fields">Filters &amp; sort</button></div>
         <div class="filter-fields" id="filter-fields">
           <label class="wide">Upcoming game<select name="game" data-control>{games.map(({ game, row }) => <option value={game.id}>{row.week}: {row.homeAwayLabel} {row.homeAway} {row.opponentName} — {row.date}, {row.kickoff}</option>)}</select></label>
@@ -74,13 +75,13 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
         <div class="control-actions"><button type="submit" class="apply-button">Apply comparison</button><button type="button" class="watch-button" data-watch-save>Save browser watch</button><button type="button" class="watch-reset" data-watch-reset>Reset saved watch</button><a href="/tickets" data-clear>Clear filters</a></div>
         <p class="watch-status" data-watch-status role="status" aria-live="polite">A saved watch stays only in this browser and contains game, quantity, budget, and zone—no account or personal information.</p>
       </form>
-      {beta && <form class="ticket-controls" id="runtime-game-controls" method="get" aria-labelledby="runtime-game-heading">
+      {runtime && <form class="ticket-controls" id="runtime-game-controls" method="get" aria-labelledby="runtime-game-heading">
         <div class="controls-heading"><div><p class="control-kicker">Live event lookup</p><h2 id="runtime-game-heading">Choose a game</h2></div></div>
         <div class="filter-fields"><label class="wide">Upcoming game<select name="game">{games.map(({ game, row }) => <option value={game.id}>{row.week}: {row.homeAwayLabel} {row.homeAway} {row.opponentName} — {row.date}, {row.kickoff}</option>)}</select></label></div>
         <p class="watch-status">Detailed listing comparison requires a connected listing-level provider. Ticketmaster Discovery supplies event summaries only, so seat zone, row, delivery, accessibility, parking, quantity, budget, and cheapest-price controls are unavailable.</p>
       </form>}
 
-      <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. {beta ? "Ticketmaster event summaries are not ranked." : "Commission arrangements do not affect ticket rankings."}</p>
+      <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. {runtime ? "Ticketmaster event summaries are not ranked." : "Commission arrangements do not affect ticket rankings."}</p>
 
       <section class="selected-game" aria-labelledby="selected-game-heading">
         <div><p class="control-kicker">Selected matchup</p><h2 id="selected-game-heading">Upcoming Seahawks game</h2></div>
@@ -97,13 +98,13 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
         <h2 id="official-heading">Official Seahawks options</h2>
         <div class="callout-grid">
           <article><h3>Ticketmaster / Seahawks</h3><p>{beta ? "Check the official Seahawks ticket page for additional team ticket information." : "Check the official Seahawks ticket page alongside marketplace comparisons."}</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Official Seahawks tickets</a></article>
-          {!beta && <article data-value-ticket><h3>Official Value Ticket check</h3><p>For eligible Lumen Field home games with four or fewer seats, check the official program. This page does not claim Value Tickets are currently in stock.</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Check official availability</a></article>}
+          {!runtime && <article data-value-ticket><h3>Official Value Ticket check</h3><p>For eligible Lumen Field home games with four or fewer seats, check the official program. This page does not claim Value Tickets are currently in stock.</p><a href="https://www.seahawks.com/tickets/" rel="noopener">Check official availability</a></article>}
           <article><h3>Mobile entry reminder</h3><p>Tickets may require mobile entry. Review setup and transfer instructions before game day.</p><a href="https://www.seahawks.com/tickets/mobile-ticket-guide" rel="noopener">Official mobile ticket guide</a></article>
         </div>
       </section>
 
       <section class="results-section" aria-labelledby="results-heading">
-        <div class="results-heading"><div><p class="control-kicker">{beta ? "Provider results" : "Comparison results"}</p><h2 id="results-heading">{beta ? "Ticket availability" : "Available offers"}</h2></div><p id="result-count" role="status" aria-live="polite" aria-atomic="true">{beta ? "Loading live ticket data…" : "Loading comparison…"}</p></div>
+        <div class="results-heading"><div><p class="control-kicker">{runtime ? "Provider results" : "Comparison results"}</p><h2 id="results-heading">{runtime ? "Ticket availability" : "Available offers"}</h2></div><p id="result-count" role="status" aria-live="polite" aria-atomic="true">{runtime ? "Loading live ticket data…" : "Loading comparison…"}</p></div>
         <p class="comparison-note">{beta ? "Ticketmaster event summaries are not individual listings, quantity-specific offers, or cheapest-price comparisons. Confirm current availability on Ticketmaster." : "Prices can change between refresh and checkout. Rankings use all-in mandatory-price data only where a provider supplies enough information for the selected quantity. Taxes, delivery, or optional products are identified separately where applicable and never guessed. Event-summary and unknown-fee values are not ranked as cheapest. Confirm final price and availability on the provider site."}</p>
         <div class="ticket-results" id="ticket-results">
           {listings.map((listing) => {
@@ -121,14 +122,14 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
             </article>;
           })}
         </div>
-        {beta && <div class="ticket-results" id="runtime-listings" aria-live="polite"></div>}
-        {!beta && <div class="ticket-empty" id="no-results" hidden><h3>No matching tickets</h3><p>Try another quantity, budget, source, or seat zone. Provider inventory may also have changed.</p></div>}
-        {!beta && <div class="ticket-empty" id="no-fee-results" hidden><h3>No fee-complete offers</h3><p>Matching offers exist, but none supplies a safe all-in group total for this quantity. Turn off “all-in-comparable only” to review them without a price ranking.</p></div>}
-        {!beta && <div class="ticket-empty" id="game-unmatched" hidden><h3>Game unmatched</h3><p>The selected schedule game does not have a verified event match in this fixture. Use the official links or check back after matching review.</p></div>}
-        {beta && <div class="ticket-empty" id="runtime-unavailable" hidden><h3>Live ticket data is temporarily unavailable.</h3><p>Use the schedule, game preview, or official Seahawks links while the runtime feed recovers.</p></div>}
-        <div class="reference-links" aria-labelledby="other-provider-heading" id={beta ? "runtime-summaries" : undefined}>
-          <h3 id="other-provider-heading">{beta ? "Official provider event summaries" : "Other connected provider paths"}</h3>
-          <p>{beta ? "These provider event summaries are not individual offers and are never ranked as cheapest." : "Event-summary and deep-link sources are kept separate from listing-level price rankings."}</p>
+        {runtime && <div class="ticket-results" id="runtime-listings" aria-live="polite"></div>}
+        {!runtime && <div class="ticket-empty" id="no-results" hidden><h3>No matching tickets</h3><p>Try another quantity, budget, source, or seat zone. Provider inventory may also have changed.</p></div>}
+        {!runtime && <div class="ticket-empty" id="no-fee-results" hidden><h3>No fee-complete offers</h3><p>Matching offers exist, but none supplies a safe all-in group total for this quantity. Turn off “all-in-comparable only” to review them without a price ranking.</p></div>}
+        {!runtime && <div class="ticket-empty" id="game-unmatched" hidden><h3>Game unmatched</h3><p>The selected schedule game does not have a verified event match in this fixture. Use the official links or check back after matching review.</p></div>}
+        {runtime && <div class="ticket-empty" id="runtime-unavailable" hidden><h3>Live ticket data is temporarily unavailable.</h3><p>Use the schedule, game preview, or official Seahawks links while the runtime feed recovers.</p></div>}
+        <div class="reference-links" aria-labelledby="other-provider-heading" id={runtime ? "runtime-summaries" : undefined}>
+          <h3 id="other-provider-heading">{runtime ? "Official provider event summaries" : "Other connected provider paths"}</h3>
+          <p>{runtime ? "These provider event summaries are not individual offers and are never ranked as cheapest." : "Event-summary and deep-link sources are kept separate from listing-level price rankings."}</p>
           {events.map((event) => <div data-reference-game={event.sfzGameId}>{event.providerEventReferences.filter((reference) => ["event-summary", "deep-link-only"].includes(reference.status)).map((reference) => {
             const outbound = providerOutboundLink(reference.provider, reference.canonicalUrl, reference.affiliateUrl);
             return outbound && <a href={outbound.href} target="_blank" rel={outbound.rel} data-ticket-outbound data-provider={reference.provider} data-source-kind={reference.sourceKind} data-link-placement={reference.status === "event-summary" ? "event-summary" : "deep-link"}>{label(reference.provider)} · {reference.status === "event-summary" ? "Event summary — not price ranked" : "Provider link"}</a>;
@@ -136,19 +137,19 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
         </div>
       </section>
 
-      {!beta && <section class="coverage" aria-labelledby="coverage-heading">
+      {!runtime && <section class="coverage" aria-labelledby="coverage-heading">
         <div class="coverage-heading"><div><p class="control-kicker">Source health</p><h2 id="coverage-heading">Provider coverage</h2></div><p>Last checked {dateTime(snapshot.generatedAt)}</p></div>
         <p>Coverage describes provider connections, not unique tickets. Similar inventory may appear at more than one provider.</p>
         <ul class="coverage-list">{snapshot.providerStatuses.map((provider) => <li><span><strong>{label(provider.provider)}</strong><small>{provider.status === "connected-listings" ? "Connected listing-level provider" : provider.status === "event-summary" ? "Event-summary provider — values not price ranked" : provider.status === "deep-link-only" ? "Deep-link-only provider — no listing data" : provider.status === "stale" ? "Provider stale — values not price ranked" : provider.status === "error" ? "Provider failed — no current data" : label(provider.status)}{provider.lastFetchedAt && <> · Last successful refresh {dateTime(provider.lastFetchedAt)}</>}</small></span><span class={`health health--${provider.status}`}>{provider.status === "stale" ? "Stale" : provider.status === "error" ? "Failed" : "Available"}</span></li>)}</ul>
         {snapshot.unmatchedProviderEvents.length > 0 && <p class="coverage-warning"><strong>Unmatched provider events:</strong> {snapshot.unmatchedProviderEvents.length}. Their links and inventory are not shown.</p>}
       </section>}
-      {beta && <section class="coverage" aria-labelledby="coverage-heading" id="runtime-coverage" hidden>
+      {runtime && <section class="coverage" aria-labelledby="coverage-heading" id="runtime-coverage" hidden>
         <div class="coverage-heading"><div><p class="control-kicker">Source health</p><h2 id="coverage-heading">Provider coverage</h2></div><p data-runtime-checked></p></div>
         <p>Coverage comes from the runtime provider status. Event-summary success does not require listing inventory.</p>
         <ul class="coverage-list" data-runtime-coverage-list></ul>
       </section>}
 
-      {!beta && <section class="ticket-guidance" aria-labelledby="ticket-guidance-heading">
+      {!runtime && <section class="ticket-guidance" aria-labelledby="ticket-guidance-heading">
         <h2 id="ticket-guidance-heading">How to compare Seahawks tickets</h2>
         <div class="guidance-grid">
           <article><h3>Official and resale inventory</h3><p>Official inventory comes from a team or authorized primary box-office path; resale inventory is offered through a marketplace. An official option remains visible for comparison, but SFZ does not call it cheapest unless it qualifies under the same fee-complete price rule.</p></article>
@@ -221,7 +222,6 @@ const historyReady = preview && TICKET_PRICE_HISTORY_STATE !== "disabled" && his
             card.append(text('p', summary.status));
             card.append(text('p', `Last updated: ${dateTime(summary.checkedAt)}${summary.stale ? ' · Stale — last successful response retained' : ''}`, 'freshness'));
             card.append(text('p', summary.priceCopy, 'comparison-note'));
-            if (summary.priceRanges.length) card.append(text('p', summary.priceRanges.map((range) => `${range.currency} ${range.min}–${range.max}`).join(', ')));
             card.append(text('p', summary.rangeNotice));
             card.append(text('p', summary.disclaimer, 'comparison-note'));
             const link = text('a', 'View tickets on Ticketmaster', 'provider-button'); link.href = summary.href; link.target = '_blank'; link.rel = 'nofollow noopener'; link.dataset.ticketOutbound = ''; link.dataset.provider = 'ticketmaster'; link.dataset.sourceKind = 'official-primary'; link.dataset.linkPlacement = 'event-summary'; card.append(link); references.append(card);

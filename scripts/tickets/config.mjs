@@ -39,6 +39,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     providers[id] = {
       enabled, mode,
       minRefreshMs: integer(raw.minRefreshMs, id === "ticketmaster" ? 600_000 : 300_000, `${id}.minRefreshMs`, 1_000),
+      freshnessMs: integer(raw.freshnessMs, id === "ticketmaster" ? 1_800_000 : 900_000, `${id}.freshnessMs`, 1_000),
       retentionMs: integer(raw.retentionMs, 3_600_000, `${id}.retentionMs`, 0),
       timeoutMs: integer(raw.timeoutMs, 8_000, `${id}.timeoutMs`, 100),
       maxRetries: integer(raw.maxRetries, 2, `${id}.maxRetries`, 0),
@@ -49,7 +50,8 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
       legacyEventId: id === "ticketmaster" ? (env.TICKETMASTER_LEGACY_EVENT_ID || "0F006482E67E7496") : null,
     };
   }
-  for (const id of Object.keys(registry)) if (!providers[id]) providers[id] = { enabled: false, mode: "pending", minRefreshMs: 300_000, retentionMs: 0, timeoutMs: 8_000, maxRetries: 2, rateLimitMs: 250, apiKey: null, eventName: null, eventDate: null, legacyEventId: null };
+  for (const [id, provider] of Object.entries(providers)) if (provider.minRefreshMs > provider.freshnessMs || provider.freshnessMs > provider.retentionMs) throw new Error(`${id} requires minRefreshMs <= freshnessMs <= retentionMs.`);
+  for (const id of Object.keys(registry)) if (!providers[id]) providers[id] = { enabled: false, mode: "pending", minRefreshMs: 300_000, freshnessMs: 900_000, retentionMs: 0, timeoutMs: 8_000, maxRetries: 2, rateLimitMs: 250, apiKey: null, eventName: null, eventDate: null, legacyEventId: null };
   return {
     environment, fixture, outputDir,
     gamesFile: resolve(cwd, env.TICKETS_GAMES_FILE || "src/data/nfl/seahawks.json"),
