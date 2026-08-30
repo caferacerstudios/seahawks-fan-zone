@@ -7,6 +7,7 @@ import { loadConfig } from "../scripts/tickets/config.mjs";
 import { acquireLock, heartbeatLock, releaseLock, runTicketSync } from "../scripts/tickets/pipeline.mjs";
 import { matchTicketmasterEvent, normalizeTicketmasterEvent, providerRegistry, ticketmasterSeasonWindow } from "../scripts/tickets/providers.mjs";
 import { evaluateProviderEvent, normalizeNflTeam, sfzEventKey } from "../src/lib/tickets/match.mjs";
+import { providerEventPricesFromRanges, validateProviderEventPrice } from "../src/lib/tickets/provider-event-price.mjs";
 import { games as realSchedule, legitimateEvents, providerEvents, rejectedEvents } from "./fixtures/ticketmaster-discovery.mjs";
 
 test("Ticketmaster is approved only as a credentialed event-summary source", () => {
@@ -45,12 +46,32 @@ test("Ticketmaster matches name and date, verifies the legacy URL ID, and saves 
   assert.equal(result.events[0].canonicalUrl, "https://www.ticketmaster.com/event/0F006482E67E7496");
 });
 
-test("Ticketmaster parses valid ranges and does not manufacture ticket rows", () => {
+test("Ticketmaster preserves valid range market types and does not manufacture ticket rows", () => {
   const normalized = normalizeTicketmasterEvent(discoveryEvent());
-  assert.deepEqual(normalized.priceRanges, [{ currency: "USD", min: 85.5, max: 640 }]);
+  assert.deepEqual(normalized.priceRanges, [{ currency: "USD", min: 85.5, max: 640, marketType: "unknown", maxIsCapped: false }]);
   assert.equal(normalized.currency, "USD");
   assert.equal(Object.hasOwn(normalized, "listings"), false);
   assert.equal(Object.hasOwn(normalized, "section"), false);
+});
+
+test("provider event-price publishing validates cents while dropping only malformed ranges", () => {
+  const capturedAt = "2026-08-29T12:00:00.000Z";
+  const prices = providerEventPricesFromRanges([
+    { type: "standard", currency: "USD", min: 85.5, max: 640 },
+    { type: "resale", currency: "CAD", min: 100, max: 900, maxIsCapped: true },
+    { type: "broken", currency: "USD", min: 20, max: 10 },
+    { type: "unsafe", currency: "USD", min: 1.001, max: 2 },
+    { type: "unsupported", currency: "EUR", min: 1, max: 2 },
+  ], { provider: "ticketmaster", sourceIdentifier: "event-1", capturedAt });
+  assert.deepEqual(prices.map(({ marketType, currency, minCents, maxCents, maxIsCapped, priceBasis }) => ({ marketType, currency, minCents, maxCents, maxIsCapped, priceBasis })), [
+    { marketType: "standard", currency: "USD", minCents: 8550, maxCents: 64000, maxIsCapped: false, priceBasis: "unknown" },
+    { marketType: "resale", currency: "CAD", minCents: 10000, maxCents: 90000, maxIsCapped: true, priceBasis: "unknown" },
+  ]);
+  assert.equal(prices.every((price) => price.capturedAt === capturedAt && price.sourceIdentifier === "event-1"), true);
+  assert.doesNotThrow(() => validateProviderEventPrice({ ...prices[0], minCents: null }));
+  assert.doesNotThrow(() => validateProviderEventPrice({ ...prices[0], maxCents: null }));
+  assert.throws(() => validateProviderEventPrice({ ...prices[0], capturedAt: "stale-ish" }), /timestamp/);
+  assert.throws(() => validateProviderEventPrice({ ...prices[0], maxCents: 100_000_001 }), /bounded/);
 });
 
 test("Ticketmaster preserves a genuinely missing priceRanges value as no range", () => {

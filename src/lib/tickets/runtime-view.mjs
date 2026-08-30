@@ -1,4 +1,5 @@
 import { safeProviderUrl } from "./outbound-links.mjs";
+import { PROVIDER_EVENT_PRICE_DISCLOSURE, providerEventPriceCopy, validateProviderEventPrice } from "./provider-event-price.mjs";
 
 const SCHEMA_VERSION = "1.0.0";
 const EVENT_FILE = /^events\/sea_[A-Za-z0-9._-]+\.json$/;
@@ -82,8 +83,11 @@ export function validateRuntimeEvent(value, indexRow, now = Date.now()) {
       record(reference.capabilities, "event.providerReferences[].capabilities");
       if (reference.capabilities.supportsSeatListings !== false || reference.capabilities.supportsResaleListings !== false || reference.capabilities.supportsPriceRange !== true || reference.capabilities.accessTier !== "discovery") throw new TypeError("Invalid runtime Discovery capabilities.");
       if (reference.summary.inventoryDetailLevel !== "price_range") throw new TypeError("Invalid runtime inventory detail level.");
-      if (!Array.isArray(reference.summary.priceRanges)) throw new TypeError("Invalid runtime event price ranges.");
-      if (reference.summary.priceRanges.some((price) => !Number.isFinite(price?.min) || !Number.isFinite(price?.max) || typeof price?.currency !== "string")) throw new TypeError("Invalid runtime event price range.");
+      if (!Array.isArray(reference.eventPrices)) throw new TypeError("Invalid runtime event prices.");
+      for (const price of reference.eventPrices) {
+        validateProviderEventPrice(price);
+        if (price.provider !== reference.provider || price.sourceIdentifier !== reference.providerEventId) throw new TypeError("Runtime event price source does not match its provider reference.");
+      }
       timestamp(reference.fetchedAt, "event.providerReferences[].fetchedAt", now);
       const expires = timestamp(reference.expiresAt, "event.providerReferences[].expiresAt", now, true);
       if (expires <= now) throw new TypeError("Runtime provider event summary is beyond its freshness limit.");
@@ -112,9 +116,27 @@ export function runtimeTicketView(event, now = Date.now()) {
   return { listings, summaries };
 }
 
+export function providerEventSummaryModel(reference) {
+  if (!reference || reference.mode !== "event-summary") throw new TypeError("Not a provider event summary.");
+  const href = safeProviderUrl(reference.provider, reference.canonicalUrl);
+  const prices = Array.isArray(reference.eventPrices) ? reference.eventPrices.map((price) => ({ ...price, copy: providerEventPriceCopy(price) })) : [];
+  const provider = reference.provider === "ticketmaster" ? "Ticketmaster" : reference.provider;
+  return {
+    provider,
+    source: reference.provider === "ticketmaster" ? "Official Discovery API event summary" : "Provider event summary",
+    status: reference.summary?.eventStatus === "onsale" ? "On sale" : reference.summary?.eventStatus === "offsale" ? "Off sale" : "Status unknown",
+    checkedAt: reference.fetchedAt,
+    stale: reference.state === "stale",
+    href,
+    priceCopy: prices[0]?.copy ?? "Price range not supplied",
+    prices,
+    disclosure: PROVIDER_EVENT_PRICE_DISCLOSURE,
+  };
+}
+
 export function ticketmasterSummaryModel(reference) {
-  if (reference?.provider !== "ticketmaster" || reference.mode !== "event-summary") throw new TypeError("Not a Ticketmaster event summary.");
-  return { provider: "Ticketmaster", source: "Official Discovery API event summary", status: reference.summary?.eventStatus === "onsale" ? "On sale" : reference.summary?.eventStatus === "offsale" ? "Off sale" : "Status unknown", checkedAt: reference.fetchedAt, stale: reference.state === "stale", href: safeProviderUrl("ticketmaster", reference.canonicalUrl), priceCopy: "Check ticket availability on Ticketmaster", rangeNotice: "Event-summary data is not an individual offer and is not used for price ranking.", disclaimer: "Numeric price ranges are hidden because mandatory-fee completeness is not documented.", priceRanges: [] };
+  if (reference?.provider !== "ticketmaster") throw new TypeError("Not a Ticketmaster event summary.");
+  return providerEventSummaryModel(reference);
 }
 
 export function runtimeProviderCoverage(status, event) {

@@ -63,10 +63,31 @@ interface ProviderEventReference {
   matchedAt: IsoUtc;
   reviewedBy: string | null;      // operator role/opaque ID, not public personal data
   sourceUpdatedAt: IsoUtc | null;
+  eventPrices: ProviderEventPrice[];
 }
 ```
 
 Provider crosswalks are preferred. Automated matching must compare both teams, venue identity, and an allowed kickoff window; it must not use opponent/time alone. Medium/low confidence requires review. Manual mappings need an audit record outside the public snapshot.
+
+## `ProviderEventPrice`
+
+```ts
+interface ProviderEventPrice {
+  provider: ProviderId;
+  marketType: string;             // provider range type; unlike types stay separate
+  minCents: number | null;
+  maxCents: number | null;
+  currency: CurrencyCode;
+  priceBasis: "unknown" | "base" | "all-in";
+  capturedAt: IsoUtc;
+  sourceIdentifier: string;       // non-secret provider event/range identifier
+  maxIsCapped: boolean;
+}
+```
+
+This is event-level summary data, not inventory. Both bounds may be present, either bound may be nullable when the provider's approved contract permits it, and both may be null to represent no supplied range. Values are bounded, nonnegative safe integer cents; currencies are allowlisted; and a present minimum cannot exceed a present maximum. A malformed range is discarded without discarding its otherwise valid event reference or allowlisted CTA. Ticketmaster Discovery uses `priceBasis: "unknown"` unless authoritative account-specific evidence establishes another basis.
+
+Event prices never become `TicketListing` records and carry no listing ID, seat, quantity, fee-complete total, `rankEligible` flag, or cheapest-price eligibility. Range types and currencies are not merged.
 
 ## `TicketListing`
 
@@ -76,7 +97,7 @@ interface TicketListing {
   provider: ProviderId;
   providerEventId: string;
   providerListingId: string | null;
-  granularity: "event" | "listing";
+  granularity: "listing";
   quantity: number | null;
   quantityMin: number | null;
   quantityMax: number | null;
@@ -101,7 +122,7 @@ interface TicketListing {
 }
 ```
 
-An event-level “starting at” offer uses `granularity: "event"`, a null listing ID/location/quantity where unavailable, and must be labeled separately. `id` must be stable only for the permitted cache window. URLs require HTTPS and a provider host allowlist. Do not expose seller identity, barcodes, raw ticket images, or seat maps unless separately approved.
+Event-level ranges belong only in `ProviderEventPrice`; they must not be adapted into this interface. `id` must be stable only for the permitted cache window. URLs require HTTPS and a provider host allowlist. Do not expose seller identity, barcodes, raw ticket images, or seat maps unless separately approved.
 
 ## `ProviderStatus`
 

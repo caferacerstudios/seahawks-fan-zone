@@ -57,9 +57,12 @@ never controls static metadata.
 In `beta` or `live` state, `/tickets` reads the runtime index and only the selected
 event file(s). Fresh listing-level records populate the retained comparison
 card area. Matched event-summary records appear separately as clearly labeled
-provider links; Ticketmaster Discovery ranges are neither offers nor cheapest
-price evidence and are hidden numerically because total-fee completeness is not
-documented. Preview
+provider links. Genuine Ticketmaster Discovery ranges are displayed as
+provider-reported event summaries with unknown fee basis; they are neither
+offers nor cheapest-price evidence and never enter listing ranking. Missing or
+malformed ranges leave the verified, allowlisted provider CTA intact. This does
+not enable or imply access to the separately gated Ticketmaster Inventory
+Status API. Preview
 state continues to use the explicitly labeled build-time development fixture.
 
 ## Proposed paths

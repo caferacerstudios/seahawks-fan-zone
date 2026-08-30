@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadRuntimeTicketData, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, ticketModeUsesFixtures, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeStatus } from "../src/lib/tickets/runtime-view.mjs";
+import { loadRuntimeTicketData, providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, ticketModeUsesFixtures, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeStatus } from "../src/lib/tickets/runtime-view.mjs";
 import { eventSummaryAdapterPayload, listingAdapterPayload } from "../scripts/tickets/listing-adapter.mjs";
 
 const future = "2030-01-01T00:00:00Z";
@@ -63,7 +63,7 @@ const index = { schemaVersion: "1.0.0", generatedAt: status.generatedAt, outcome
   { eventKey: "sea:game-2", gameId: "game-2", eventFile: "events/sea_game-2.json" },
 ] };
 const capabilities = { supportsSeatListings: false, supportsResaleListings: false, supportsPriceRange: true, accessTier: "discovery" };
-const event = { schemaVersion: "1.0.0", generatedAt: status.generatedAt, event: { eventKey: "sea:game-2", gameId: "game-2" }, providerReferences: [{ provider: "ticketmaster", providerEventId: "real", mode: "event-summary", state: "fresh", canonicalUrl: "https://www.ticketmaster.com/event/real", fetchedAt: status.generatedAt, expiresAt: future, capabilities, summary: { eventStatus: "onsale", inventoryDetailLevel: "price_range", priceRanges: [] } }], listings: { admission: [], parking: [], other: [] } };
+const event = { schemaVersion: "1.0.0", generatedAt: status.generatedAt, event: { eventKey: "sea:game-2", gameId: "game-2" }, providerReferences: [{ provider: "ticketmaster", providerEventId: "real", mode: "event-summary", state: "fresh", canonicalUrl: "https://www.ticketmaster.com/event/real", fetchedAt: status.generatedAt, expiresAt: future, capabilities, eventPrices: [], summary: { eventStatus: "onsale", inventoryDetailLevel: "price_range" } }], listings: { admission: [], parking: [], other: [] } };
 
 test("beta runtime rejects fixtures, stale snapshots, and malformed responses", () => {
   assert.throws(() => validateRuntimeStatus({ ...status, fixture: true }, now), /prohibited/);
@@ -96,8 +96,8 @@ test("missing or malformed beta runtime data fails closed", async () => {
 test("Ticketmaster summary is official, allowlisted, and never converted to a listing", () => {
   const summary = ticketmasterSummaryModel(event.providerReferences[0]);
   assert.equal(summary.status, "On sale");
-  assert.equal(summary.priceCopy, "Check ticket availability on Ticketmaster");
-  assert.match(summary.rangeNotice, /not an individual offer/);
+  assert.equal(summary.priceCopy, "Price range not supplied");
+  assert.match(summary.disclosure, /not an individual offer/);
   assert.equal(new URL(summary.href).hostname, "www.ticketmaster.com");
   assert.equal(runtimeTicketView(event, now).listings.length, 0);
   const unsafe = structuredClone(event); unsafe.providerReferences[0].canonicalUrl = "https://evil.example/event";
@@ -106,18 +106,51 @@ test("Ticketmaster summary is official, allowlisted, and never converted to a li
 
 test("Ticketmaster range copy is explicit and does not imply a live seat listing", () => {
   const ranged = structuredClone(event.providerReferences[0]);
-  ranged.summary.priceRanges = [{ currency: "USD", min: 85.5, max: 640 }];
+  ranged.eventPrices = [{ provider: "ticketmaster", marketType: "standard", minCents: 8550, maxCents: 64000, currency: "USD", priceBasis: "unknown", capturedAt: status.generatedAt, sourceIdentifier: "real", maxIsCapped: false }];
   const summary = ticketmasterSummaryModel(ranged);
-  assert.equal(summary.priceRanges.length, 0);
-  assert.match(summary.disclaimer, /Numeric price ranges are hidden/);
+  assert.equal(summary.priceCopy, "Provider-reported event range: $85.50–$640");
+  assert.equal(summary.prices[0].marketType, "standard");
+  assert.match(summary.disclosure, /Fee basis may differ/);
   assert.equal(Object.hasOwn(summary, "listings"), false);
+});
+
+test("generic event-price display supports min-only, capped, multi-currency, and absent ranges", () => {
+  const reference = structuredClone(event.providerReferences[0]);
+  reference.eventPrices = [
+    { provider: "ticketmaster", marketType: "standard", minCents: 5000, maxCents: null, currency: "USD", priceBasis: "unknown", capturedAt: status.generatedAt, sourceIdentifier: "real", maxIsCapped: false },
+    { provider: "ticketmaster", marketType: "resale", minCents: 10000, maxCents: 90000, currency: "CAD", priceBasis: "unknown", capturedAt: status.generatedAt, sourceIdentifier: "real", maxIsCapped: true },
+  ];
+  const model = providerEventSummaryModel(reference);
+  assert.equal(model.prices[0].copy, "From $50");
+  assert.match(model.prices[1].copy, /CA\$100.*CA\$900/);
+  assert.equal(model.prices[1].maxIsCapped, true);
+  assert.ok(model.href, "verified CTA remains available");
+  const stubhub = structuredClone(reference);
+  stubhub.provider = "stubhub"; stubhub.providerEventId = "stub-1"; stubhub.canonicalUrl = null;
+  stubhub.eventPrices = [{ ...reference.eventPrices[0], provider: "stubhub", sourceIdentifier: "stub-1", minCents: 4200, maxCents: null }];
+  assert.equal(providerEventSummaryModel(stubhub).priceCopy, "From $42");
+  reference.eventPrices = [];
+  assert.equal(providerEventSummaryModel(reference).priceCopy, "Price range not supplied");
+  assert.ok(providerEventSummaryModel(reference).href, "CTA remains when range is absent");
+});
+
+test("malformed event prices fail runtime validation and event prices never become rank candidates", () => {
+  const malformed = structuredClone(event);
+  malformed.providerReferences[0].eventPrices = [{ provider: "ticketmaster", marketType: "standard", minCents: 200, maxCents: 100, currency: "USD", priceBasis: "unknown", capturedAt: status.generatedAt, sourceIdentifier: "real", maxIsCapped: false }];
+  assert.throws(() => validateRuntimeEvent(malformed, index.events[1], now), /minimum/);
+  const ranged = structuredClone(event);
+  ranged.providerReferences[0].eventPrices = [{ provider: "ticketmaster", marketType: "standard", minCents: 100, maxCents: 200, currency: "USD", priceBasis: "unknown", capturedAt: status.generatedAt, sourceIdentifier: "real", maxIsCapped: false }];
+  assert.deepEqual(runtimeTicketView(ranged, now).listings, []);
+  assert.equal(Object.hasOwn(ranged.providerReferences[0].eventPrices[0], "rankEligible"), false);
 });
 
 test("stale Ticketmaster summaries are clearly marked until their freshness limit", () => {
   const stale = structuredClone(event); stale.providerReferences[0].state = "stale";
+  stale.providerReferences[0].eventPrices = [{ provider: "ticketmaster", marketType: "standard", minCents: 5000, maxCents: null, currency: "USD", priceBasis: "unknown", capturedAt: past, sourceIdentifier: "real", maxIsCapped: false }];
   assert.equal(validateRuntimeEvent(stale, index.events[1], now), stale);
   const summary = ticketmasterSummaryModel(runtimeTicketView(stale, now).summaries[0]);
   assert.equal(summary.stale, true);
+  assert.equal(summary.priceCopy, "From $50");
   stale.providerReferences[0].expiresAt = past;
   assert.throws(() => validateRuntimeEvent(stale, index.events[1], now), /freshness limit/);
 });

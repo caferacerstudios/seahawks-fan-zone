@@ -7,6 +7,7 @@ import { evaluateProviderEvent, sfzEventKey, validateMatchOverrides } from "../.
 import { configuredProviders } from "./providers.mjs";
 import { eventSummaryAdapterPayload, listingAdapterPayload } from "./listing-adapter.mjs";
 import { safeEventFilename, snapshotSchemaVersion, validateSnapshotFile } from "./snapshot.mjs";
+import { providerEventPricesFromRanges } from "../../src/lib/tickets/provider-event-price.mjs";
 
 const safeCode = (error) => /^[A-Z][A-Z0-9_]{1,63}$/.test(error?.code) ? error.code : "PROVIDER_FAILED";
 const iso = (ms) => new Date(ms).toISOString();
@@ -254,7 +255,8 @@ export async function runTicketSync(config, options = {}) {
             if (eventUrl.protocol !== "https:" || !provider.adapter.allowedHosts.includes(eventUrl.hostname) || eventUrl.username || eventUrl.password) throw Object.assign(new Error("Invalid provider event URL."), { code: "INVALID_RESPONSE" });
             for (const key of eventUrl.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key)) throw Object.assign(new Error("Secret-like provider event URL."), { code: "INVALID_RESPONSE" });
           }
-          const addition = { eventKey: result.eventKey, reference: { provider: provider.id, providerEventId: String(rawEvent.id), mode: provider.mode, matchConfidence: result.confidence, canonicalUrl: rawEvent.canonicalUrl ?? null, state: "fresh", fetchedAt: now, expiresAt: iso(started + provider.freshnessMs), capabilities: provider.adapter.capabilities ?? null, summary: provider.mode === "event-summary" ? { name: rawEvent.name, venue: rawEvent.venue, startTimeUtc: rawEvent.startTimeUtc, localDate: rawEvent.localDate, localTime: rawEvent.localTime, timeZone: rawEvent.timeZone, eventStatus: rawEvent.eventStatus, currency: rawEvent.currency, priceRanges: [], inventoryDetailLevel: rawEvent.inventoryDetailLevel } : null }, listings: [] };
+          const providerEventId = String(rawEvent.id);
+          const addition = { eventKey: result.eventKey, reference: { provider: provider.id, providerEventId, mode: provider.mode, matchConfidence: result.confidence, canonicalUrl: rawEvent.canonicalUrl ?? null, state: "fresh", fetchedAt: now, expiresAt: iso(started + provider.freshnessMs), capabilities: provider.adapter.capabilities ?? null, eventPrices: provider.mode === "event-summary" ? providerEventPricesFromRanges(rawEvent.priceRanges, { provider: provider.id, sourceIdentifier: providerEventId, capturedAt: now, priceBasis: "unknown" }) : [], summary: provider.mode === "event-summary" ? { name: rawEvent.name, venue: rawEvent.venue, startTimeUtc: rawEvent.startTimeUtc, localDate: rawEvent.localDate, localTime: rawEvent.localTime, timeZone: rawEvent.timeZone, eventStatus: rawEvent.eventStatus, inventoryDetailLevel: rawEvent.inventoryDetailLevel } : null }, listings: [] };
           if (provider.mode === "listing-level") for (const rawListing of (rawEvent.listings || []).slice(0, 2_000)) {
             try { addition.listings.push(listing(rawListing, provider, game, now)); counts.fresh += 1; } catch { counts.rejected += 1; }
           }

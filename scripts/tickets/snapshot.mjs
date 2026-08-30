@@ -1,3 +1,5 @@
+import { validateProviderEventPrice } from "../../src/lib/tickets/provider-event-price.mjs";
+
 const VERSION = "1.0.0";
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 const SAFE_CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
@@ -44,8 +46,11 @@ export function validateSnapshotFile(value, kind, allowedHosts = {}) {
         object(reference.capabilities, "event.providerReferences[].capabilities");
         if (reference.capabilities.supportsSeatListings !== false || reference.capabilities.supportsResaleListings !== false || reference.capabilities.supportsPriceRange !== true || reference.capabilities.accessTier !== "discovery") throw new TypeError("Invalid Discovery provider capabilities.");
         if (reference.summary.inventoryDetailLevel !== "price_range") throw new TypeError("Event summary inventory detail must be price_range.");
-        if (!Array.isArray(reference.summary.priceRanges)) throw new TypeError("Event summary priceRanges must be an array.");
-        if (reference.summary.priceRanges.some((price) => !Number.isFinite(price.min) || !Number.isFinite(price.max) || typeof price.currency !== "string")) throw new TypeError("Invalid provider event price range.");
+        if (!Array.isArray(reference.eventPrices)) throw new TypeError("Event summary eventPrices must be an array.");
+        for (const price of reference.eventPrices) {
+          validateProviderEventPrice(price);
+          if (price.provider !== reference.provider || price.sourceIdentifier !== reference.providerEventId) throw new TypeError("Event price source does not match its provider reference.");
+        }
         timestamp(reference.fetchedAt, "event.providerReferences[].fetchedAt"); timestamp(reference.expiresAt, "event.providerReferences[].expiresAt");
       }
     }

@@ -28,9 +28,10 @@ function ticketmasterStatus(event) {
 
 export function normalizeTicketmasterEvent(event) {
   const venue = event?._embedded?.venues?.[0];
-  const prices = Array.isArray(event?.priceRanges) ? event.priceRanges
-    .filter(({ currency, min, max }) => typeof currency === "string" && Number.isFinite(min) && Number.isFinite(max))
-    .map(({ currency, min, max }) => ({ currency, min, max })) : [];
+  const prices = Array.isArray(event?.priceRanges) ? event.priceRanges.map((range) => ({
+    currency: range?.currency, min: range?.min ?? null, max: range?.max ?? null,
+    marketType: range?.type ?? "unknown", maxIsCapped: range?.maxIsCapped === true,
+  })) : [];
   return {
     id: String(event.id), name: String(event.name), canonicalUrl: event.url ?? null,
     venue: venue ? { name: venue.name ?? null, city: venue.city?.name ?? null, state: venue.state?.stateCode ?? venue.state?.name ?? null } : null,

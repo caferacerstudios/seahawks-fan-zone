@@ -86,11 +86,16 @@ tailgates, hospitality-only products, hotel/travel packages, season-ticket
 notification/interest lists, deposits, and watch parties. Ambiguous duplicate
 candidates are suppressed. Unmatched games receive no fabricated URL.
 
-Discovery may omit `priceRanges`; the beta then says “See current prices on
-Ticketmaster.” If ranges later appear they remain provider-reported event
-summaries and are not cheapest-sort eligible. Quantity, section, row, seats,
-listing IDs, and fee-complete totals require separately approved listing APIs.
-Inventory Status API access remains future work, as do listing-level
+Discovery may omit `priceRanges`; the beta then says “Price range not supplied”
+and retains the verified Ticketmaster CTA. Returned ranges display as
+“Provider-reported event range: $X–$Y” (or “From $X” for a minimum-only approved
+shape), retain distinct range types/currencies, use an unknown fee basis, and
+carry the disclosure “Event summary, not an individual offer. Fee basis may
+differ. Confirm current price and availability with the provider.” They are not
+cheapest-sort eligible. Quantity, section, row, seats, listing IDs, and
+fee-complete totals require separately approved listing APIs. The Ticketmaster
+Inventory Status API is a distinct, separately gated product; access remains
+future work, as do listing-level
 marketplaces and their rights/retention reviews.
 
 ## Rollback
