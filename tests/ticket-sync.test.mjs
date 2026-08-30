@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { hostname, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { loadConfig } from "../scripts/tickets/config.mjs";
-import { acquireLock, runTicketSync } from "../scripts/tickets/pipeline.mjs";
+import { acquireLock, heartbeatLock, releaseLock, runTicketSync } from "../scripts/tickets/pipeline.mjs";
 import { matchTicketmasterEvent, normalizeTicketmasterEvent, providerRegistry } from "../scripts/tickets/providers.mjs";
 import { evaluateProviderEvent, normalizeNflTeam, sfzEventKey } from "../src/lib/tickets/match.mjs";
 import { games as realSchedule, legitimateEvents, providerEvents, rejectedEvents } from "./fixtures/ticketmaster-discovery.mjs";
@@ -251,6 +251,14 @@ test("freshness is separate from throttling and bounded by retention", () => {
   assert.throws(() => loadConfig({ TICKETS_PROVIDERS_JSON: JSON.stringify({ ticketmaster: { ...provider.ticketmaster, freshnessMs: 500000 } }) }, root), /minRefreshMs <= freshnessMs <= retentionMs/);
 });
 
+test("lease timing and stale-artifact configuration is positive and safely bounded", () => {
+  const config = loadConfig({ TICKETS_LOCK_STALE_MS: "9000", TICKETS_LOCK_HEARTBEAT_MS: "2000", TICKETS_LOCK_STALE_ARTIFACT_LIMIT: "2" }, root);
+  assert.deepEqual([config.lockStaleMs, config.lockHeartbeatMs, config.lockStaleArtifactLimit], [9000, 2000, 2]);
+  assert.throws(() => loadConfig({ TICKETS_LOCK_STALE_MS: "9000", TICKETS_LOCK_HEARTBEAT_MS: "3000" }, root), /less than one third/);
+  assert.throws(() => loadConfig({ TICKETS_LOCK_STALE_ARTIFACT_LIMIT: "0" }, root), /at least 1/);
+  assert.throws(() => loadConfig({ TICKETS_LOCK_HEARTBEAT_MS: "Infinity" }, root), /integer/);
+});
+
 test("non-fixture sync rejects missing or fictional schedule provenance", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-provenance-"));
   try {
@@ -259,16 +267,73 @@ test("non-fixture sync rejects missing or fictional schedule provenance", async 
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 
-test("lock recovery refuses live and unknown locks but recovers verified stale dead ownership", async () => {
-  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-lock-")); const lock = join(temporary, ".current.lock");
+const token = (suffix) => `00000000-0000-4000-8000-${suffix.padStart(12, "0")}`;
+const leaseOwner = ({ runToken = token("1"), startedAt = "2026-08-29T11:59:00.000Z", heartbeatAt = startedAt, pid = 1, hostname = "old-container" } = {}) => ({ schemaVersion: 1, runToken, startedAt, heartbeatAt, pid, hostname });
+const putLock = async (lock, owner) => { await mkdir(lock); await writeFile(join(lock, "owner.json"), `${JSON.stringify(owner)}\n`); };
+
+test("lease acquisition is exclusive and ignores diagnostic PID and hostname for fresh ownership", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-lock-fresh-")); const lock = join(temporary, ".current.lock"); const now = Date.parse("2026-08-29T12:00:00Z");
   try {
-    await mkdir(lock); await writeFile(join(lock, "owner.json"), JSON.stringify({ pid: process.pid, hostname: hostname(), startedAt: "2026-08-29T11:00:00.000Z" }));
-    await assert.rejects(acquireLock(lock, Date.parse("2026-08-29T12:00:00Z"), 60_000), { code: "SYNC_LOCKED" });
-    await rm(lock, { recursive: true }); await mkdir(lock); await writeFile(join(lock, "owner.json"), "not-json");
-    await assert.rejects(acquireLock(lock, Date.parse("2026-08-29T12:00:00Z"), 60_000), { code: "SYNC_LOCK_UNKNOWN" });
-    await rm(lock, { recursive: true }); await mkdir(lock); await writeFile(join(lock, "owner.json"), JSON.stringify({ pid: 2147483647, hostname: hostname(), startedAt: "2026-08-29T11:00:00.000Z" }));
-    await acquireLock(lock, Date.parse("2026-08-29T12:00:00Z"), 60_000);
+    const first = await acquireLock(lock, now, 60_000, { runToken: token("1"), diagnostics: { pid: 1, hostname: "container-a" } });
+    await assert.rejects(acquireLock(lock, now, 60_000, { runToken: token("2"), diagnostics: { pid: 1, hostname: "container-b" } }), { code: "SYNC_LOCKED" });
+    assert.equal(first.runToken, token("1"));
   } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("expired leases recover across changed container hostname and reused PID 1", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-lock-stale-")); const lock = join(temporary, ".current.lock"); const now = Date.parse("2026-08-29T12:00:00Z");
+  try {
+    await putLock(lock, leaseOwner({ startedAt: "2026-08-29T11:00:00.000Z", pid: 1, hostname: "gone-container" }));
+    const lease = await acquireLock(lock, now, 60_000, { runToken: token("2"), diagnostics: { pid: 1, hostname: "new-container" } });
+    assert.equal(lease.runToken, token("2"));
+    assert.equal((await readJson(join(lock, "owner.json"))).hostname, "new-container");
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("malformed, tokenless, and impossible lease metadata fail closed", async () => {
+  const cases = ["not-json", JSON.stringify({ ...leaseOwner(), runToken: undefined }), JSON.stringify(leaseOwner({ startedAt: "2026-08-29T12:01:00.000Z", heartbeatAt: "2026-08-29T12:01:00.000Z" })), JSON.stringify(leaseOwner({ startedAt: "2026-08-29T12:00:00.000Z", heartbeatAt: "2026-08-29T11:59:00.000Z" }))];
+  for (const [index, contents] of cases.entries()) {
+    const temporary = await mkdtemp(join(tmpdir(), `sfz-ticket-lock-unknown-${index}-`)); const lock = join(temporary, ".current.lock");
+    try { await mkdir(lock); await writeFile(join(lock, "owner.json"), contents); await assert.rejects(acquireLock(lock, Date.parse("2026-08-29T12:00:00Z"), 60_000), { code: "SYNC_LOCK_UNKNOWN" }); }
+    finally { await rm(temporary, { recursive: true, force: true }); }
+  }
+});
+
+test("only one stale-recovery contender acquires the replacement lease", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-lock-race-")); const lock = join(temporary, ".current.lock"); const now = Date.parse("2026-08-29T12:00:00Z");
+  try {
+    await putLock(lock, leaseOwner({ startedAt: "2026-08-29T11:00:00.000Z" }));
+    const results = await Promise.allSettled([acquireLock(lock, now, 60_000, { runToken: token("2") }), acquireLock(lock, now, 60_000, { runToken: token("3") })]);
+    assert.equal(results.filter(({ status }) => status === "fulfilled").length, 1);
+    assert.equal(results.filter(({ status }) => status === "rejected").length, 1);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("heartbeat refreshes only its owner and old-owner release cannot remove a replacement", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-lock-owner-")); const lock = join(temporary, ".current.lock"); const initial = Date.parse("2026-08-29T12:00:00Z");
+  try {
+    const old = await acquireLock(lock, initial, 60_000, { runToken: token("1") });
+    assert.equal(await heartbeatLock(old, initial + 40_000), true);
+    await assert.rejects(acquireLock(lock, initial + 90_000, 60_000, { runToken: token("2") }), { code: "SYNC_LOCKED" });
+    await rm(lock, { recursive: true }); await putLock(lock, leaseOwner({ runToken: token("2"), startedAt: "2026-08-29T12:01:00.000Z", heartbeatAt: "2026-08-29T12:01:00.000Z" }));
+    assert.equal(await heartbeatLock(old, initial + 60_000), false);
+    assert.equal(await releaseLock(old, initial + 60_000), false);
+    assert.equal((await readJson(join(lock, "owner.json"))).runToken, token("2"));
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("pipeline stops the heartbeat timer after success and failure", async () => {
+  for (const fail of [false, true]) {
+    const temporary = await mkdtemp(join(tmpdir(), `sfz-ticket-heartbeat-${fail}-`)); let timer; let cleared = false;
+    try {
+      const config = loadConfig({ TICKETS_FIXTURE: "true", TICKETS_OUTPUT_DIR: join(temporary, "snapshot") }, root);
+      const options = { now: new Date("2026-08-29T12:00:00Z"), clock: () => Date.parse("2026-08-29T12:00:01Z"), log: () => {}, setInterval: (callback) => { timer = { callback }; return timer; }, clearInterval: (value) => { assert.equal(value, timer); cleared = true; } };
+      if (fail) await assert.rejects(runTicketSync(config, { ...options, injectFailure: async (point) => { if (point === "after-validation") throw new Error("pipeline-failed"); } }), /pipeline-failed/);
+      else await runTicketSync(config, options);
+      assert.equal(cleared, true); timer.callback(); await Promise.resolve();
+      assert.equal(cleared, true);
+    } finally { await rm(temporary, { recursive: true, force: true }); }
+  }
 });
 
 test("publication failures before atomic switch preserve current", async () => {
@@ -281,5 +346,18 @@ test("publication failures before atomic switch preserve current", async () => {
       await assert.rejects(runTicketSync(config, { now: new Date(`2026-08-29T12:${boundary.length}:00Z`), log: () => {}, injectFailure: async (point) => { if (point === boundary) throw new Error(`injected-${point}`); } }), new RegExp(`injected-${boundary}`));
       assert.equal(await readFile(join(outputDir, "index.json"), "utf8"), original);
     }
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("successful publication points current at a complete immutable version", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-publish-success-"));
+  try {
+    const outputDir = join(temporary, "current"); const config = loadConfig({ TICKETS_FIXTURE: "true", TICKETS_OUTPUT_DIR: outputDir }, root);
+    await runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), log: () => {} });
+    assert.equal((await lstat(outputDir)).isSymbolicLink(), true);
+    const target = await readlink(outputDir); assert.match(target, /^\.current\.versions\//);
+    const version = join(temporary, target); const index = await readJson(join(version, "index.json")); const status = await readJson(join(version, "status.json"));
+    assert.equal(index.schemaVersion, "1.0.0"); assert.equal(status.outcome, "success");
+    for (const event of index.events) assert.equal((await readJson(join(version, event.eventFile))).event.eventKey, event.eventKey);
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });

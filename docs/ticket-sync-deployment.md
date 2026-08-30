@@ -27,13 +27,15 @@ stable parent. A killed publisher leaves the prior pointer intact and no
 unvalidated version is linked. The runtime mount must expose that stable parent,
 not the symlink target. Three local versions are retained at most. An existing
 `current` directory is migrated into the version store before installing the
-pointer. The internal lock records PID, hostname, and start time; live/recent
-locks return `SYNC_LOCKED`, verified same-host dead stale locks recover, and
-unknown or malformed ownership fails closed. The systemd unit adds a
-host-level non-blocking `flock`; overlap is a visible failed unit, not a second
-run. A preparation failure leaves `current` untouched. A provider failure can
-publish a validated degraded snapshot only within that provider's configured
-retention; expired listings are omitted.
+pointer. Locking has two layers. The systemd unit's host-level non-blocking
+`flock` prevents overlapping scheduled containers; overlap is a visible failed
+unit. Independently, the application protects persistent runtime state with a
+versioned lease containing a cryptographically unique run token, start time,
+and refreshed heartbeat. PID and hostname are retained only as diagnostics:
+PID 1 and changing hostnames in one-shot containers are never liveness or
+ownership evidence. A preparation failure leaves `current` untouched. A
+provider failure can publish a validated degraded snapshot only within that
+provider's configured retention; expired listings are omitted.
 
 Nginx mounts the instance data root read-only and serves only
 `current/` at `/data/tickets/`. JSON is sent as `application/json`, with
@@ -119,7 +121,11 @@ The exact runtime variables are:
   non-fixture sync requires the schedule itself to contain exactly
   `fixture:false`; status publishes both `fixture` and `scheduleFixture`, and
   beta/live reject either missing or true field.
-- `TICKETS_LOCK_STALE_MS` and, for Ticketmaster event summaries,
+- `TICKETS_LOCK_STALE_MS` (default 30 minutes) sets lease expiry,
+  `TICKETS_LOCK_HEARTBEAT_MS` (default 60 seconds) refreshes an owned lease and
+  must be less than one third of the stale duration, and
+  `TICKETS_LOCK_STALE_ARTIFACT_LIMIT` (default 3) bounds quarantined stale-lock
+  directories. For Ticketmaster event summaries, also configure
   `TICKETMASTER_API_KEY` plus optional `TICKETMASTER_EVENT_NAME`,
   `TICKETMASTER_EVENT_DATE`, and `TICKETMASTER_LEGACY_EVENT_ID`.
 
@@ -347,8 +353,16 @@ curl -fsS -D - http://127.0.0.1:4324/data/tickets/status.json -o /dev/null
 docker compose --project-name sfz-dev --file docker-compose.yml ps
 ```
 
-`SYNC_LOCKED` or a failed `flock` means another run is active; inspect the unit
-and process before retrying, and never delete a lock owned by a running job.
+`SYNC_LOCKED` means the application found a valid, unexpired lease; a failed
+`flock` means another host-scheduled container holds the outer guard. In either
+case, inspect the unit before retrying and do not delete the lock. A valid lease
+that exceeds `TICKETS_LOCK_STALE_MS` is recovered by atomically renaming it to a
+token-specific quarantine, rereading the claimed metadata, rechecking the run
+token and expiry, and exclusively creating a replacement. Concurrent recovery
+losers fail closed. `SYNC_LOCK_UNKNOWN` means ownership is missing, malformed,
+unreadable, time-invalid, changed during recovery, or otherwise ambiguous; it
+requires operator investigation rather than manual lock deletion. PID and
+hostname differences alone never authorize recovery.
 `SYNC_FAILED` means candidate publication failed and `current` should remain
 unchanged. A degraded exit is successful publication with provider-level error
 codes in `status.json`. A missing endpoint means either no successful initial

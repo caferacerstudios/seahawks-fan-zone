@@ -52,12 +52,16 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
   }
   for (const [id, provider] of Object.entries(providers)) if (provider.minRefreshMs > provider.freshnessMs || provider.freshnessMs > provider.retentionMs) throw new Error(`${id} requires minRefreshMs <= freshnessMs <= retentionMs.`);
   for (const id of Object.keys(registry)) if (!providers[id]) providers[id] = { enabled: false, mode: "pending", minRefreshMs: 300_000, freshnessMs: 900_000, retentionMs: 0, timeoutMs: 8_000, maxRetries: 2, rateLimitMs: 250, apiKey: null, eventName: null, eventDate: null, legacyEventId: null };
+  const lockStaleMs = integer(env.TICKETS_LOCK_STALE_MS, 1_800_000, "TICKETS_LOCK_STALE_MS", 1);
+  const lockHeartbeatMs = integer(env.TICKETS_LOCK_HEARTBEAT_MS, 60_000, "TICKETS_LOCK_HEARTBEAT_MS", 1);
+  const lockStaleArtifactLimit = integer(env.TICKETS_LOCK_STALE_ARTIFACT_LIMIT, 3, "TICKETS_LOCK_STALE_ARTIFACT_LIMIT", 1);
+  if (lockHeartbeatMs * 3 >= lockStaleMs) throw new Error("TICKETS_LOCK_HEARTBEAT_MS must be safely shorter than TICKETS_LOCK_STALE_MS (less than one third).");
   return {
     environment, fixture, outputDir,
     gamesFile: resolve(cwd, env.TICKETS_GAMES_FILE || "src/data/nfl/seahawks.json"),
     overridesFile: resolve(cwd, env.TICKETS_OVERRIDES_FILE || "src/data/tickets/match-overrides.json"),
     fixtureFile: resolve(cwd, env.TICKETS_FIXTURE_FILE || "scripts/tickets/fixtures/provider.json"),
-    lockStaleMs: integer(env.TICKETS_LOCK_STALE_MS, 1_800_000, "TICKETS_LOCK_STALE_MS", 60_000),
+    lockStaleMs, lockHeartbeatMs, lockStaleArtifactLimit,
     providers,
   };
 }

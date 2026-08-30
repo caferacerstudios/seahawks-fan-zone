@@ -1,4 +1,5 @@
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile, lstat, symlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { normalizeSchedule } from "../../src/lib/schedule.mjs";
@@ -16,20 +17,115 @@ const json = async (path) => JSON.parse(await readFile(path, "utf8"));
 // validated contract or output tree.
 const writeJson = (path, value) => writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
 
-async function acquireLock(lockDir, started, staleMs) {
+const lockSchemaVersion = 1;
+const lockFields = ["heartbeatAt", "hostname", "pid", "runToken", "schemaVersion", "startedAt"];
+const lockTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const lockError = (message, code) => Object.assign(new Error(message), { code });
+
+function validateLockOwner(value, nowMs) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.schemaVersion !== lockSchemaVersion ||
+      Object.keys(value).sort().join(",") !== lockFields.join(",") ||
+      typeof value.runToken !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.runToken) ||
+      !Number.isSafeInteger(value.pid) || value.pid < 1 || typeof value.hostname !== "string" || !value.hostname.trim() || value.hostname.length > 255 ||
+      typeof value.startedAt !== "string" || !lockTimestamp.test(value.startedAt) || typeof value.heartbeatAt !== "string" || !lockTimestamp.test(value.heartbeatAt)) {
+    throw lockError("Ticket sync lock ownership cannot be verified.", "SYNC_LOCK_UNKNOWN");
+  }
+  const startedAt = Date.parse(value.startedAt); const heartbeatAt = Date.parse(value.heartbeatAt);
+  if (!Number.isFinite(startedAt) || !Number.isFinite(heartbeatAt) || startedAt > heartbeatAt || heartbeatAt > nowMs) {
+    throw lockError("Ticket sync lock lease timestamps cannot be verified.", "SYNC_LOCK_UNKNOWN");
+  }
+  return { ...value, startedAtMs: startedAt, heartbeatAtMs: heartbeatAt };
+}
+
+const lockOwner = (runToken, nowMs, diagnostics = {}) => ({
+  schemaVersion: lockSchemaVersion, runToken, startedAt: iso(nowMs), heartbeatAt: iso(nowMs),
+  pid: diagnostics.pid ?? process.pid, hostname: diagnostics.hostname ?? hostname(),
+});
+
+async function readLockOwner(path, nowMs) {
+  try { return validateLockOwner(await json(path), nowMs); }
+  catch (error) { if (error.code === "SYNC_LOCK_UNKNOWN") throw error; throw lockError("Ticket sync lock metadata is missing, unreadable, or malformed.", "SYNC_LOCK_UNKNOWN"); }
+}
+
+async function cleanupStaleLockArtifacts(lockDir, limit) {
+  const parent = dirname(lockDir); const prefix = `${basename(lockDir)}.stale-`;
+  const entries = (await readdir(parent, { withFileTypes: true })).filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix)).sort((a, b) => b.name.localeCompare(a.name));
+  for (const entry of entries.slice(limit)) await rm(join(parent, entry.name), { recursive: true, force: true });
+}
+
+async function acquireLock(lockDir, nowMs, staleMs, options = {}) {
   const ownerFile = join(lockDir, "owner.json");
-  const owner = { pid: process.pid, hostname: hostname(), startedAt: iso(started) };
-  try { await mkdir(lockDir); await writeJson(ownerFile, owner); return; } catch (error) { if (error.code !== "EEXIST") throw error; }
+  const runToken = options.runToken ?? randomUUID();
+  const owner = lockOwner(runToken, nowMs, options.diagnostics);
+  let created = false;
+  try { await mkdir(lockDir); created = true; } catch (error) { if (error.code !== "EEXIST") throw error; }
+  if (created) {
+    try { await writeFile(ownerFile, `${JSON.stringify(owner, null, 2)}\n`, { flag: "wx", mode: 0o600 }); return { lockDir, runToken }; }
+    catch (error) { await rm(lockDir, { recursive: true, force: true }).catch(() => {}); throw error; }
+  }
+  const existing = await readLockOwner(ownerFile, nowMs);
+  if (nowMs - existing.heartbeatAtMs <= staleMs) throw lockError("Another ticket sync is active.", "SYNC_LOCKED");
+  const claim = `${lockDir}.stale-${String(nowMs).padStart(16, "0")}-${runToken}`;
+  try { await rename(lockDir, claim); } catch (error) {
+    if (["ENOENT", "EEXIST", "ENOTEMPTY"].includes(error.code)) throw lockError("Ticket sync stale-lock recovery lost a race.", "SYNC_LOCK_UNKNOWN");
+    throw error;
+  }
+  let claimed;
+  try { claimed = await readLockOwner(join(claim, "owner.json"), nowMs); }
+  catch (error) { await rename(claim, lockDir).catch(() => {}); throw error; }
+  if (claimed.runToken !== existing.runToken || nowMs - claimed.heartbeatAtMs <= staleMs) {
+    await rename(claim, lockDir).catch(() => {});
+    throw lockError("Ticket sync stale-lock recovery evidence changed.", "SYNC_LOCK_UNKNOWN");
+  }
+  try { await mkdir(lockDir); }
+  catch (error) { if (error.code === "EEXIST") throw lockError("Ticket sync stale-lock recovery lost a race.", "SYNC_LOCK_UNKNOWN"); throw error; }
+  try { await writeFile(ownerFile, `${JSON.stringify(owner, null, 2)}\n`, { flag: "wx", mode: 0o600 }); }
+  catch (error) { await rm(lockDir, { recursive: true, force: true }).catch(() => {}); throw error; }
+  try { await cleanupStaleLockArtifacts(lockDir, options.artifactLimit ?? 3); }
+  catch (error) { await releaseLock({ lockDir, runToken }, nowMs).catch(() => {}); throw error; }
+  return { lockDir, runToken };
+}
+
+async function heartbeatLock(lease, nowMs) {
+  const ownerFile = join(lease.lockDir, "owner.json"); const existing = await readLockOwner(ownerFile, nowMs);
+  if (existing.runToken !== lease.runToken) return false;
+  const next = { schemaVersion: lockSchemaVersion, runToken: lease.runToken, startedAt: existing.startedAt, heartbeatAt: iso(nowMs), pid: existing.pid, hostname: existing.hostname };
+  const temporary = join(lease.lockDir, `.owner-${lease.runToken}.tmp`);
+  await writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+  try {
+    const current = await readLockOwner(ownerFile, nowMs);
+    if (current.runToken !== lease.runToken) return false;
+    await rename(temporary, ownerFile); return true;
+  } finally { await rm(temporary, { force: true }); }
+}
+
+async function releaseLock(lease, nowMs = Date.now()) {
   let existing;
-  try { existing = await json(ownerFile); } catch { throw Object.assign(new Error("Ticket sync lock metadata is missing or malformed."), { code: "SYNC_LOCK_UNKNOWN" }); }
-  const age = started - Date.parse(existing.startedAt);
-  if (!Number.isSafeInteger(existing.pid) || existing.pid < 1 || existing.hostname !== hostname() || !Number.isFinite(age) || age < 0) throw Object.assign(new Error("Ticket sync lock ownership cannot be verified."), { code: "SYNC_LOCK_UNKNOWN" });
-  let live = false;
-  try { process.kill(existing.pid, 0); live = true; } catch (failure) { if (failure.code === "EPERM") live = true; else if (failure.code !== "ESRCH") throw failure; }
-  if (live || age <= staleMs) throw Object.assign(new Error("Another ticket sync is active."), { code: "SYNC_LOCKED" });
-  await rm(lockDir, { recursive: true });
-  await mkdir(lockDir);
-  await writeJson(ownerFile, owner);
+  try { existing = await readLockOwner(join(lease.lockDir, "owner.json"), nowMs); }
+  catch (error) { if (error.code === "SYNC_LOCK_UNKNOWN") return false; throw error; }
+  if (existing.runToken !== lease.runToken) return false;
+  const claim = `${lease.lockDir}.release-${lease.runToken}`;
+  try { await rename(lease.lockDir, claim); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+  let claimed;
+  try { claimed = await readLockOwner(join(claim, "owner.json"), nowMs); }
+  catch { await rename(claim, lease.lockDir).catch(() => {}); return false; }
+  if (claimed.runToken !== lease.runToken) { await rename(claim, lease.lockDir).catch(() => {}); return false; }
+  await rm(claim, { recursive: true, force: true });
+  return true;
+}
+
+function startLockHeartbeat(lease, intervalMs, options = {}) {
+  const clock = options.clock ?? Date.now; const setTimer = options.setInterval ?? setInterval; const clearTimer = options.clearInterval ?? clearInterval;
+  let stopped = false; let failure = null; let pending = Promise.resolve();
+  const beat = () => { pending = pending.then(async () => {
+    if (stopped) return;
+    if (!await heartbeatLock(lease, clock())) throw lockError("Ticket sync lease ownership was lost.", "SYNC_LOCK_UNKNOWN");
+  }).catch((error) => { failure = error; }); };
+  const timer = setTimer(beat, intervalMs); timer?.unref?.();
+  return {
+    check() { if (failure) throw failure; },
+    async stop() { stopped = true; clearTimer(timer); await pending; if (failure) throw failure; },
+  };
 }
 
 async function publishSnapshot(outputDir, stage, versionId, inject = async () => {}, retentionMs = 0, nowMs = Date.now()) {
@@ -111,7 +207,9 @@ export async function runTicketSync(config, options = {}) {
   const parent = dirname(config.outputDir); const name = basename(config.outputDir);
   const lockDir = join(parent, `.${name}.lock`); const stage = join(parent, `.${name}.tmp-${process.pid}-${started}`);
   await mkdir(parent, { recursive: true });
-  await acquireLock(lockDir, started, config.lockStaleMs);
+  const lease = await acquireLock(lockDir, started, config.lockStaleMs, { artifactLimit: config.lockStaleArtifactLimit, runToken: options.runToken, diagnostics: options.lockDiagnostics });
+  const heartbeat = startLockHeartbeat(lease, config.lockHeartbeatMs, { clock: options.clock, setInterval: options.setInterval, clearInterval: options.clearInterval });
+  let pipelineFailure = null;
   try {
     for (const entry of await readdir(parent, { withFileTypes: true })) {
       const path = join(parent, entry.name);
@@ -195,12 +293,19 @@ export async function runTicketSync(config, options = {}) {
     validateSnapshotFile(index, "index"); validateSnapshotFile(status, "status"); await writeJson(join(stage, "index.json"), index); await writeJson(join(stage, "status.json"), status);
     validateSnapshotFile(await json(join(stage, "index.json")), "index"); validateSnapshotFile(await json(join(stage, "status.json")), "status");
     for (const filename of await readdir(join(stage, "events"))) validateSnapshotFile(await json(join(stage, "events", filename)), "event", allowedHosts);
-    await (options.injectFailure?.("after-validation") ?? Promise.resolve());
+    await (options.injectFailure?.("after-validation") ?? Promise.resolve()); heartbeat.check();
     const maximumRetentionMs = Math.max(0, ...Object.values(config.providers).map((provider) => provider.retentionMs));
     await publishSnapshot(config.outputDir, stage, `${started}-${process.pid}`, options.injectFailure, maximumRetentionMs, started);
     log(sink, "info", "sync_complete", { outcome, events: indexEvents.length, durationMs, ...totals });
     return status;
-  } finally { await rm(stage, { recursive: true, force: true }); await rm(lockDir, { recursive: true, force: true }); }
+  } catch (error) { pipelineFailure = error; throw error; }
+  finally {
+    let cleanupFailure = null;
+    try { await heartbeat.stop(); } catch (error) { cleanupFailure = error; }
+    try { await rm(stage, { recursive: true, force: true }); } catch (error) { cleanupFailure ??= error; }
+    try { await releaseLock(lease, options.clock?.() ?? Date.now()); } catch (error) { cleanupFailure ??= error; }
+    if (!pipelineFailure && cleanupFailure) throw cleanupFailure;
+  }
 }
 
-export { acquireLock, publishSnapshot };
+export { acquireLock, heartbeatLock, releaseLock, startLockHeartbeat, publishSnapshot };
