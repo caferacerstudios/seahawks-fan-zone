@@ -236,7 +236,7 @@ export async function runTicketSync(config, options = {}) {
       }
       const counts = { fresh: 0, stale: 0, rejected: 0, unmatched: 0 }; const rejectedEvents = []; const unmatchedEvents = [];
       try {
-        const rawPayload = await provider.adapter.sync({ fixture: config.fixture, fixtureFile: config.fixtureFile, apiKey: provider.apiKey, eventName: provider.eventName, eventDate: provider.eventDate, legacyEventId: provider.legacyEventId, timeoutMs: provider.timeoutMs, fetch: options.fetch });
+        const rawPayload = await provider.adapter.sync({ fixture: config.fixture, fixtureFile: config.fixtureFile, apiKey: provider.apiKey, discoveryMode: provider.discoveryMode, attractionId: provider.attractionId, eventName: provider.eventName, eventDate: provider.eventDate, legacyEventId: provider.legacyEventId, games, timeoutMs: provider.timeoutMs, maxRetries: provider.maxRetries, rateLimitMs: provider.rateLimitMs, pageSize: provider.pageSize, maxPages: provider.maxPages, maxRequests: provider.maxRequests, fetch: options.fetch, sleep: options.sleep, random: options.random });
         const payload = provider.mode === "listing-level" ? listingAdapterPayload(rawPayload) : eventSummaryAdapterPayload(rawPayload);
         const additions = [];
         for (const rawEvent of payload.events.slice(0, 100)) {

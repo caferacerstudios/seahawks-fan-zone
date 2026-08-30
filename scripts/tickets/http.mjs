@@ -1,18 +1,22 @@
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function createProviderHttp({ provider, allowedHosts, timeoutMs, maxRetries, rateLimitMs, userAgent = "SeahawksFanZone-TicketSync/1.0" }, dependencies = {}) {
+export function createProviderHttp({ provider, allowedHosts, timeoutMs, maxRetries, rateLimitMs, maxRequests = Number.MAX_SAFE_INTEGER, sensitiveQueryParams = [], userAgent = "SeahawksFanZone-TicketSync/1.0" }, dependencies = {}) {
   const fetchImpl = dependencies.fetch ?? globalThis.fetch;
   const sleep = dependencies.sleep ?? wait;
   const random = dependencies.random ?? Math.random;
   let lastRequestAt = 0;
+  let requestCount = 0;
   return async function request(url, init = {}) {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" || !allowedHosts.includes(parsed.hostname) || parsed.username || parsed.password) throw Object.assign(new Error("Provider URL rejected."), { code: "INVALID_PROVIDER_URL" });
-    for (const key of parsed.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key)) throw Object.assign(new Error("Credentials must be sent in headers, not URLs."), { code: "SECRET_IN_URL" });
+    const permittedSensitiveParams = new Set(sensitiveQueryParams);
+    for (const key of parsed.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key) && !permittedSensitiveParams.has(key)) throw Object.assign(new Error("Credentials must be sent in headers, not URLs."), { code: "SECRET_IN_URL" });
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      if (requestCount >= maxRequests) throw Object.assign(new Error("Provider request limit reached."), { code: "REQUEST_LIMIT" });
       const delay = Math.max(0, rateLimitMs - (Date.now() - lastRequestAt));
       if (delay) await sleep(delay);
       lastRequestAt = Date.now();
+      requestCount += 1;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {

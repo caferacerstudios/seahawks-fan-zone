@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { createProviderHttp } from "./http.mjs";
 
 const TICKETMASTER_API = "https://app.ticketmaster.com/discovery/v2/events.json";
+const TICKETMASTER_API_HOSTS = Object.freeze(["app.ticketmaster.com"]);
 const TICKETMASTER_HOSTS = Object.freeze(["www.ticketmaster.com", "ticketmaster.com"]);
 const TICKETMASTER_CAPABILITIES = Object.freeze({
   supportsSeatListings: false,
@@ -35,29 +37,51 @@ export function normalizeTicketmasterEvent(event) {
     startTimeUtc: event?.dates?.start?.dateTime ?? null, localDate: event?.dates?.start?.localDate ?? null,
     localTime: event?.dates?.start?.localTime ?? null, timeZone: event?.dates?.timezone ?? null,
     ...ticketmasterStatus(event), priceRanges: prices,
+    attractions: Array.isArray(event?._embedded?.attractions) ? event._embedded.attractions.map(({ id, name }) => ({ id: String(id ?? ""), name: String(name ?? "") })) : [],
+    classifications: Array.isArray(event?.classifications) ? event.classifications.map((item) => ({ segment: item?.segment?.name ?? null, genre: item?.genre?.name ?? null, subGenre: item?.subGenre?.name ?? null, type: item?.type?.name ?? null, subType: item?.subType?.name ?? null })) : [],
     currency: prices[0]?.currency ?? null,
     inventoryDetailLevel: "price_range",
   };
 }
 
+export function ticketmasterSeasonWindow(games) {
+  const dates = games.map((game) => game?.date).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort();
+  if (!dates.length) throw Object.assign(new Error("Ticketmaster season window requires dated schedule games."), { code: "INVALID_SCHEDULE" });
+  return { startDate: dates[0], endDate: dates.at(-1) };
+}
+
+const ticketmasterEvents = (body) => {
+  if (!body || typeof body !== "object" || Array.isArray(body) || (body._embedded != null && (!body._embedded || typeof body._embedded !== "object" || Array.isArray(body._embedded))) || (body._embedded?.events != null && !Array.isArray(body._embedded.events)) || (body.page != null && (!Number.isSafeInteger(body.page.number) || !Number.isSafeInteger(body.page.totalPages)))) throw Object.assign(new Error("Ticketmaster Discovery returned a malformed response."), { code: "INVALID_RESPONSE" });
+  return body._embedded?.events ?? [];
+};
+
 async function syncTicketmaster(context) {
-  const url = new URL(TICKETMASTER_API);
-  url.searchParams.set("apikey", context.apiKey);
-  url.searchParams.set("keyword", context.eventName);
-  url.searchParams.set("localStartDateTime", `${context.eventDate}T00:00:00,${context.eventDate}T23:59:59`);
-  url.searchParams.set("size", "20");
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), context.timeoutMs);
-  try {
-    const response = await (context.fetch ?? globalThis.fetch)(url, { signal: controller.signal, headers: { accept: "application/json", "user-agent": "SeahawksFanZone-TicketSync/1.0" } });
-    if (!response.ok) throw Object.assign(new Error("Ticketmaster Discovery request failed."), { code: `HTTP_${response.status}` });
-    const body = await response.json();
-    const matched = matchTicketmasterEvent(body?._embedded?.events ?? [], context);
-    return { events: [normalizeTicketmasterEvent(matched)] };
-  } catch (error) {
-    if (error.name === "AbortError") throw Object.assign(new Error("Ticketmaster Discovery request timed out."), { code: "REQUEST_TIMEOUT" });
-    throw error;
-  } finally { clearTimeout(timer); }
+  const maxRetries = context.maxRetries ?? 2; const rateLimitMs = context.rateLimitMs ?? 250;
+  const maxPages = context.maxPages ?? 5; const maxRequests = context.maxRequests ?? 5; const pageSize = context.pageSize ?? 50;
+  const request = createProviderHttp({ provider: "ticketmaster", allowedHosts: TICKETMASTER_API_HOSTS, timeoutMs: context.timeoutMs, maxRetries, rateLimitMs, maxRequests, sensitiveQueryParams: ["apikey"] }, { fetch: context.fetch, sleep: context.sleep, random: context.random });
+  const season = context.discoveryMode === "season";
+  const window = season ? ticketmasterSeasonWindow(context.games ?? []) : { startDate: context.eventDate, endDate: context.eventDate };
+  const collected = []; let page = 0; let requests = 0;
+  do {
+    const url = new URL(TICKETMASTER_API);
+    url.searchParams.set("apikey", context.apiKey);
+    if (season) url.searchParams.set("attractionId", context.attractionId);
+    else url.searchParams.set("keyword", context.eventName);
+    url.searchParams.set("localStartDateTime", `${window.startDate}T00:00:00,${window.endDate}T23:59:59`);
+    url.searchParams.set("size", String(season ? pageSize : 20));
+    url.searchParams.set("page", String(page));
+    const response = await request(url); requests += 1;
+    let body;
+    try { body = await response.json(); } catch { throw Object.assign(new Error("Ticketmaster Discovery returned invalid JSON."), { code: "INVALID_RESPONSE" }); }
+    collected.push(...ticketmasterEvents(body));
+    const totalPages = body.page?.totalPages ?? 1;
+    page += 1;
+    if (!season || page >= totalPages || page >= maxPages || requests >= maxRequests) break;
+  } while (true);
+  if (!season) return { events: [normalizeTicketmasterEvent(matchTicketmasterEvent(collected, context))] };
+  const unique = new Map();
+  for (const event of collected) if (event?.id != null && !unique.has(String(event.id))) unique.set(String(event.id), event);
+  return { events: [...unique.values()].map(normalizeTicketmasterEvent) };
 }
 
 export const PROVIDER_MODES = Object.freeze(["listing-level", "event-summary", "deep-link-only", "pending"]);

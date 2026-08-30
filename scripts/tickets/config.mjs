@@ -15,6 +15,12 @@ function providerSettings(raw, fixture) {
   return value;
 }
 
+const ticketmasterDiscoveryMode = (env) => {
+  const mode = env.TICKETMASTER_DISCOVERY_MODE || "single-event";
+  if (!["single-event", "season"].includes(mode)) throw new Error("TICKETMASTER_DISCOVERY_MODE must be single-event or season.");
+  return mode;
+};
+
 export function loadConfig(env = process.env, cwd = process.cwd()) {
   const environment = env.TICKETS_ENV || "development";
   if (!["development", "production"].includes(environment)) throw new Error("TICKETS_ENV must be development or production.");
@@ -44,14 +50,23 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
       timeoutMs: integer(raw.timeoutMs, 8_000, `${id}.timeoutMs`, 100),
       maxRetries: integer(raw.maxRetries, 2, `${id}.maxRetries`, 0),
       rateLimitMs: integer(raw.rateLimitMs, 250, `${id}.rateLimitMs`, 0),
+      pageSize: integer(raw.pageSize, 50, `${id}.pageSize`, 1),
+      maxPages: integer(raw.maxPages, 5, `${id}.maxPages`, 1),
+      maxRequests: integer(raw.maxRequests, 5, `${id}.maxRequests`, 1),
       apiKey: registry[id].credentialEnv ? env[registry[id].credentialEnv] : null,
+      discoveryMode: id === "ticketmaster" ? ticketmasterDiscoveryMode(env) : null,
+      attractionId: id === "ticketmaster" ? (env.TICKETMASTER_ATTRACTION_ID?.trim() || null) : null,
       eventName: id === "ticketmaster" ? (env.TICKETMASTER_EVENT_NAME || "Seattle Seahawks vs. New England Patriots") : null,
       eventDate: id === "ticketmaster" ? (env.TICKETMASTER_EVENT_DATE || "2026-09-09") : null,
       legacyEventId: id === "ticketmaster" ? (env.TICKETMASTER_LEGACY_EVENT_ID || "0F006482E67E7496") : null,
     };
+    if (id === "ticketmaster" && providers[id].pageSize > 200) throw new Error("ticketmaster.pageSize must not exceed 200.");
+    if (id === "ticketmaster" && providers[id].maxPages > 20) throw new Error("ticketmaster.maxPages must not exceed 20.");
+    if (id === "ticketmaster" && providers[id].maxRequests > 20) throw new Error("ticketmaster.maxRequests must not exceed 20.");
+    if (enabled && id === "ticketmaster" && providers[id].discoveryMode === "season" && (!providers[id].attractionId || /^REPLACE_|PLACEHOLDER$/i.test(providers[id].attractionId))) throw new Error("Ticketmaster season mode requires operator-verified TICKETMASTER_ATTRACTION_ID.");
   }
   for (const [id, provider] of Object.entries(providers)) if (provider.minRefreshMs > provider.freshnessMs || provider.freshnessMs > provider.retentionMs) throw new Error(`${id} requires minRefreshMs <= freshnessMs <= retentionMs.`);
-  for (const id of Object.keys(registry)) if (!providers[id]) providers[id] = { enabled: false, mode: "pending", minRefreshMs: 300_000, freshnessMs: 900_000, retentionMs: 0, timeoutMs: 8_000, maxRetries: 2, rateLimitMs: 250, apiKey: null, eventName: null, eventDate: null, legacyEventId: null };
+  for (const id of Object.keys(registry)) if (!providers[id]) providers[id] = { enabled: false, mode: "pending", minRefreshMs: 300_000, freshnessMs: 900_000, retentionMs: 0, timeoutMs: 8_000, maxRetries: 2, rateLimitMs: 250, pageSize: 50, maxPages: 5, maxRequests: 5, apiKey: null, discoveryMode: null, attractionId: null, eventName: null, eventDate: null, legacyEventId: null };
   const lockStaleMs = integer(env.TICKETS_LOCK_STALE_MS, 1_800_000, "TICKETS_LOCK_STALE_MS", 1);
   const lockHeartbeatMs = integer(env.TICKETS_LOCK_HEARTBEAT_MS, 60_000, "TICKETS_LOCK_HEARTBEAT_MS", 1);
   const lockStaleArtifactLimit = integer(env.TICKETS_LOCK_STALE_ARTIFACT_LIMIT, 3, "TICKETS_LOCK_STALE_ARTIFACT_LIMIT", 1);

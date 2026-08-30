@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig } from "../scripts/tickets/config.mjs";
 import { acquireLock, heartbeatLock, releaseLock, runTicketSync } from "../scripts/tickets/pipeline.mjs";
-import { matchTicketmasterEvent, normalizeTicketmasterEvent, providerRegistry } from "../scripts/tickets/providers.mjs";
+import { matchTicketmasterEvent, normalizeTicketmasterEvent, providerRegistry, ticketmasterSeasonWindow } from "../scripts/tickets/providers.mjs";
 import { evaluateProviderEvent, normalizeNflTeam, sfzEventKey } from "../src/lib/tickets/match.mjs";
 import { games as realSchedule, legitimateEvents, providerEvents, rejectedEvents } from "./fixtures/ticketmaster-discovery.mjs";
 
@@ -22,7 +22,7 @@ test("Ticketmaster normalization preserves genuine summary capability without li
   assert.equal(event.id, "tm-1"); assert.deepEqual(event.priceRanges, []); assert.equal(event.currency, null);
   assert.equal(event.inventoryDetailLevel, "price_range");
   assert.equal(Object.hasOwn(event, "listings"), false);
-  assert.equal(Object.hasOwn(event, "attractions"), false);
+  assert.deepEqual(event.attractions, [{ id: "K8vZ9171oU7", name: "Seattle Seahawks" }]);
 });
 
 const discoveryEvent = (overrides = {}) => ({
@@ -61,9 +61,54 @@ test("Ticketmaster preserves a genuinely missing priceRanges value as no range",
 
 test("Ticketmaster reports authentication and rate-limit failures with bounded codes", async () => {
   const adapter = providerRegistry().ticketmaster;
-  const context = { apiKey: "test-key", eventName: "Seattle Seahawks vs. New England Patriots", eventDate: "2026-09-09", legacyEventId: "0F006482E67E7496", timeoutMs: 100 };
+  const context = { apiKey: "test-key", eventName: "Seattle Seahawks vs. New England Patriots", eventDate: "2026-09-09", legacyEventId: "0F006482E67E7496", timeoutMs: 100, maxRetries: 0, rateLimitMs: 0 };
   await assert.rejects(adapter.sync({ ...context, fetch: async () => ({ ok: false, status: 401 }) }), { code: "HTTP_401" });
   await assert.rejects(adapter.sync({ ...context, fetch: async () => ({ ok: false, status: 429 }) }), { code: "HTTP_429" });
+});
+
+const discoveryShape = (event) => ({
+  id: event.id, name: event.name, url: event.canonicalUrl,
+  dates: { start: { dateTime: event.startTimeUtc, localDate: event.localDate, localTime: event.localTime }, timezone: event.timeZone, status: { code: event.eventStatus } },
+  _embedded: { attractions: event.attractions, venues: [{ name: event.venue.name }] },
+  classifications: [{ segment: { name: "Sports" }, genre: { name: "Football" }, subGenre: { name: "NFL" } }],
+});
+
+test("Ticketmaster season discovery derives one window, paginates within bounds, and deduplicates IDs", async () => {
+  const adapter = providerRegistry().ticketmaster; const requests = [];
+  const pages = [[...legitimateEvents.slice(0, 9), rejectedEvents[0]], [...legitimateEvents.slice(8), ...rejectedEvents.slice(1)]];
+  const result = await adapter.sync({ apiKey: "not-logged", discoveryMode: "season", attractionId: "operator-verified-test-id", games: realSchedule, timeoutMs: 100, maxRetries: 0, rateLimitMs: 0, pageSize: 10, maxPages: 3, maxRequests: 3, fetch: async (url) => {
+    requests.push(url); const number = Number(url.searchParams.get("page"));
+    return { ok: true, json: async () => ({ _embedded: { events: pages[number].map(discoveryShape) }, page: { number, totalPages: 2 } }) };
+  } });
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].searchParams.get("attractionId"), "operator-verified-test-id");
+  assert.equal(requests[0].searchParams.has("keyword"), false);
+  assert.equal(requests[0].searchParams.get("localStartDateTime"), "2026-09-09T00:00:00,2027-01-10T23:59:59");
+  assert.equal(result.events.length, providerEvents.length);
+  assert.equal(new Set(result.events.map(({ id }) => id)).size, result.events.length);
+});
+
+test("Ticketmaster season discovery caps provider-declared pagination and request count", async () => {
+  let calls = 0;
+  const result = await providerRegistry().ticketmaster.sync({ apiKey: "test", discoveryMode: "season", attractionId: "verified", games: realSchedule, timeoutMs: 100, maxRetries: 0, rateLimitMs: 0, pageSize: 1, maxPages: 20, maxRequests: 2, fetch: async () => ({ ok: true, json: async () => ({ _embedded: { events: [discoveryShape(legitimateEvents[calls++])] }, page: { number: calls - 1, totalPages: 999 } }) }) });
+  assert.equal(calls, 2); assert.equal(result.events.length, 2);
+});
+
+test("Ticketmaster season discovery rejects malformed pages and honors timeout/retry/spacing settings", async () => {
+  const base = { apiKey: "test", discoveryMode: "season", attractionId: "verified", games: realSchedule, timeoutMs: 10, pageSize: 10, maxPages: 2, maxRequests: 2 };
+  await assert.rejects(providerRegistry().ticketmaster.sync({ ...base, maxRetries: 0, rateLimitMs: 0, fetch: async () => ({ ok: true, json: async () => ({ _embedded: { events: {} } }) }) }), { code: "INVALID_RESPONSE" });
+  await assert.rejects(providerRegistry().ticketmaster.sync({ ...base, maxRetries: 0, rateLimitMs: 0, fetch: async (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }))))) }), { code: "REQUEST_TIMEOUT" });
+  let calls = 0; const sleeps = [];
+  await providerRegistry().ticketmaster.sync({ ...base, maxRetries: 1, rateLimitMs: 25, sleep: async (ms) => sleeps.push(ms), random: () => 0, fetch: async () => ++calls === 1 ? { ok: false, status: 429 } : { ok: true, json: async () => ({ _embedded: { events: [] }, page: { number: 0, totalPages: 1 } }) } });
+  assert.equal(calls, 2); assert.ok(sleeps.some((ms) => ms >= 25)); assert.ok(sleeps.some((ms) => ms >= 200));
+});
+
+test("Ticketmaster season configuration is explicit and requires an operator-verified attraction ID", () => {
+  const providers = JSON.stringify({ ticketmaster: { enabled: true, mode: "event-summary", pageSize: 50, maxPages: 4, maxRequests: 4 } });
+  assert.throws(() => loadConfig({ TICKETS_PROVIDERS_JSON: providers, TICKETMASTER_API_KEY: "test", TICKETMASTER_DISCOVERY_MODE: "season" }, root), /operator-verified/);
+  const config = loadConfig({ TICKETS_PROVIDERS_JSON: providers, TICKETMASTER_API_KEY: "test", TICKETMASTER_DISCOVERY_MODE: "season", TICKETMASTER_ATTRACTION_ID: "verified" }, root);
+  assert.deepEqual([config.providers.ticketmaster.discoveryMode, config.providers.ticketmaster.attractionId, config.providers.ticketmaster.maxRequests], ["season", "verified", 4]);
+  assert.deepEqual(ticketmasterSeasonWindow(realSchedule), { startDate: "2026-09-09", endDate: "2027-01-10" });
 });
 
 test("multiple similar Seahawks events match only the verified legacy URL", () => {

@@ -1,8 +1,9 @@
 # Ticketmaster live development runbook
 
 This runbook is for the development instance only. Ticketmaster Discovery is
-an official event-summary source, not listing inventory. It searches the named
-game on its local date and verifies legacy event ID `0F006482E67E7496`.
+an official event-summary source, not listing inventory. Season mode searches
+an operator-verified attraction over the canonical schedule's earliest and
+latest upcoming game dates with bounded pagination and request counts.
 
 | Setting | Development value |
 | --- | --- |
@@ -40,12 +41,15 @@ The normal dev release activation/restart remains an operator workflow step;
 this repository task does not run it. Changing the environment file alone does
 not alter an already generated static page—the rebuild is required.
 
-The env file sets `TICKETS_ENV=development`, `TICKETS_FIXTURE=false`,
-`TICKETMASTER_API_KEY`, the event name/date/legacy-ID variables shown in the
-example env file, and:
+The installed env can continue using the event name/date/legacy-ID variables
+in `single-event` mode until an operator verifies and installs the attraction
+ID. The repository does not contain that ID. For season mode the private env
+sets `TICKETS_ENV=development`, `TICKETS_FIXTURE=false`, `TICKETMASTER_API_KEY`,
+`TICKETMASTER_DISCOVERY_MODE=season`, `TICKETMASTER_ATTRACTION_ID` to the
+operator-verified value, and:
 
 ```text
-TICKETS_PROVIDERS_JSON={"ticketmaster":{"enabled":true,"mode":"event-summary","minRefreshMs":600000,"retentionMs":3600000}}
+TICKETS_PROVIDERS_JSON={"ticketmaster":{"enabled":true,"mode":"event-summary","minRefreshMs":600000,"retentionMs":3600000,"timeoutMs":8000,"maxRetries":2,"rateLimitMs":250,"pageSize":50,"maxPages":5,"maxRequests":5}}
 TICKET_DATA_ROOT=/var/lib/sfz-ticket-finder/dev
 TICKET_SYNC_ENV_FILE=/etc/sfz-ticket-finder/dev.env
 ```
@@ -54,6 +58,13 @@ Never display the env file. Enter the key through a non-echoing interactive
 editor or `read -rsp` in an authorized root shell. The Consumer Secret is not
 used. Only `current/` is public; credentials, `previous/`, `tmp/`, and `logs/`
 must not be mounted.
+
+Migration is operator-only: verify the Seahawks attraction ID against the
+approved Ticketmaster operator account, add it to the private env, and then
+switch the discovery mode. Until that follow-up is complete, omit
+`TICKETMASTER_DISCOVERY_MODE` or set it to `single-event`; the legacy event
+variables and exact legacy-ID verification remain active. Never copy the
+placeholder attraction ID from `example.env` into a running environment.
 
 Commands:
 
@@ -64,7 +75,8 @@ sudo journalctl -u sfz-ticket-sync@dev.service --since today --no-pager -o cat
 ```
 
 The journal is designed to contain bounded event names/counts and error codes,
-never request URLs or credentials. Provider calls are cached for 10 minutes;
+never API keys, bearer credentials, request URLs, raw responses, or secret-like
+query parameters. Provider calls are cached for 10 minutes;
 the timer may run on its independent schedule with a
 random delay and persistent catch-up. Publication is validated, locked, and
 atomic; failure preserves the last-good snapshot.
