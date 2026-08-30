@@ -140,7 +140,7 @@ export function ticketmasterSummaryModel(reference) {
 }
 
 export function runtimeProviderCoverage(status, event) {
-  return status.providers.filter((provider) => provider.state !== "disabled").map((provider) => ({
+  return status.providers.filter((provider) => !["disabled", "pending"].includes(provider.state)).map((provider) => ({
     provider: provider.provider === "ticketmaster" ? "Ticketmaster" : provider.provider,
     mode: provider.mode === "event-summary" ? "Event summary" : provider.mode,
     state: provider.state,

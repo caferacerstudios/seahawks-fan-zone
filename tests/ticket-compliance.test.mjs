@@ -63,3 +63,32 @@ test("ticket click analytics are consent gated and limited to approved fields", 
   assert.deepEqual(Object.keys(event).sort(), ["click_timestamp", "event", "link_placement", "provider", "quantity_bucket", "selected_game", "sort_mode", "source_kind"].sort());
   assert.equal(event.quantity_bucket, "3-4");
 });
+
+test("runtime page renders one selected game shell and useful provider states", () => {
+  assert.equal((ticketsPage.match(/data-selected-game-summary/g) || []).length >= 1, true);
+  assert.doesNotMatch(ticketsPage, /data-game-summary=/);
+  assert.match(ticketsPage, /Provider availability/);
+  assert.match(ticketsPage, /Price range not supplied/);
+  assert.match(ticketsPage, /No verified provider match for this game/);
+  assert.match(ticketsPage, /Provider information is temporarily unavailable/);
+  assert.match(ticketsPage, /Technical and source details/);
+  assert.doesNotMatch(ticketsPage, /0 listing-level offers/);
+  assert.doesNotMatch(ticketsPage, /Price history is not available yet/);
+  assert.doesNotMatch(ticketsPage, /Official provider event summaries/);
+});
+
+test("runtime selection is labelled, navigable, and used by outbound analytics", () => {
+  assert.match(ticketsPage, /for="runtime-game-select"/);
+  assert.match(ticketsPage, /history\.pushState\(null, '', `\$\{location\.pathname\}\?\$\{params\}`\)/);
+  assert.match(ticketsPage, /addEventListener\('popstate'/);
+  assert.match(ticketsPage, /#runtime-game-controls/);
+  assert.match(ticketsPage, /aria-live="polite" aria-busy="true"/);
+  assert.match(ticketsPage, /@media print/);
+});
+
+test("runtime outbound analytics omit fixture-only sort and quantity dimensions", () => {
+  const event = ticketClickEvent({ ready: true, analytics: true }, { selectedGame: "week-7", provider: "ticketmaster", sourceKind: "official-primary", linkPlacement: "event-summary" }, new Date("2026-08-29T12:00:00Z"));
+  assert.equal(event.selected_game, "week-7");
+  assert.equal(Object.hasOwn(event, "sort_mode"), false);
+  assert.equal(Object.hasOwn(event, "quantity_bucket"), false);
+});

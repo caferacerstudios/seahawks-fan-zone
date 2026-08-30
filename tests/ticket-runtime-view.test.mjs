@@ -85,6 +85,16 @@ test("beta loads only the selected event JSON and accepts zero listings", async 
   assert.equal(runtimeProviderCoverage(loaded.status, loaded.event)[0].freshListings, 0);
 });
 
+test("Week 1 and Week 7 selections resolve independently", () => {
+  const weeks = { ...index, events: [
+    { eventKey: "sea:week-1", gameId: "week-1", eventFile: "events/sea_week-1.json" },
+    { eventKey: "sea:week-7", gameId: "week-7", eventFile: "events/sea_week-7.json" },
+  ] };
+  assert.equal(selectRuntimeEvent(weeks, "week-1", ["week-1", "week-7"]).row.gameId, "week-1");
+  assert.equal(selectRuntimeEvent(weeks, "week-7", ["week-1", "week-7"]).row.gameId, "week-7");
+  assert.equal(selectRuntimeEvent({ ...weeks, events: weeks.events.slice(0, 1) }, "week-7", ["week-1", "week-7"]).row, null);
+});
+
 test("missing or malformed beta runtime data fails closed", async () => {
   await assert.rejects(loadRuntimeTicketData(async (url) => {
     if (url === "/data/tickets/status.json") throw new Error("missing");
@@ -153,4 +163,14 @@ test("stale Ticketmaster summaries are clearly marked until their freshness limi
   assert.equal(summary.priceCopy, "From $50");
   stale.providerReferences[0].expiresAt = past;
   assert.throws(() => validateRuntimeEvent(stale, index.events[1], now), /freshness limit/);
+});
+
+test("consumer coverage excludes disabled and pending providers", () => {
+  const mixed = structuredClone(status);
+  mixed.providers.push(
+    { provider: "disabled-market", mode: "event-summary", state: "disabled", lastSuccess: null, counts: { fresh: 0, stale: 0, rejected: 0, unmatched: 0 } },
+    { provider: "pending-market", mode: "event-summary", state: "pending", lastSuccess: null, counts: { fresh: 0, stale: 0, rejected: 0, unmatched: 0 } },
+    { provider: "failed-market", mode: "event-summary", state: "error", lastSuccess: null, counts: { fresh: 0, stale: 0, rejected: 0, unmatched: 0 } },
+  );
+  assert.deepEqual(runtimeProviderCoverage(mixed, event).map(({ provider }) => provider), ["Ticketmaster", "failed-market"]);
 });
