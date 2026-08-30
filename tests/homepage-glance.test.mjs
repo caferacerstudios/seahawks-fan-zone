@@ -6,7 +6,11 @@ const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const SF = { abbreviation: "SF", full_name: "San Francisco 49ers" };
 const LAR = { abbreviation: "LAR", full_name: "Los Angeles Rams" };
 const game = (id, phase, date, extra = {}) => ({ id, season: 2026, week: 1, season_type: phase, date, status: "Scheduled", home_team: SEA, visitor_team: SF, ...extra });
-const final = (id, phase, date, sea = 24, other = 17, extra = {}) => game(id, phase, date, { status: "Final", home_team_score: sea, visitor_team_score: other, ...extra });
+const final = (id, phase, date, sea = 24, other = 17, extra = {}) => {
+  const fixture = game(id, phase, date, { status: "Final", ...extra });
+  const seahawksAreHome = fixture.home_team.abbreviation === SEA.abbreviation;
+  return { ...fixture, home_team_score: seahawksAreHome ? sea : other, visitor_team_score: seahawksAreHome ? other : sea };
+};
 const leaders = [
   { player_id: 1, player: { id: 1, first_name: "Pass", last_name: "Leader" }, passing_yards: 1000 },
   { player_id: 2, player: { id: 2, first_name: "Rush", last_name: "Leader" }, rushing_yards: 500 },

@@ -342,8 +342,8 @@ test("publication failures before atomic switch preserve current", async () => {
     const outputDir = join(temporary, "current"); const config = loadConfig({ TICKETS_FIXTURE: "true", TICKETS_OUTPUT_DIR: outputDir }, root);
     await runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), log: () => {} });
     const original = await readFile(join(outputDir, "index.json"), "utf8");
-    for (const boundary of ["after-validation", "before-version-rename", "after-version-rename", "after-pointer-create"]) {
-      await assert.rejects(runTicketSync(config, { now: new Date(`2026-08-29T12:${boundary.length}:00Z`), log: () => {}, injectFailure: async (point) => { if (point === boundary) throw new Error(`injected-${point}`); } }), new RegExp(`injected-${boundary}`));
+    for (const [index, boundary] of ["after-validation", "before-version-rename", "after-version-rename", "after-pointer-create"].entries()) {
+      await assert.rejects(runTicketSync(config, { now: new Date(`2026-08-29T12:0${index + 1}:00Z`), log: () => {}, injectFailure: async (point) => { if (point === boundary) throw new Error(`injected-${point}`); } }), new RegExp(`injected-${boundary}`));
       assert.equal(await readFile(join(outputDir, "index.json"), "utf8"), original);
     }
   } finally { await rm(temporary, { recursive: true, force: true }); }

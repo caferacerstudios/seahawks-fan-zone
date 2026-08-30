@@ -35,7 +35,10 @@ test("provider attraction IDs can supply team identity", () => {
 });
 
 test("rejects parking and regular-season preseason products", () => {
-  assert.deepEqual(evaluateProviderEvent(home, parking).reasons, ["parking-event"]);
+  const parkingResult = evaluateProviderEvent(home, parking);
+  assert.ok(parkingResult.reasons.includes("parking-event"));
+  assert.equal(parkingResult.publishable, false);
+  assert.equal(parkingResult.outcome, "rejected");
   const preseason = evaluateProviderEvent(home, { ...admission, id: "PRE", title: "Seahawks preseason exhibition" });
   assert.ok(preseason.reasons.includes("preseason-for-regular-game"));
   assert.equal(preseason.publishable, false);
