@@ -17,7 +17,7 @@ The normalized `1.0.0` contract stores exact manifest identity, SFZ collection t
 
 These values are aggregate lowest/get-in-price observations. They are not individual listings, offers, inventory, availability, or provider minimum/maximum ranges. They are not Ticketmaster Discovery `priceRanges`, Ticketmaster API data, or StubHub API data. There is no provider maximum field. If a future approved aggregation calculates a high across successive lowest-price observations, it must be called `rollingHighOfLowestObservedCents`, not `maxCents`, and requires its own retention approval before implementation.
 
-Parsing is limited to the visible accessible Recharts tooltip reached by bounded ArrowRight interaction. Unknown zones, changed labels, duplicate labels/prices, missing identity, malformed USD, future time, redirect, or unmatched URL fail closed. SVG coordinates, canvas pixels, chart geometry, HTML/script bodies, and undocumented endpoints are prohibited.
+Collection is limited to the reviewed EventSpy app event and history endpoints for the source event IDs in `eventspy-coverage.mjs`. Missing identity, malformed USD, future timestamps, unsafe provider URLs, or unmatched coverage fail closed. DOM, Recharts, tooltip, keyboard, mouse, SVG, canvas, HTML, and listing extraction are prohibited.
 
 ## Display, attribution, retention, and brand
 

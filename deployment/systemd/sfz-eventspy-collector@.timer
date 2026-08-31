@@ -1,5 +1,5 @@
 [Unit]
-Description=Schedule twice-daily Seahawks Fan Zone EventSpy collection (%i)
+Description=Schedule twice-daily season-wide Seahawks EventSpy API collection (%i)
 
 [Timer]
 OnCalendar=*-*-* 08,20:00:00 America/Los_Angeles

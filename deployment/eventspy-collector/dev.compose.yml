@@ -2,9 +2,6 @@ services:
   eventspy-collector:
     image: ${EVENTSPY_COLLECTOR_IMAGE:?immutable promoted collector image required}
     build: null
-    env_file:
-      - /etc/sfz-eventspy/dev.env
-    environment:
-      EVENTSPY_RUNTIME_ROOT: /srv/eventspy
     volumes:
-      - /var/lib/sfz-eventspy/dev:/srv/eventspy
+      - /var/lib/sfz-eventspy-mirror/dev:/srv/eventspy-mirror
+    command: ["--output-root", "/srv/eventspy-mirror"]
