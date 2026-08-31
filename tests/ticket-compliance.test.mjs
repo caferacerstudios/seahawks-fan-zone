@@ -59,20 +59,20 @@ test("ticket click analytics are consent gated and limited to approved fields", 
 test("runtime page renders one selected game shell and useful provider states", () => {
   assert.equal((ticketsPage.match(/data-selected-game-summary/g) || []).length >= 1, true);
   assert.doesNotMatch(ticketsPage, /data-game-summary=/);
-  assert.match(ticketsPage, /Provider and source comparison/);
+  assert.match(ticketsPage, /Marketplace overview/);
   assert.match(runtimeView, /Ticketmaster did not supply an event range/);
-  assert.match(ticketsPage, /No verified source match for this game/);
-  assert.match(ticketsPage, /Ticket information is temporarily unavailable/);
-  assert.match(ticketsPage, /Technical details/);
+  assert.match(ticketsPage, /No collection has occurred/);
+  assert.match(ticketsPage, /Ticket information unavailable/);
+  assert.match(ticketsPage, /Data diagnostics/);
   assert.doesNotMatch(ticketsPage, /0 listing-level offers/);
-  assert.match(ticketsPage, /Twice-daily observed get-in price history/);
+  assert.match(ticketsPage, /Historical observed lowest price/);
   assert.doesNotMatch(ticketsPage, /Official provider event summaries/);
 });
 
 test("dashboard terminology avoids unsupported ranking and internal labels", () => {
-  assert.match(ticketsPage, /Lowest price observed via EventSpy/);
-  assert.match(ticketsPage, /Lowest marketplace observed by EventSpy:/);
-  assert.match(ticketsPage, /Highest observed get-in price/);
+  assert.match(ticketsPage, /Current observed lowest price/);
+  assert.match(ticketsPage, /EventSpy market observation/);
+  assert.match(ticketsPage, /Observed range:/);
   assert.doesNotMatch(ticketsPage, /At 7-day low|StubHub connected|Data type|>Coverage</);
 });
 

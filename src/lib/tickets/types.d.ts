@@ -4,19 +4,23 @@ export type FeeCompleteness = "all_in" | "provider_reported_all_in" | "estimated
 export type ProductType = "admission" | "parking" | "hospitality" | "tailgate";
 
 export interface MarketObservation {
+  schemaVersion: "1.0.0";
   source: "eventspy";
-  sourceEventId: string;
   sourceUrl: string;
-  sfzGameId: string;
-  metric: "aggregate-lowest-observed";
-  priceCents: number;
-  sevenDayLowCents?: number;
-  winnerMarketplace?: string;
+  gameId: "1392216";
+  collectedAt: string;
   currency: "USD";
-  feeBasis: "estimated-fees-and-taxes-where-available" | "unknown";
-  observedAt: string;
-  fetchedAt: string;
-  samplingCadence: "twice-daily";
+  summary: {
+    currentLowestPriceCents: number | null;
+    currentLowestSeenAt: string;
+    currentLowestMarketplace: "ticketmaster" | "stubhub" | "vividseats" | "seatgeek" | null;
+    sevenDayLowestPriceCents: number | null;
+    sevenDayLowestSeenAt: string;
+  };
+  seriesPoint: {
+    observedAt: string;
+    marketplaces: Array<{ marketplace: "ticketmaster" | "stubhub" | "vividseats" | "seatgeek"; lowestPriceCents: number | null; sectionLabel?: string }>;
+  };
 }
 
 export interface ProviderEventReference {

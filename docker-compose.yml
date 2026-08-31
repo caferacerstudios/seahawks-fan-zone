@@ -22,8 +22,10 @@ services:
       - ${TICKET_SYNC_ENV_FILE:-deployment/ticket-sync/example.env}
     environment:
       TICKETS_OUTPUT_DIR: /srv/ticket-data/current
+      EVENTSPY_HISTORY_DIR: /srv/eventspy/current
     volumes:
       - ${TICKET_DATA_ROOT:-./runtime/tickets}:/srv/ticket-data
+      - ${EVENTSPY_DATA_ROOT:-./runtime/eventspy}:/srv/eventspy:ro
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
@@ -31,5 +33,27 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    init: true
+    restart: "no"
+
+  eventspy-collector:
+    profiles: ["eventspy-collector"]
+    build:
+      context: .
+      dockerfile: deployment/eventspy-collector/Dockerfile
+      args:
+        EVENTSPY_BROWSER_IMAGE: ${EVENTSPY_BROWSER_IMAGE:?reviewed immutable browser image digest required}
+    image: seahawksfanzone-eventspy-collector:local
+    env_file:
+      - ${EVENTSPY_ENV_FILE:-deployment/eventspy-collector/example.env}
+    environment:
+      EVENTSPY_RUNTIME_ROOT: /srv/eventspy
+    volumes:
+      - ${EVENTSPY_DATA_ROOT:-./runtime/eventspy}:/srv/eventspy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     init: true
     restart: "no"

@@ -138,13 +138,14 @@ test("generic event-price display supports min-only, capped, multi-currency, and
 });
 
 test("stored EventSpy samples produce truthful latest and rolling-low models", () => {
+  const sample = (observedAt, prices, sevenDayLowestPriceCents = null) => ({ schemaVersion:"1.0.0", source:"eventspy", sourceUrl:"https://www.event-spy.com/event/seattle-seahawks-seattle-sep-09-2026/374440", gameId:"1392216", collectedAt:observedAt, currency:"USD", summary:{ currentLowestPriceCents:prices[0], currentLowestSeenAt:observedAt, currentLowestMarketplace:"ticketmaster", sevenDayLowestPriceCents, sevenDayLowestSeenAt:observedAt }, seriesPoint:{ observedAt, marketplaces:["ticketmaster","stubhub","vividseats","seatgeek"].map((marketplace,index)=>({marketplace,lowestPriceCents:prices[index]})) } });
   const marketObservations = [
-    { observedAt:"2029-01-01T00:00:00Z", priceCents:14225, sevenDayLowCents:13100, source:"eventspy" },
-    { observedAt:"2029-01-02T00:00:00Z", priceCents:13900, source:"eventspy" },
+    sample("2029-01-01T00:00:00Z", [14225,15000,16000,17000], 13100),
+    sample("2029-01-02T00:00:00Z", [13900,14900,15900,16900]),
   ];
   const model = eventSpyObservationModel({ marketObservations }, Date.parse("2029-01-02T06:00:00Z"));
-  assert.equal(model.latest.priceCents, 13900);
-  assert.equal(model.sevenDayLowCents, 13100);
+  assert.equal(model.latest.summary.currentLowestPriceCents, 13900);
+  assert.equal(model.sevenDayLowCents, 13900);
   assert.equal(model.stale, false);
   assert.deepEqual(eventSpyObservationModel({}, now).observations, []);
 });

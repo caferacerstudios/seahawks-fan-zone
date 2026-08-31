@@ -39,7 +39,7 @@ export function validateSnapshotFile(value, kind, allowedHosts = {}) {
       if (!Array.isArray(value.marketObservations)) throw new TypeError("event.marketObservations must be an array.");
       for (const observation of value.marketObservations) {
         validateMarketObservation(observation, { now: Date.parse(value.generatedAt) + 60_000 });
-        if (String(observation.sfzGameId) !== String(value.event.gameId)) throw new TypeError("Market observation game identity does not match its event.");
+        if (String(observation.gameId) !== String(value.event.gameId)) throw new TypeError("Market observation game identity does not match its event.");
       }
     }
     for (const reference of value.providerReferences) {

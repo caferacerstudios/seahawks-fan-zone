@@ -5,7 +5,17 @@ manual. This repository task does not modify a host, start or restart a
 container, enable a timer, expose a port, deploy production, or contact a
 provider.
 
-The EventSpy sanitized-fixture parser is not part of this deployment model. No EventSpy network job, timer, Compose service, environment variable, secret, snapshot field, or UI is configured here; retrieval and retention remain disabled pending a separately reviewed integration and operator confirmation of retention scope.
+The repository also supplies a disabled `eventspy-collector` Compose profile and twice-daily systemd templates. They are proposals, not evidence of installed server state. The collector requires an operator-reviewed immutable browser image digest; no mutable production-ready tag is supplied.
+
+## EventSpy collector operations
+
+Copy `deployment/eventspy-collector/example.env` to an operator-owned file and keep `EVENTSPY_ENABLED=false` for the first no-network configuration review. Promote an image only as `<reviewed-image>@sha256:<digest>`, build the dedicated collector image, verify UID 1000, read-only root, dropped capabilities, no-new-privileges, bounded `/tmp`, no persistent browser profile, and only `/srv/eventspy` writable. The exact URL and game ID must remain unchanged. The web mapping used by the later dev deployment remains `4324:80`; do not replace the operator-owned Compose model with this tracked example.
+
+Rehearse parsing and history publication only with sanitized fixtures and networking disabled. Then an operator may run one approved manual collection, inspect the structured outcome and normalized `current/history.json`, and only afterward copy and enable `sfz-eventspy-collector@dev.timer`. It targets 08:00 and 20:00 America/Los_Angeles with a small randomized delay. The application ledger—not the timer—is authoritative.
+
+Monitor with the service/timer status and journal, looking for `EVENTSPY_COLLECTION_SUCCESS`, `EVENTSPY_DAILY_LIMIT`, `EVENTSPY_LOCKED`, `EVENTSPY_PARSE_FAILED`, `EVENTSPY_VALIDATION_FAILED`, and `EVENTSPY_PUBLISH_FAILED`. Logs contain no page body, headers, cookies, credentials, or storage. A failed attempt consumes a slot and never erases the previous history. Parser failure requires a reviewed selector/fixture update; do not retry that day beyond the remaining ledger slot.
+
+For a genuinely corrupt ledger, first disable the timer, preserve the corrupt file for audit, determine from the journal how many Pacific-day navigations already occurred, and wait until the next Pacific day before replacing it with `{"schemaVersion":1,"days":[]}` atomically. Never delete it and immediately rerun, because that could grant an extra visit. Rollback by disabling the timer and restoring the prior reviewed image/config while retaining the last valid normalized history. Takedown disables the timer and collector, removes the web history mount after review, and deletes expired normalized versions; raw pages, screenshots, browser profiles, and existing EventSpy graph history are never stored. No backfill is performed.
 
 ## Runtime model
 

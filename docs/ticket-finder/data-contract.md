@@ -4,7 +4,9 @@ This is the authoritative reference for the JSON written by `scripts/tickets/pip
 
 All three file kinds are JSON objects with `schemaVersion: "1.0.0"` and the same ISO UTC `generatedAt`. The browser rejects incompatible generations, timestamps more than 60 seconds in the future, and snapshots older than two hours. Raw provider payloads, credentials, raw errors, and seller identity are never part of this contract.
 
-An event file may include `marketObservations: MarketObservation[]`. Every item must pass the strict EventSpy contract, match the event's SFZ game ID, and retain its source URL and observation timestamp. It is neither a provider reference/listing nor a Ticketmaster `ProviderEventPrice`; it cannot enter listing ranking. Missing or empty observations produce the dashboard history empty state. Stored samples are never backfilled or interpolated.
+An event file may include `marketObservations: MarketObservation[]`. Each `1.0.0` item has exact `source`, `sourceUrl`, `gameId`, `collectedAt`, and USD currency fields; a separate summary contains current/seven-day values and source timestamps; `seriesPoint` contains an `observedAt` plus exactly one nullable entry for Ticketmaster, StubHub, VividSeats, and SeatGeek. Optional section labels are plain text bounded to 80 characters. Summary and series values need only agree when their source timestamps agree.
+
+Every item must pass strict identity, timestamp, price, uniqueness, field allowlist, and secret-bearing-content validation. Missing values are `null`, never zero. The object is neither a provider reference/listing nor a Ticketmaster `ProviderEventPrice`; it cannot enter listing ranking. History is deterministically sorted, deduplicated, retained 45 days, never backfilled or interpolated, and a null collection cannot replace a valid value at the same source timestamp.
 
 ## `index.json`
 

@@ -1,0 +1,23 @@
+[Unit]
+Description=Seahawks Fan Zone EventSpy observation collector (%i)
+Documentation=file:/opt/seahawks-fan-zone/current/docs/ticket-sync-deployment.md
+After=docker.service
+Requires=docker.service
+ConditionPathIsReadWrite=/var/lib/sfz-eventspy/%i
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/sfz-eventspy/%i.env
+Environment=EVENTSPY_DATA_ROOT=/var/lib/sfz-eventspy/%i
+Environment=EVENTSPY_ENV_FILE=/etc/sfz-eventspy/%i.env
+WorkingDirectory=/opt/seahawks-fan-zone/current
+ExecStart=/usr/bin/docker compose --project-name sfz-eventspy-%i --profile eventspy-collector run --rm --no-deps eventspy-collector
+TimeoutStartSec=3min
+Restart=no
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

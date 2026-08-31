@@ -35,7 +35,7 @@ Normal one-shot invocation is `npm run tickets:sync`. Ticketmaster uses only the
 
 The `stubhub` registry entry is also unconditionally pending and disabled. It has no credential variable or hostname allowlist, and configuration rejects attempts to enable it until the operator-reviewed checklist in `docs/ticket-finder/provider-rights/StubHub.md` is complete and the approval matrix is updated.
 
-The EventSpy market-observation module is not a sync provider. It contains only an exact-URL mapping, strict normalized contract, and parser exercised with a small sanitized fixture. There is no registry entry, configuration variable, request adapter, scheduled job, snapshot publication, or runtime/UI consumer. Its twice-daily authorization therefore remains disabled by default and cannot enable StubHub.
+The EventSpy market-observation collector is intentionally not a 15-minute sync provider. `scripts/tickets/eventspy-collector.mjs` is a separate, disabled-by-default one-shot process. It reserves one of two America/Los_Angeles daily attempts before its only top-level navigation, performs no retries or login, extracts the visible latest Recharts tooltip, validates the normalized observation, and atomically publishes 45-day history. The ticket pipeline reads the local `EVENTSPY_HISTORY_DIR` without network access and attaches validated history only to game `1392216`. Missing or malformed history preserves prior valid observations. This does not enable StubHub.
 
 ## Snapshot contract and lifecycle
 

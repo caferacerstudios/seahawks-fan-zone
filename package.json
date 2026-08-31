@@ -15,6 +15,7 @@
     "test:tickets": "node --test tests/tickets.test.mjs",
     "test:tickets:sync": "node --test tests/ticket-sync.test.mjs tests/ticket-http.test.mjs",
     "tickets:sync": "node scripts/tickets/sync.mjs",
+    "tickets:eventspy": "node scripts/tickets/eventspy-collector.mjs",
     "tickets:match-report": "node scripts/tickets/generate-match-report.mjs",
     "validate:tickets": "node scripts/tickets/validate-fixtures.mjs",
     "build:offline": "ASTRO_TELEMETRY_DISABLED=1 astro build",
