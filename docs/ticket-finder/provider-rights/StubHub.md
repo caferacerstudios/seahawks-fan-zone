@@ -1,5 +1,7 @@
 # StubHub go/no-go record — operator decision required
 
+EventSpy's narrow exact-URL market-observation permission is independent of this record. EventSpy observations—including a winning-marketplace label—are not StubHub API data, do not prove a direct connection, and do not approve or enable StubHub. StubHub remains pending behind every gate below.
+
 **Approval status:** `PENDING`
 
 **Technical-feasibility review date:** 2026-08-31

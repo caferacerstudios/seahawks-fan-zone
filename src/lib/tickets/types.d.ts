@@ -3,6 +3,22 @@ export type ProviderStatusValue = "connected-listings" | "event-summary" | "deep
 export type FeeCompleteness = "all_in" | "provider_reported_all_in" | "estimated" | "unknown";
 export type ProductType = "admission" | "parking" | "hospitality" | "tailgate";
 
+export interface MarketObservation {
+  source: "eventspy";
+  sourceEventId: string;
+  sourceUrl: string;
+  sfzGameId: string;
+  metric: "aggregate-lowest-observed";
+  priceCents: number;
+  sevenDayLowCents?: number;
+  winnerMarketplace?: string;
+  currency: "USD";
+  feeBasis: "estimated-fees-and-taxes-where-available" | "unknown";
+  observedAt: string;
+  fetchedAt: string;
+  samplingCadence: "twice-daily";
+}
+
 export interface ProviderEventReference {
   provider: string;
   providerEventId: string;

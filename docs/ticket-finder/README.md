@@ -8,7 +8,7 @@ This is the canonical overview of the implemented Ticket Finder. The feature is 
 - [`../ticket-sync-deployment.md`](../ticket-sync-deployment.md): operator deployment, validation, monitoring, timer, and rollback runbook.
 - [`data-contract.md`](data-contract.md): authoritative published `index.json`, `status.json`, and event-file schema.
 - [`event-matching.md`](event-matching.md): schedule identity, matching, and override rules.
-- [`provider-matrix.md`](provider-matrix.md), [`provider-rights/Ticketmaster.md`](provider-rights/Ticketmaster.md), and [`provider-rights/StubHub.md`](provider-rights/StubHub.md): provider approval status and rights records. StubHub remains pending.
+- [`provider-matrix.md`](provider-matrix.md), [`provider-rights/Ticketmaster.md`](provider-rights/Ticketmaster.md), [`provider-rights/EventSpy.md`](provider-rights/EventSpy.md), and [`provider-rights/StubHub.md`](provider-rights/StubHub.md): provider approval status and rights records. EventSpy has one narrow, disabled-by-default URL authorization; StubHub remains pending.
 
 Implementation plans, audits, and generated match reviews are supporting historical evidence, not the current source of truth.
 
@@ -41,6 +41,8 @@ Ticketmaster `priceRanges` are normalized into separate typed `eventPrices`. Mis
 An event-summary range is not an individual available ticket. It has no listing ID, section, row, seat, quantity, quantity-specific total, or verified fee-complete meaning, and it may not enter listing arrays, cheapest sorting, or comparison claims. Listing-level inventory requires a separately approved listing API and rights record. Ticketmaster Inventory Status is not approved or used.
 
 StubHub is pending. It stays disabled until contractual access, API/feed scope, affiliate and attribution rules, approved display fields, price/fee semantics, storage, caching, retention, trademark, link, and takedown rights are reviewed and recorded. The complete blocking checklist in [`provider-rights/StubHub.md`](provider-rights/StubHub.md) must not be weakened or treated as approval.
+
+EventSpy is a separate, disabled-by-default market-observation contract and sanitized-fixture parser. It recognizes only the exact URL and SFZ game mapping recorded in [`provider-rights/EventSpy.md`](provider-rights/EventSpy.md), performs no retrieval, and is not wired into the provider registry, sync pipeline, runtime snapshot, or UI. Its aggregate lowest/get-in observations are neither listings nor Ticketmaster Discovery ranges. They do not approve or enable StubHub.
 
 ## Data, provenance, and safety
 

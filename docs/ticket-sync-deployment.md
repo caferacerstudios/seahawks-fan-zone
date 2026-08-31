@@ -5,6 +5,8 @@ manual. This repository task does not modify a host, start or restart a
 container, enable a timer, expose a port, deploy production, or contact a
 provider.
 
+The EventSpy sanitized-fixture parser is not part of this deployment model. No EventSpy network job, timer, Compose service, environment variable, secret, snapshot field, or UI is configured here; retrieval and retention remain disabled pending a separately reviewed integration and operator confirmation of retention scope.
+
 ## Runtime model
 
 Astro remains a static build and Nginx remains the only HTTP service. The
