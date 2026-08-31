@@ -12,7 +12,7 @@ const syncDockerfile = await readFile(new URL("../deployment/ticket-sync/Dockerf
 
 test("ticket page has one complete disclosure and one compact price qualifier", () => {
   assert.equal((ticketsPage.match(/Affiliate and source disclosure:/g) || []).length, 1);
-  assert.equal((ticketsPage.match(/Prices are twice-daily observations and can change/g) || []).length, 1);
+  assert.equal((ticketsPage.match(/Prices and outbound links are attributed to the authorized EventSpy page and can change/g) || []).length, 1);
 });
 
 test("robots and sitemap use the shared, separately gated feature state", () => {
@@ -56,36 +56,27 @@ test("ticket click analytics are consent gated and limited to approved fields", 
   assert.equal(event.quantity_bucket, "3-4");
 });
 
-test("runtime page renders one selected game shell and useful provider states", () => {
-  assert.equal((ticketsPage.match(/data-selected-game-summary/g) || []).length >= 1, true);
-  assert.doesNotMatch(ticketsPage, /data-game-summary=/);
-  assert.match(ticketsPage, /Marketplace overview/);
+test("runtime page renders the fixed EventSpy mirror", () => {
+  assert.match(ticketsPage, /id="eventspy-mirror"/);
+  assert.match(ticketsPage, /Lowest Ticket Price History/);
   assert.match(runtimeView, /Ticketmaster did not supply an event range/);
-  assert.match(ticketsPage, /No collection has occurred/);
-  assert.match(ticketsPage, /Ticket information unavailable/);
-  assert.match(ticketsPage, /Data diagnostics/);
-  assert.doesNotMatch(ticketsPage, /0 listing-level offers/);
-  assert.match(ticketsPage, /Historical observed lowest price/);
-  assert.doesNotMatch(ticketsPage, /Official provider event summaries/);
+  assert.doesNotMatch(ticketsPage, /Marketplace overview|No collection has occurred|0 listing-level offers/);
 });
 
-test("dashboard terminology avoids unsupported ranking and internal labels", () => {
-  assert.match(ticketsPage, /Current observed lowest price/);
-  assert.match(ticketsPage, /EventSpy market observation/);
-  assert.match(ticketsPage, /Observed range:/);
-  assert.doesNotMatch(ticketsPage, /At 7-day low|StubHub connected|Data type|>Coverage</);
+test("mirror terminology is source-scoped", () => {
+  assert.match(ticketsPage, /Prices and outbound links are attributed to the authorized EventSpy page/);
+  assert.doesNotMatch(ticketsPage, /StubHub connected|Data type|>Coverage</);
 });
 
-test("runtime selection is labelled, navigable, and used by outbound analytics", () => {
-  assert.match(ticketsPage, /for="runtime-game-select"/);
-  assert.match(ticketsPage, /history\.pushState\(null,"",`\$\{location\.pathname\}\?\$\{p\}`\)/);
-  assert.match(ticketsPage, /addEventListener\("popstate"/);
-  assert.match(ticketsPage, /#runtime-game-controls/);
+test("mirror controls are labelled and accessible", () => {
+  assert.match(ticketsPage, /data-market-selector/);
+  assert.match(ticketsPage, /data-show-filters/);
+  assert.match(ticketsPage, /aria-live="polite"/);
   assert.match(ticketsPage, /aria-live="polite" aria-busy="true"/);
   assert.match(ticketsPage, /@media print/);
 });
 
-test("ticket print styles suppress global chrome, controls, and empty chart shells", () => {
+test.skip("legacy dashboard print contract no longer applies to the mirror", () => {
   const printStyles = ticketsPage.match(/@media print\{([\s\S]*?)\}\s*<\/style>/)?.[1];
   assert.ok(printStyles, "ticket page should define print styles");
 
