@@ -1,6 +1,18 @@
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function createProviderHttp({ provider, allowedHosts, timeoutMs, maxRetries, rateLimitMs, maxRequests = Number.MAX_SAFE_INTEGER, sensitiveQueryParams = [], userAgent = "SeahawksFanZone-TicketSync/1.0" }, dependencies = {}) {
+const credentialQueryNames = new Set(["apikey", "key", "token", "secret", "signature", "auth", "authorization"]);
+
+const isCredentialQueryName = (name) => {
+  const normalized = String(name).toLowerCase();
+  if (credentialQueryNames.has(normalized)) return true;
+  return normalized.split(/[-_]+/).some((segment) => credentialQueryNames.has(segment));
+};
+
+const isTicketmasterDiscoveryApiKey = (provider, url, name) =>
+  provider === "ticketmaster" && name === "apikey" && url.protocol === "https:" &&
+  url.hostname === "app.ticketmaster.com" && url.pathname === "/discovery/v2/events.json";
+
+export function createProviderHttp({ provider, allowedHosts, timeoutMs, maxRetries, rateLimitMs, maxRequests = Number.MAX_SAFE_INTEGER, userAgent = "SeahawksFanZone-TicketSync/1.0" }, dependencies = {}) {
   const fetchImpl = dependencies.fetch ?? globalThis.fetch;
   const sleep = dependencies.sleep ?? wait;
   const random = dependencies.random ?? Math.random;
@@ -9,8 +21,12 @@ export function createProviderHttp({ provider, allowedHosts, timeoutMs, maxRetri
   return async function request(url, init = {}) {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" || !allowedHosts.includes(parsed.hostname) || parsed.username || parsed.password) throw Object.assign(new Error("Provider URL rejected."), { code: "INVALID_PROVIDER_URL" });
-    const permittedSensitiveParams = new Set(sensitiveQueryParams);
-    for (const key of parsed.searchParams.keys()) if (/token|key|secret|signature|auth/i.test(key) && !permittedSensitiveParams.has(key)) throw Object.assign(new Error("Credentials must be sent in headers, not URLs."), { code: "SECRET_IN_URL" });
+    for (const key of parsed.searchParams.keys()) {
+      const normalized = key.toLowerCase();
+      if (isCredentialQueryName(normalized) && !isTicketmasterDiscoveryApiKey(provider, parsed, key)) {
+        throw Object.assign(new Error("Credentials must be sent in headers, not URLs."), { code: "SECRET_IN_URL" });
+      }
+    }
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
       if (requestCount >= maxRequests) throw Object.assign(new Error("Provider request limit reached."), { code: "REQUEST_LIMIT" });
       const delay = Math.max(0, rateLimitMs - (Date.now() - lastRequestAt));

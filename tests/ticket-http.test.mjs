@@ -19,3 +19,24 @@ test("provider HTTP rejects non-allowlisted and credential-bearing URLs before f
   await assert.rejects(request("https://api.example.invalid/events?api_key=secret"), { code: "SECRET_IN_URL" });
   assert.equal(calls, 0);
 });
+
+test("Ticketmaster permits only its exact Discovery apikey query exception", async () => {
+  const credential = "credential-must-not-leak"; let calls = 0;
+  const request = createProviderHttp({ provider: "ticketmaster", allowedHosts: ["app.ticketmaster.com", "wrong.example.invalid"], timeoutMs: 100, maxRetries: 0, rateLimitMs: 0 }, {
+    fetch: async () => { calls += 1; return { ok: true, status: 200 }; },
+  });
+  await request(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${credential}&keyword=Seattle+Seahawks`);
+  assert.equal(calls, 1);
+  for (const url of [
+    `https://wrong.example.invalid/discovery/v2/events.json?apikey=${credential}`,
+    `https://app.ticketmaster.com/discovery/v2/other.json?apikey=${credential}`,
+    `https://app.ticketmaster.com/discovery/v2/events.json/?apikey=${credential}`,
+  ]) {
+    await assert.rejects(request(url), (error) => error.code === "SECRET_IN_URL" && !JSON.stringify(error).includes(credential) && !error.message.includes(credential));
+  }
+  await assert.rejects(request(`http://app.ticketmaster.com/discovery/v2/events.json?apikey=${credential}`), (error) => error.code === "INVALID_PROVIDER_URL" && !JSON.stringify(error).includes(credential));
+  for (const name of ["APIKEY", "api_key", "api-key", "key", "token", "access_token", "access-token", "secret", "client_secret", "signature", "auth", "authorization"]) {
+    await assert.rejects(request(`https://app.ticketmaster.com/discovery/v2/events.json?${name}=${credential}`), { code: "SECRET_IN_URL" });
+  }
+  assert.equal(calls, 1);
+});

@@ -44,6 +44,7 @@ test("Ticketmaster matches name and date, verifies the legacy URL ID, and saves 
   assert.match(requested.searchParams.get("localStartDateTime"), /^2026-09-09/);
   assert.equal(result.events[0].id, "vvG1HZkABC123");
   assert.equal(result.events[0].canonicalUrl, "https://www.ticketmaster.com/event/0F006482E67E7496");
+  assert.equal(JSON.stringify(result).includes("test-key"), false);
 });
 
 test("Ticketmaster preserves valid range market types and does not manufacture ticket rows", () => {
@@ -266,8 +267,8 @@ test("fixture mode publishes a complete lightweight snapshot without network", a
   const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-sync-"));
   try {
     const outputDir = join(temporary, "snapshot");
-    const config = loadConfig({ TICKETS_FIXTURE: "true", TICKETS_OUTPUT_DIR: outputDir }, root);
-    const logs = []; const status = await runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), finishedAt: new Date("2026-08-29T12:00:01Z"), log: (line) => logs.push(JSON.parse(line)) });
+    const config = loadConfig({ TICKETS_FIXTURE: "true", TICKETS_GAMES_FILE: "tests/fixtures/ticket-sync-schedule.json", TICKETS_OUTPUT_DIR: outputDir }, root);
+    const logs = []; const status = await runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), finishedAt: new Date("2026-08-29T12:00:01Z"), fetch: async () => { throw new Error("fixture sync attempted a network request"); }, log: (line) => logs.push(JSON.parse(line)) });
     assert.equal(status.outcome, "success"); assert.equal(status.totals.fresh, 2); assert.equal(status.totals.unmatched, 1);
     const index = await readJson(join(outputDir, "index.json")); const event = await readJson(join(outputDir, index.events[0].eventFile));
     assert.equal(Object.hasOwn(index.events[0], "listings"), false);
@@ -307,8 +308,12 @@ test("lease timing and stale-artifact configuration is positive and safely bound
 test("non-fixture sync rejects missing or fictional schedule provenance", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "sfz-ticket-provenance-"));
   try {
-    const config = loadConfig({ TICKETS_OUTPUT_DIR: join(temporary, "current") }, root);
-    await assert.rejects(runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), log: () => {} }), { code: "SCHEDULE_FIXTURE" });
+    const fixtureSchedule = await readJson(join(root, "tests/fixtures/ticket-sync-schedule.json"));
+    for (const [name, schedule] of [["fixture", fixtureSchedule], ["missing", Object.fromEntries(Object.entries(fixtureSchedule).filter(([key]) => key !== "fixture"))]]) {
+      const gamesFile = join(temporary, `${name}.json`); await writeFile(gamesFile, `${JSON.stringify(schedule)}\n`, "utf8");
+      const config = loadConfig({ TICKETS_GAMES_FILE: gamesFile, TICKETS_OUTPUT_DIR: join(temporary, name) }, root);
+      await assert.rejects(runTicketSync(config, { now: new Date("2026-08-29T12:00:00Z"), log: () => {} }), { code: "SCHEDULE_FIXTURE" });
+    }
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 

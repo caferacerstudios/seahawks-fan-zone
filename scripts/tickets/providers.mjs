@@ -72,7 +72,7 @@ const ticketmasterEvents = (body, expectedPage) => {
 async function syncTicketmaster(context) {
   const maxRetries = context.maxRetries ?? 2; const rateLimitMs = context.rateLimitMs ?? 250;
   const maxPages = context.maxPages ?? 5; const maxRequests = context.maxRequests ?? 5; const pageSize = context.pageSize ?? 50;
-  const request = createProviderHttp({ provider: "ticketmaster", allowedHosts: TICKETMASTER_API_HOSTS, timeoutMs: context.timeoutMs, maxRetries, rateLimitMs, maxRequests, sensitiveQueryParams: ["apikey"] }, { fetch: context.fetch, sleep: context.sleep, random: context.random });
+  const request = createProviderHttp({ provider: "ticketmaster", allowedHosts: TICKETMASTER_API_HOSTS, timeoutMs: context.timeoutMs, maxRetries, rateLimitMs, maxRequests }, { fetch: context.fetch, sleep: context.sleep, random: context.random });
   const season = context.discoveryMode === "season";
   const window = season ? ticketmasterSeasonWindow(context.games ?? []) : { startDate: context.eventDate, endDate: context.eventDate };
   const collected = []; let page = 0; let requests = 0;
