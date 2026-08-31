@@ -1,5 +1,7 @@
 # Live inventory focused audit
 
+> **Historical audit:** this point-in-time report is retained as evidence, not current implementation guidance. See [`README.md`](README.md) for the current feature and documentation map.
+
 Audit date: 2026-08-29. The repository is authoritative; its Git history is a
 single squashed `Baseline from GitHub dev` commit, so no separate task 8.b
 commit or external approval artifact can be attributed.

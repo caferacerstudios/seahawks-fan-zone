@@ -1,5 +1,7 @@
 # Ticket Finder Risk Register
 
+> **Historical planning record:** ratings and repository observations below were recorded before the current implementation. Use [`README.md`](README.md), [`data-contract.md`](data-contract.md), and [`../ticket-sync-deployment.md`](../ticket-sync-deployment.md) for current behavior.
+
 Ratings are proposed planning values, not measured production results. Owners, thresholds, and acceptance decisions are **operator decisions required**.
 
 | Risk | Likelihood | Impact | Controls and detection | Launch/response rule |

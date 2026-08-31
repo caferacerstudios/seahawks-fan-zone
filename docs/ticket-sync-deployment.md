@@ -48,8 +48,10 @@ so Nginx continues serving the last validated snapshot.
 
 `SFZ_TICKET_DATA_MODE` has four states. `disabled` hides navigation and game
 CTAs while direct visits show an unavailable noindex/nofollow page. `preview`
-uses labeled fixtures and remains noindex/nofollow. `beta` and `live` both load
-validated non-fixture runtime JSON. The independent
+remains noindex/nofollow; the current page client still attempts the same
+validated non-fixture runtime JSON as `beta` and `live`, and shows unavailable
+when it is absent. The committed fixture is contract-test input, not preview
+page data. The independent
 `SFZ_TICKET_INDEXING_STATE` defaults to `disabled`; only `live` plus `enabled`
 permits index/follow, canonical publication, and sitemap inclusion. Client data
 never controls static metadata.

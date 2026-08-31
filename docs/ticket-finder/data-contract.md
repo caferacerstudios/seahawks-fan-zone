@@ -1,207 +1,189 @@
-# Ticket Finder Data Contract
+# Ticket Finder published runtime data contract
 
-## Contract principles
+This is the authoritative reference for the JSON written by `scripts/tickets/pipeline.mjs`, validated before publication by `scripts/tickets/snapshot.mjs`, and consumed by `src/lib/tickets/runtime-view.mjs`. The published schema version is `1.0.0`.
 
-The canonical contract is provider-neutral, versioned, JSON-serializable, and intentionally narrower than any provider response. Monetary amounts are integer minor units plus ISO 4217 currency. Timestamps are ISO 8601 UTC strings. Unknown values are `null`, never invented. Raw provider payloads are not part of the public snapshot.
+All three file kinds are JSON objects with `schemaVersion: "1.0.0"` and the same ISO UTC `generatedAt`. The browser rejects incompatible generations, timestamps more than 60 seconds in the future, and snapshots older than two hours. Raw provider payloads, credentials, raw errors, and seller identity are never part of this contract.
 
-The existing Seahawks schedule `game.id` (falling back only to upstream `game.game_id`) is `scheduleGameId`. The synthesized schedule fallback may support a temporary display row but is not stable enough for provider linkage. Index-based fallbacks are prohibited. A future ingestion change must preserve aliases if an upstream game ID changes.
+## `index.json`
 
-All field publication remains conditional on provider approval in `provider-matrix.md`.
-
-## Shared enums and values
+The index contains lightweight event routing data and never listing arrays:
 
 ```ts
-type ProviderId =
-  | "ticketmaster" | "stubhub" | "fixture-market";
-
-type CurrencyCode = string; // validate as a supported ISO 4217 code
-type IsoUtc = string;
-type Coverage = "none" | "event" | "listing" | "mixed";
-type FeeCompleteness = "all_in" | "partial" | "base_only" | "unknown";
-type ProviderHealth = "healthy" | "degraded" | "stale" | "disabled" | "error";
-```
-
-`all_in` is not a universal calculation. It means the provider has contractually defined the displayed amount as including all mandatory purchaser fees for the selected quantity at the comparison stage, excluding only explicitly permitted variable amounts such as tax or delivery when the provider's definition says so. The snapshot must retain the provider's approved definition and exclusions. Until verified for that provider, fee completeness is `unknown` and the offer must not participate in “lowest all-in price” claims.
-
-## `TicketEvent`
-
-```ts
-interface TicketEvent {
-  id: string;                    // canonical internal ID, e.g. "sea:<scheduleGameId>"
-  scheduleGameId: string;        // current upstream schedule game.id/game_id
-  season: number;
-  phase: "preseason" | "regular" | "postseason";
-  week: number | null;
-  homeTeamAbbr: string;
-  awayTeamAbbr: string;
-  startsAt: IsoUtc | null;
-  date: string | null;            // YYYY-MM-DD in America/Los_Angeles
-  dateConfirmed: boolean;
-  timeConfirmed: boolean;
-  venueName: string | null;
-  venueCity: string | null;
-  venueRegion: string | null;
-  status: "upcoming" | "tbd" | "postponed" | "canceled";
-  matchStatus: "matched" | "review" | "unmatched";
-  references: ProviderEventReference[];
-  listings: TicketListing[];
+interface TicketIndex {
+  schemaVersion: "1.0.0";
+  generatedAt: string;
+  outcome: "success" | "degraded";
+  events: Array<{
+    eventKey: string;               // sea:<schedule game ID>
+    gameId: string;
+    startsAt: string | null;
+    date: string | null;
+    opponent: { abbreviation: string; name: string };
+    homeAway: "home" | "away";
+    counts: { admission: number; parking: number; other: number };
+    eventFile: string;              // events/sea_<safe ID>.json
+  }>;
 }
 ```
 
-Only future/ticket-relevant games belong in a ticket snapshot. A bye or completed game cannot have active listings. `review` and `unmatched` events must not publish provider links until resolved.
+An event path must be exactly the safe filename derived from its `eventKey`. Runtime selection accepts only schedule game IDs embedded in the built page and loads only the selected event file.
 
-## `ProviderEventReference`
+## `status.json`
+
+```ts
+interface TicketStatus {
+  schemaVersion: "1.0.0";
+  generatedAt: string;
+  outcome: "success" | "degraded";
+  environment: "development" | "production";
+  fixture: boolean;
+  scheduleFixture: boolean;
+  durationMs: number;
+  totals: Counts;
+  providers: ProviderStatus[];
+}
+
+interface Counts {
+  fresh: number;
+  stale: number;
+  rejected: number;
+  unmatched: number;
+}
+
+interface ProviderStatus {
+  provider: string;
+  mode: "listing-level" | "event-summary" | "deep-link-only" | "pending";
+  state: "success" | "stale" | "error" | "disabled" | "pending";
+  errorCode: string | null;
+  lastSuccess: string | null;
+  lastAttempt: string | null;
+  nextEligibleAttempt: string | null;
+  matchedEventSummaries: number;
+  counts: Counts;
+  rejectedEvents?: unknown[];
+  unmatchedEvents?: unknown[];
+}
+```
+
+Provider IDs must be lowercase safe IDs. Error codes are bounded uppercase public-safe codes, not provider messages. Provider timestamps, counts, and optional matched-summary count are runtime-validated. Beta/live additionally requires both `fixture === false` and `scheduleFixture === false`; missing provenance fails closed.
+
+## Event files
+
+Each index row points to one event file:
+
+```ts
+interface TicketEventFile {
+  schemaVersion: "1.0.0";
+  generatedAt: string;
+  event: {
+    eventKey: string;
+    gameId: string;
+    season: number;
+    phase: string;
+    week: number | null;
+    startsAt: string | null;
+    date: string | null;
+    homeAway: "home" | "away";
+    opponent: { abbreviation: string; name: string };
+    venue: unknown;
+  };
+  providerReferences: ProviderReference[];
+  listings: {
+    admission: TicketListing[];
+    parking: TicketListing[];
+    other: TicketListing[];
+  };
+}
+```
+
+The runtime requires `event.gameId` and `event.eventKey` to match the selected index row. Admission, parking, and other are distinct buckets; parking is never admission.
+
+## Provider event references and prices
+
+All references include the provider ID, provider event ID, configured mode, match confidence, canonical HTTPS URL or `null`, state, fetch/expiry times, capabilities, event prices, and an event summary where applicable. For `event-summary`, the enforced shape is:
 
 ```ts
 interface ProviderEventReference {
-  provider: ProviderId;
+  provider: string;
   providerEventId: string;
-  canonicalEventUrl: string | null;
-  matchMethod: "provider_crosswalk" | "teams_venue_time" | "manual";
-  matchConfidence: "high" | "medium" | "low";
-  matchedAt: IsoUtc;
-  reviewedBy: string | null;      // operator role/opaque ID, not public personal data
-  sourceUpdatedAt: IsoUtc | null;
+  mode: "event-summary";
+  matchConfidence: string;
+  canonicalUrl: string | null;
+  state: "fresh" | "stale";
+  fetchedAt: string;
+  expiresAt: string;
+  capabilities: {
+    supportsSeatListings: false;
+    supportsResaleListings: false;
+    supportsPriceRange: true;
+    accessTier: "discovery";
+  };
   eventPrices: ProviderEventPrice[];
+  summary: {
+    name: string;
+    venue: unknown;
+    startTimeUtc: string | null;
+    localDate: string | null;
+    localTime: string | null;
+    timeZone: string | null;
+    eventStatus: string | null;
+    inventoryDetailLevel: "price_range";
+  };
 }
-```
 
-Provider crosswalks are preferred. Automated matching must compare both teams, venue identity, and an allowed kickoff window; it must not use opponent/time alone. Medium/low confidence requires review. Manual mappings need an audit record outside the public snapshot.
-
-## `ProviderEventPrice`
-
-```ts
 interface ProviderEventPrice {
-  provider: ProviderId;
-  marketType: string;             // provider range type; unlike types stay separate
+  provider: string;
+  marketType: string;
   minCents: number | null;
   maxCents: number | null;
-  currency: CurrencyCode;
+  currency: "USD" | "CAD";
   priceBasis: "unknown" | "base" | "all-in";
-  capturedAt: IsoUtc;
-  sourceIdentifier: string;       // non-secret provider event/range identifier
+  capturedAt: string;
+  sourceIdentifier: string;
   maxIsCapped: boolean;
 }
 ```
 
-This is event-level summary data, not inventory. Both bounds may be present, either bound may be nullable when the provider's approved contract permits it, and both may be null to represent no supplied range. Values are bounded, nonnegative safe integer cents; currencies are allowlisted; and a present minimum cannot exceed a present maximum. A malformed range is discarded without discarding its otherwise valid event reference or allowlisted CTA. Ticketmaster Discovery uses `priceBasis: "unknown"` unless authoritative account-specific evidence establishes another basis.
+Price bounds are nonnegative safe integer cents no greater than 100,000,000; a present minimum cannot exceed a present maximum, and `maxIsCapped` cannot be true without a maximum. A price's provider and source identifier must match its reference. Ticketmaster Discovery publishes `priceBasis: "unknown"`.
 
-Event prices never become `TicketListing` records and carry no listing ID, seat, quantity, fee-complete total, `rankEligible` flag, or cheapest-price eligibility. Range types and currencies are not merged.
+These ranges are event summaries, not individual available tickets. They carry no listing ID, seat, section, row, quantity, quantity-specific total, or verified fee-complete meaning. They never enter listing buckets or ranking. Missing `priceRanges` produces an empty `eventPrices` array and the UI says “Price range not supplied”; a malformed individual range is omitted without removing an otherwise valid event reference and CTA.
 
-## `TicketListing`
+## Listing records
+
+The fixture adapter exercises the listing-level boundary. The pipeline publishes this normalized shape:
 
 ```ts
 interface TicketListing {
-  id: string;                     // provider-scoped opaque ID or deterministic approved hash
-  provider: ProviderId;
-  providerEventId: string;
-  providerListingId: string | null;
-  granularity: "listing";
-  quantity: number | null;
-  quantityMin: number | null;
-  quantityMax: number | null;
+  provider: string;
+  providerListingId: string;
+  productType: "admission" | "parking" | "other";
   section: string | null;
   row: string | null;
-  seatLabels: string[] | null;
-  price: {
-    amountMinor: number;
-    currency: CurrencyCode;
-    unit: "per_ticket" | "order_total";
-    quantityBasis: number | null;
-    feeCompleteness: FeeCompleteness;
-    providerDefinition: string | null;
-    knownExclusions: string[];
-  };
-  fulfillment: string | null;
-  restrictions: string[];
-  outboundUrl: string;
-  affiliate: boolean | null;
-  observedAt: IsoUtc;
-  expiresAt: IsoUtc;
+  allowedQuantities: number[];
+  currency: "USD";
+  priceCents: number;
+  feeStatus: "all-in" | "estimated" | "unknown";
+  sanitizedNotes: string[];
+  canonicalUrl: string;
+  affiliateUrl: string | null;
+  fetchedAt: string;
+  expiresAt: string;
+  stale: boolean;
+  rankEligible: boolean;
 }
 ```
 
-Event-level ranges belong only in `ProviderEventPrice`; they must not be adapted into this interface. `id` must be stable only for the permitted cache window. URLs require HTTPS and a provider host allowlist. Do not expose seller identity, barcodes, raw ticket images, or seat maps unless separately approved.
+Sections are bounded to 80 characters, rows to 40, and quantities to unique sorted integers from 1 through 20. Notes are redacted, flattened, limited to 240 characters each, and capped at four.
 
-## `ProviderStatus`
+Publication validation requires nonnegative integer cents, `USD`, HTTPS URLs on that provider's public-host allowlist, `rankEligible === !stale`, and notes without likely email addresses or phone numbers. It rejects seller fields, raw response fields, URL credentials, and secret-like URL query parameters. Runtime display further requires a safe provider URL, `rankEligible: true`, `stale: false`, and a future `expiresAt`.
 
-```ts
-interface ProviderStatus {
-  provider: ProviderId;
-  health: ProviderHealth;
-  coverage: Coverage;
-  feeCompleteness: FeeCompleteness;
-  enabled: boolean;
-  lastAttemptAt: IsoUtc | null;
-  lastSuccessAt: IsoUtc | null;
-  sourceUpdatedAt: IsoUtc | null;
-  dataExpiresAt: IsoUtc | null;
-  eventCount: number;
-  listingCount: number;
-  messageCode: string | null;     // bounded, public-safe code; no raw errors
-}
-```
+No real listing-level provider is currently approved or enabled. Listing records in fixture output are synthetic and must not be described as live inventory.
 
-Coverage describes the highest granularity actually present in the snapshot, not contractual potential. Provider-level fee completeness is the least-complete value among its published prices; listing-level values remain authoritative.
+## Validation and publication invariants
 
-## Coverage and fee summary
-
-```ts
-interface CoverageSummary {
-  requestedProviders: ProviderId[];
-  contributingProviders: ProviderId[];
-  eventCoverage: number;          // count, not an inferred percentage
-  listingCoverage: number;
-  unmatchedProviderEvents: number;
-}
-
-interface FeeSummary {
-  allInListings: number;
-  partialListings: number;
-  baseOnlyListings: number;
-  unknownListings: number;
-  comparableCurrencies: CurrencyCode[];
-}
-```
-
-No aggregate “best price” should cross currencies, units, quantity bases, granularity, or fee-completeness categories. A UI may compare only like-for-like rows and must label the comparison basis.
-
-## Snapshot
-
-```ts
-interface TicketSnapshot {
-  schemaVersion: "1.0.0";
-  snapshotId: string;             // immutable, non-secret publication ID
-  environment: "development" | "production";
-  generatedAt: IsoUtc;
-  validatedAt: IsoUtc;
-  publishedAt: IsoUtc;
-  expiresAt: IsoUtc;
-  schedule: {
-    source: "balldontlie";
-    sourceSeason: number;
-    sourceUpdatedAt: IsoUtc;
-  };
-  providerStatuses: ProviderStatus[];
-  coverage: CoverageSummary;
-  fees: FeeSummary;
-  events: TicketEvent[];
-}
-```
-
-## Validation invariants
-
-- IDs are unique within their scopes; every listing provider/event pair has a matching reference.
-- `generatedAt <= validatedAt <= publishedAt < expiresAt`; listing/provider expiry cannot exceed snapshot expiry or approved cache limits.
-- Events match the current schedule ID and teams; canceled/completed/byes contain no listings.
-- Amounts are non-negative safe integers and currencies/units agree within any comparison group.
-- `all_in` requires a non-null approved definition; `unknown` cannot be promoted to an all-in claim.
-- Production snapshots contain no synthetic data; development fixtures set `environment: "development"` and use unmistakably fake URLs/IDs.
-- Disabled, expired, unmatched, or low-confidence provider data is not displayed.
-- Unknown fields, unapproved fields, raw errors, credentials, access tokens, and secret URL-signing material cause validation failure.
-
-## Assumptions and operator decisions
-
-Assumptions: providers can ultimately supply a stable event identifier and an approved outbound URL; the schedule source continues to expose `id`/`game_id`; one currency will normally be USD. None is provider approval.
-
-Operator decisions: JSON Schema versus a TypeScript validator, canonical ID alias storage, accepted currencies, match tolerances, price comparison quantity, tax/delivery treatment, public status-message vocabulary, snapshot retention, and whether section/row/seat fields are permitted per provider.
+- Candidate files are written in a sibling staging directory and every file is validated before it can become current.
+- Provider event and listing URLs must use HTTPS and the registry's provider-specific public host allowlist; request API hosts are separately allowlisted.
+- A non-fixture sync requires the schedule source to declare `fixture: false`.
+- Event matching must succeed before provider references or listings are attached; ambiguous candidates are rejected.
+- Provider failures may retain prior data only through that provider's configured retention window. Retained references/listings are stale and ineligible for ranking; expired event summaries are rejected by the browser.
+- Publication moves a validated candidate to an immutable version directory and atomically switches the relative `current` symlink. Cross-file generation checks prevent mixed versions.

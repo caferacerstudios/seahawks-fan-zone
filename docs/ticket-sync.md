@@ -10,11 +10,12 @@ All adapters are disabled unless explicitly enabled. Configuration is validated 
 - `TICKETS_OUTPUT_DIR`: snapshot publication directory. Defaults to `runtime/tickets/current` in development. Production must set this or `TICKETS_OUTPUT_DIR_PRODUCTION` explicitly. `TICKETS_OUTPUT_DIR_DEVELOPMENT` and `TICKETS_OUTPUT_DIR_PRODUCTION` support separate destinations.
 - `TICKETS_GAMES_FILE`: canonical schedule input; defaults to `src/data/nfl/seahawks.json`.
 - `TICKETS_OVERRIDES_FILE`: provider match overrides; defaults to `src/data/tickets/match-overrides.json`.
-- `TICKETS_PROVIDERS_JSON`: JSON object keyed by adapter id. Each entry has `enabled`, `mode` (`listing-level`, `event-summary`, `deep-link-only`, or `pending`), and optional `minRefreshMs`, `retentionMs`, `timeoutMs`, `maxRetries`, `rateLimitMs`, `pageSize`, `maxPages`, and `maxRequests`. Ticketmaster caps these at 200 results per page and 20 pages/requests; recommended values are 50 and 5/5.
+- `TICKETS_PROVIDERS_JSON`: JSON object keyed by adapter id. Each entry has `enabled`, `mode` (`listing-level`, `event-summary`, `deep-link-only`, or `pending`), and optional `minRefreshMs`, `freshnessMs`, `retentionMs`, `timeoutMs`, `maxRetries`, `rateLimitMs`, `pageSize`, `maxPages`, and `maxRequests`. Validation requires `minRefreshMs <= freshnessMs <= retentionMs`. Ticketmaster caps these at 200 results per page and 20 pages/requests; recommended values are 50 and 5/5.
 - `TICKETS_FIXTURE`: exactly `true` enables local fixture mode.
 - `TICKETS_FIXTURE_FILE`: optional local provider fixture path.
-- `TICKETS_LOCK_STALE_MS`: age after which abandoned staging directories can be removed; minimum 60 seconds.
-- `TICKETS_PROVIDER_SHELL_API_KEY`: credential expected by the disabled real-provider shell if it is ever configured. The shell remains pending and cannot currently be enabled.
+- `TICKETS_LOCK_STALE_MS`: lease expiry and abandoned staging-artifact age; defaults to 30 minutes.
+- `TICKETS_LOCK_HEARTBEAT_MS`: owned-lease heartbeat interval; defaults to 60 seconds and must be less than one third of the stale interval.
+- `TICKETS_LOCK_STALE_ARTIFACT_LIMIT`: maximum quarantined stale-lock directories retained; defaults to 3.
 - `TICKETMASTER_API_KEY`: server-side Ticketmaster Discovery API consumer key.
 - `TICKETMASTER_DISCOVERY_MODE`: `season` enables bounded attraction discovery; `single-event` is the default temporary migration fallback.
 - `TICKETMASTER_ATTRACTION_ID`: required in season mode. An operator must supply the verified Seahawks attraction ID in the private environment; the repository deliberately does not guess or hard-code it.

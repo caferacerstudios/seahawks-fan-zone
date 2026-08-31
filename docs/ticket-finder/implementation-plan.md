@@ -1,5 +1,7 @@
 # Ticket Finder Implementation Plan
 
+> **Historical:** this pre-implementation plan is retained for decision history. It is not the current feature or operations source of truth; see [`README.md`](README.md).
+
 No implementation should begin for a provider until its relevant matrix row is verified. Tasks are ordered; bracketed items are dependencies.
 
 ## 1. Resolve approvals and product decisions

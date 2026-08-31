@@ -1,6 +1,6 @@
 # Ticket Provider Approval Matrix
 
-Repository evidence contains no provider contracts, credentials, API clients, approved field lists, or provider-specific affiliate utilities. A public website is not evidence of API, feed, affiliate, caching, trademark, or display permission. Consequently every capability below defaults to **PENDING**.
+This matrix summarizes the provider-rights records retained in this repository. Ticketmaster Discovery has the narrow event-summary approval recorded below; all unrecorded capabilities default to **PENDING**. The repository contains no credentials, listing-level real-provider adapter, or provider-specific affiliate utility. A public website is not evidence of API, feed, affiliate, caching, trademark, or display permission.
 
 `PENDING` means “not verified and must not be implemented or represented as approved.” It does not mean denied or unavailable.
 
