@@ -43,9 +43,16 @@ export function validateSnapshotFile(value, kind, allowedHosts = {}) {
         if (String(observation.gameId) !== String(value.event.gameId)) throw new TypeError("Market observation game identity does not match its event.");
       }
     }
-    if (value.eventSpyState !== undefined) object(value.eventSpyState, "event.eventSpyState");
-    if (value.eventSpyState !== undefined && (!["current","stale","not_collected","source_unavailable","last_collection_failed"].includes(value.eventSpyState.state) ||
-        (value.eventSpyState.sourceUrl !== null && value.eventSpyState.sourceUrl !== eventSpyCoverageForGame(value.event.gameId)?.sourceUrl)) throw new TypeError("Invalid public EventSpy state.");
+    if (value.eventSpyState !== undefined) {
+      object(value.eventSpyState, "event.eventSpyState");
+      const coverage = eventSpyCoverageForGame(value.event.gameId);
+      if (!["current", "stale", "not_collected", "source_unavailable", "last_collection_failed"].includes(value.eventSpyState.state)) {
+        throw new TypeError("Invalid public EventSpy state.");
+      }
+      if (value.eventSpyState.sourceUrl !== null && value.eventSpyState.sourceUrl !== coverage?.sourceUrl) {
+        throw new TypeError("Invalid public EventSpy state.");
+      }
+    }
     for (const reference of value.providerReferences) {
       for (const field of ["canonicalUrl"]) {
         if (reference[field] === null) continue;
