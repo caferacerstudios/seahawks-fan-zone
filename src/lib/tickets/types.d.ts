@@ -75,6 +75,7 @@ export interface TicketEvent {
   venue: { name: string; city: string; region: string; country: string };
   providerEventReferences: ProviderEventReference[];
   providerCoverage: string[];
+  marketObservations?: MarketObservation[];
   listings: TicketListing[];
   rescheduledFromUtc: string | null;
   updatedAt: string;

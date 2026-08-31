@@ -1,4 +1,5 @@
 import { validateProviderEventPrice } from "../../src/lib/tickets/provider-event-price.mjs";
+import { validateMarketObservation } from "../../src/lib/tickets/market-observation.mjs";
 
 const VERSION = "1.0.0";
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
@@ -34,6 +35,13 @@ export function validateSnapshotFile(value, kind, allowedHosts = {}) {
     object(value.event, "event.event");
     if (!Array.isArray(value.providerReferences) || !object(value.listings, "event.listings")) throw new TypeError("Invalid event contract.");
     for (const bucket of ["admission", "parking", "other"]) if (!Array.isArray(value.listings[bucket])) throw new TypeError(`event.listings.${bucket} must be an array.`);
+    if (value.marketObservations !== undefined) {
+      if (!Array.isArray(value.marketObservations)) throw new TypeError("event.marketObservations must be an array.");
+      for (const observation of value.marketObservations) {
+        validateMarketObservation(observation, { now: Date.parse(value.generatedAt) + 60_000 });
+        if (String(observation.sfzGameId) !== String(value.event.gameId)) throw new TypeError("Market observation game identity does not match its event.");
+      }
+    }
     for (const reference of value.providerReferences) {
       for (const field of ["canonicalUrl"]) {
         if (reference[field] === null) continue;

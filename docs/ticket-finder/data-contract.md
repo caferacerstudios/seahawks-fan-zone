@@ -4,7 +4,7 @@ This is the authoritative reference for the JSON written by `scripts/tickets/pip
 
 All three file kinds are JSON objects with `schemaVersion: "1.0.0"` and the same ISO UTC `generatedAt`. The browser rejects incompatible generations, timestamps more than 60 seconds in the future, and snapshots older than two hours. Raw provider payloads, credentials, raw errors, and seller identity are never part of this contract.
 
-The disabled EventSpy `MarketObservation` contract is intentionally outside this published runtime schema. It is neither a provider reference/listing nor a Ticketmaster `ProviderEventPrice`. No EventSpy observation may enter these files until retention and publication are separately confirmed by the operator and a later change explicitly integrates it.
+An event file may include `marketObservations: MarketObservation[]`. Every item must pass the strict EventSpy contract, match the event's SFZ game ID, and retain its source URL and observation timestamp. It is neither a provider reference/listing nor a Ticketmaster `ProviderEventPrice`; it cannot enter listing ranking. Missing or empty observations produce the dashboard history empty state. Stored samples are never backfilled or interpolated.
 
 ## `index.json`
 
@@ -148,7 +148,7 @@ interface ProviderEventPrice {
 
 Price bounds are nonnegative safe integer cents no greater than 100,000,000; a present minimum cannot exceed a present maximum, and `maxIsCapped` cannot be true without a maximum. A price's provider and source identifier must match its reference. Ticketmaster Discovery publishes `priceBasis: "unknown"`.
 
-These ranges are event summaries, not individual available tickets. They carry no listing ID, seat, section, row, quantity, quantity-specific total, or verified fee-complete meaning. They never enter listing buckets or ranking. Missing `priceRanges` produces an empty `eventPrices` array and the UI says “Price range not supplied”; a malformed individual range is omitted without removing an otherwise valid event reference and CTA.
+These ranges are event summaries, not individual available tickets. They carry no listing ID, seat, section, row, quantity, quantity-specific total, or verified fee-complete meaning. They never enter listing buckets or ranking. Missing `priceRanges` produces an empty `eventPrices` array and the UI says “Ticketmaster did not supply an event range”; a malformed individual range is omitted without removing an otherwise valid event reference and CTA.
 
 Aggregate lowest/get-in-price observations use the separate `MarketObservation` type. They have no provider minimum or maximum. Any future approved high calculated across successive lowest observations must be named `rollingHighOfLowestObservedCents`, not `maxCents`, and must remain distinct from Ticketmaster Discovery ranges.
 

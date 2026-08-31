@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadRuntimeTicketData, providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeStatus } from "../src/lib/tickets/runtime-view.mjs";
+import { eventSpyObservationModel, loadRuntimeTicketData, providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeStatus } from "../src/lib/tickets/runtime-view.mjs";
 import { eventSummaryAdapterPayload, listingAdapterPayload } from "../scripts/tickets/listing-adapter.mjs";
 
 const future = "2030-01-01T00:00:00Z";
@@ -99,7 +99,7 @@ test("missing or malformed beta runtime data fails closed", async () => {
 test("Ticketmaster summary is official, allowlisted, and never converted to a listing", () => {
   const summary = ticketmasterSummaryModel(event.providerReferences[0]);
   assert.equal(summary.status, "On sale");
-  assert.equal(summary.priceCopy, "Price range not supplied");
+  assert.equal(summary.priceCopy, "Ticketmaster did not supply an event range");
   assert.match(summary.disclosure, /not an individual offer/);
   assert.equal(new URL(summary.href).hostname, "www.ticketmaster.com");
   assert.equal(runtimeTicketView(event, now).listings.length, 0);
@@ -111,9 +111,9 @@ test("Ticketmaster range copy is explicit and does not imply a live seat listing
   const ranged = structuredClone(event.providerReferences[0]);
   ranged.eventPrices = [{ provider: "ticketmaster", marketType: "standard", minCents: 8550, maxCents: 64000, currency: "USD", priceBasis: "unknown", capturedAt: status.generatedAt, sourceIdentifier: "real", maxIsCapped: false }];
   const summary = ticketmasterSummaryModel(ranged);
-  assert.equal(summary.priceCopy, "Provider-reported event range: $85.50–$640");
+  assert.equal(summary.priceCopy, "Ticketmaster-reported event range: $85.50–$640");
   assert.equal(summary.prices[0].marketType, "standard");
-  assert.match(summary.disclosure, /Fee basis may differ/);
+  assert.match(summary.disclosure, /Fee basis may vary/);
   assert.equal(Object.hasOwn(summary, "listings"), false);
 });
 
@@ -133,8 +133,20 @@ test("generic event-price display supports min-only, capped, multi-currency, and
   stubhub.eventPrices = [{ ...reference.eventPrices[0], provider: "stubhub", sourceIdentifier: "stub-1", minCents: 4200, maxCents: null }];
   assert.equal(providerEventSummaryModel(stubhub).priceCopy, "From $42");
   reference.eventPrices = [];
-  assert.equal(providerEventSummaryModel(reference).priceCopy, "Price range not supplied");
+  assert.equal(providerEventSummaryModel(reference).priceCopy, "Ticketmaster did not supply an event range");
   assert.ok(providerEventSummaryModel(reference).href, "CTA remains when range is absent");
+});
+
+test("stored EventSpy samples produce truthful latest and rolling-low models", () => {
+  const marketObservations = [
+    { observedAt:"2029-01-01T00:00:00Z", priceCents:14225, sevenDayLowCents:13100, source:"eventspy" },
+    { observedAt:"2029-01-02T00:00:00Z", priceCents:13900, source:"eventspy" },
+  ];
+  const model = eventSpyObservationModel({ marketObservations }, Date.parse("2029-01-02T06:00:00Z"));
+  assert.equal(model.latest.priceCents, 13900);
+  assert.equal(model.sevenDayLowCents, 13100);
+  assert.equal(model.stale, false);
+  assert.deepEqual(eventSpyObservationModel({}, now).observations, []);
 });
 
 test("malformed event prices fail runtime validation and event prices never become rank candidates", () => {

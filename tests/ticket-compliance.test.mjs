@@ -5,16 +5,14 @@ import { providerOutboundLink, safeProviderUrl } from "../src/lib/tickets/outbou
 import { ticketClickEvent } from "../src/lib/tickets/analytics.mjs";
 
 const ticketsPage = await readFile(new URL("../src/pages/tickets.astro", import.meta.url), "utf8");
+const runtimeView = await readFile(new URL("../src/lib/tickets/runtime-view.mjs", import.meta.url), "utf8");
 const sitemap = await readFile(new URL("../src/pages/sitemap.xml.ts", import.meta.url), "utf8");
 const fetchNfl = await readFile(new URL("../scripts/fetch-nfl.mjs", import.meta.url), "utf8");
 const syncDockerfile = await readFile(new URL("../deployment/ticket-sync/Dockerfile", import.meta.url), "utf8");
 
-test("ticket disclosure is visible beside the runtime controls and outbound results", () => {
-  const copy = "We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect provider order.";
-  const controls = ticketsPage.indexOf('id="runtime-game-controls"');
-  const nearbyCopy = ticketsPage.indexOf(copy, controls);
-  assert.ok(nearbyCopy > controls);
-  assert.ok(nearbyCopy < ticketsPage.indexOf('class="results-section"'));
+test("ticket page has one complete disclosure and one compact price qualifier", () => {
+  assert.equal((ticketsPage.match(/Affiliate and source disclosure:/g) || []).length, 1);
+  assert.equal((ticketsPage.match(/Prices are twice-daily observations and can change/g) || []).length, 1);
 });
 
 test("robots and sitemap use the shared, separately gated feature state", () => {
@@ -61,20 +59,27 @@ test("ticket click analytics are consent gated and limited to approved fields", 
 test("runtime page renders one selected game shell and useful provider states", () => {
   assert.equal((ticketsPage.match(/data-selected-game-summary/g) || []).length >= 1, true);
   assert.doesNotMatch(ticketsPage, /data-game-summary=/);
-  assert.match(ticketsPage, /Provider availability/);
-  assert.match(ticketsPage, /Price range not supplied/);
-  assert.match(ticketsPage, /No verified provider match for this game/);
-  assert.match(ticketsPage, /Provider information is temporarily unavailable/);
-  assert.match(ticketsPage, /Technical and source details/);
+  assert.match(ticketsPage, /Provider and source comparison/);
+  assert.match(runtimeView, /Ticketmaster did not supply an event range/);
+  assert.match(ticketsPage, /No verified source match for this game/);
+  assert.match(ticketsPage, /Ticket information is temporarily unavailable/);
+  assert.match(ticketsPage, /Technical details/);
   assert.doesNotMatch(ticketsPage, /0 listing-level offers/);
-  assert.doesNotMatch(ticketsPage, /Price history is not available yet/);
+  assert.match(ticketsPage, /Twice-daily observed get-in price history/);
   assert.doesNotMatch(ticketsPage, /Official provider event summaries/);
+});
+
+test("dashboard terminology avoids unsupported ranking and internal labels", () => {
+  assert.match(ticketsPage, /Lowest price observed via EventSpy/);
+  assert.match(ticketsPage, /Lowest marketplace observed by EventSpy:/);
+  assert.match(ticketsPage, /Highest observed get-in price/);
+  assert.doesNotMatch(ticketsPage, /At 7-day low|StubHub connected|Data type|>Coverage</);
 });
 
 test("runtime selection is labelled, navigable, and used by outbound analytics", () => {
   assert.match(ticketsPage, /for="runtime-game-select"/);
-  assert.match(ticketsPage, /history\.pushState\(null, '', `\$\{location\.pathname\}\?\$\{params\}`\)/);
-  assert.match(ticketsPage, /addEventListener\('popstate'/);
+  assert.match(ticketsPage, /history\.pushState\(null,"",`\$\{location\.pathname\}\?\$\{p\}`\)/);
+  assert.match(ticketsPage, /addEventListener\("popstate"/);
   assert.match(ticketsPage, /#runtime-game-controls/);
   assert.match(ticketsPage, /aria-live="polite" aria-busy="true"/);
   assert.match(ticketsPage, /@media print/);

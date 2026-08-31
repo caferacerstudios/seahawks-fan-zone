@@ -1,4 +1,4 @@
-export const PROVIDER_EVENT_PRICE_DISCLOSURE = "Event summary, not an individual offer. Fee basis may differ. Confirm current price and availability with the provider.";
+export const PROVIDER_EVENT_PRICE_DISCLOSURE = "Event summary, not an individual offer. Fee basis may vary; verify checkout total and availability with the provider.";
 
 const CURRENCIES = new Set(["USD", "CAD"]);
 const PRICE_BASES = new Set(["unknown", "base", "all-in"]);
@@ -60,7 +60,7 @@ export function providerEventPricesFromRanges(ranges, { provider, sourceIdentifi
 export function providerEventPriceCopy(price, locale = "en-US") {
   validateProviderEventPrice(price);
   const format = (cents) => new Intl.NumberFormat(locale, { style: "currency", currency: price.currency, minimumFractionDigits: cents % 100 ? 2 : 0 }).format(cents / 100);
-  if (price.minCents !== null && price.maxCents !== null) return `Provider-reported event range: ${format(price.minCents)}–${format(price.maxCents)}`;
+  if (price.minCents !== null && price.maxCents !== null) return `Ticketmaster-reported event range: ${format(price.minCents)}–${format(price.maxCents)}`;
   if (price.minCents !== null) return `From ${format(price.minCents)}`;
   if (price.maxCents !== null) return `Up to ${format(price.maxCents)}`;
   return "Price range not supplied";

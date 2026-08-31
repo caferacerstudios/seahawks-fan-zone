@@ -5,6 +5,8 @@ const SCHEMA_VERSION = "1.0.0";
 const EVENT_FILE = /^events\/sea_[A-Za-z0-9._-]+\.json$/;
 const MAX_SNAPSHOT_AGE_MS = 2 * 60 * 60 * 1000;
 const EVENT_BUCKETS = ["admission", "parking", "other"];
+const EVENTSPY_SOURCE = "https://www.event-spy.com/event/seattle-seahawks-seattle-sep-09-2026/374440";
+const OBSERVATION_FIELDS = new Set(["source", "sourceEventId", "sourceUrl", "sfzGameId", "metric", "priceCents", "sevenDayLowCents", "winnerMarketplace", "currency", "feeBasis", "observedAt", "fetchedAt", "samplingCadence"]);
 
 const record = (value, name) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${name} must be an object.`);
@@ -72,6 +74,19 @@ export function validateRuntimeEvent(value, indexRow, now = Date.now()) {
   if (String(eventFile.event.gameId) !== String(indexRow.gameId) || eventFile.event.eventKey !== indexRow.eventKey) throw new TypeError("Runtime event does not match its index row.");
   if (!Array.isArray(eventFile.providerReferences)) throw new TypeError("Invalid runtime provider references.");
   record(eventFile.listings, "event.listings");
+  if (eventFile.marketObservations !== undefined && !Array.isArray(eventFile.marketObservations)) throw new TypeError("Invalid runtime market observations.");
+  for (const observation of eventFile.marketObservations ?? []) {
+    record(observation, "event.marketObservations[]");
+    if (Object.keys(observation).some((key) => !OBSERVATION_FIELDS.has(key))) throw new TypeError("Runtime market observation contains a prohibited field.");
+    if (observation.source !== "eventspy" || observation.sourceUrl !== EVENTSPY_SOURCE || observation.sourceEventId !== "374440" || String(observation.sfzGameId) !== String(eventFile.event.gameId) || observation.metric !== "aggregate-lowest-observed" || observation.currency !== "USD" || observation.samplingCadence !== "twice-daily") throw new TypeError("Invalid runtime market observation identity.");
+    if (!Number.isSafeInteger(observation.priceCents) || observation.priceCents < 1 || observation.priceCents > 10_000_000) throw new TypeError("Invalid runtime market observation price.");
+    if (observation.sevenDayLowCents !== undefined && (!Number.isSafeInteger(observation.sevenDayLowCents) || observation.sevenDayLowCents < 1 || observation.sevenDayLowCents > 10_000_000)) throw new TypeError("Invalid runtime seven-day low.");
+    if (observation.winnerMarketplace !== undefined && (typeof observation.winnerMarketplace !== "string" || observation.winnerMarketplace.length > 80 || !/^[A-Za-z0-9][A-Za-z0-9 .&'()+/-]*$/.test(observation.winnerMarketplace))) throw new TypeError("Invalid runtime winning marketplace.");
+    if (!["estimated-fees-and-taxes-where-available", "unknown"].includes(observation.feeBasis)) throw new TypeError("Invalid runtime observation fee basis.");
+    const observed = timestamp(observation.observedAt, "event.marketObservations[].observedAt", now);
+    const fetched = timestamp(observation.fetchedAt, "event.marketObservations[].fetchedAt", now);
+    if (observed > fetched || fetched - observed > 7 * 24 * 60 * 60 * 1000) throw new TypeError("Runtime market observation timestamps are inconsistent.");
+  }
   for (const bucket of EVENT_BUCKETS) if (!Array.isArray(eventFile.listings[bucket])) throw new TypeError(`Invalid runtime ${bucket} listings.`);
   for (const reference of eventFile.providerReferences) {
     record(reference, "event.providerReferences[]");
@@ -126,9 +141,25 @@ export function providerEventSummaryModel(reference) {
     checkedAt: reference.fetchedAt,
     stale: reference.state === "stale",
     href,
-    priceCopy: prices[0]?.copy ?? "Price range not supplied",
+    priceCopy: prices[0]?.copy ?? "Ticketmaster did not supply an event range",
     prices,
     disclosure: PROVIDER_EVENT_PRICE_DISCLOSURE,
+  };
+}
+
+export function eventSpyObservationModel(event, now = Date.now()) {
+  const observations = (event?.marketObservations ?? []).filter((item) => item?.source === "eventspy")
+    .slice().sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
+  const latest = observations.at(-1) ?? null;
+  if (!latest) return { observations: [], latest: null, sevenDayLowCents: null, ageMs: null, stale: false };
+  const sevenDayStart = Date.parse(latest.observedAt) - 7 * 24 * 60 * 60 * 1000;
+  const observedSevenDayLow = observations.filter((item) => Date.parse(item.observedAt) >= sevenDayStart).reduce((low, item) => Math.min(low, item.priceCents), Infinity);
+  return {
+    observations,
+    latest,
+    sevenDayLowCents: Math.min(...[observedSevenDayLow, latest.sevenDayLowCents].filter(Number.isFinite)),
+    ageMs: Math.max(0, now - Date.parse(latest.observedAt)),
+    stale: now - Date.parse(latest.observedAt) > 24 * 60 * 60 * 1000,
   };
 }
 

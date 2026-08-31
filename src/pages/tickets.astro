@@ -6,201 +6,40 @@ import { scheduleRow } from "../lib/schedule-display.mjs";
 import rawSchedule from "../data/nfl/seahawks.json";
 
 const schedule = selectScheduleSeason(rawSchedule, rawSchedule.season);
-const games = schedule.games
-  .filter((game) => !["bye", "completed"].includes(game.state))
-  .map((game, index) => ({ game, row: scheduleRow(game, { index }) }));
+const games = schedule.games.filter((game) => !["bye", "completed"].includes(game.state)).map((game, index) => ({ game, row: scheduleRow(game, { index }) }));
 const beta = TICKET_FINDER_STATE === "beta";
-const runtime = TICKET_FEATURE.runtime;
-const gameMeta = games.map(({ game, row }) => ({ id: String(game.id), isHome: game.isHome, venue: game.venue, state: game.state, week: row.week, homeAwayLabel: row.homeAwayLabel, homeAway: row.homeAway, opponentName: row.opponentName, date: row.date, kickoff: row.kickoff, href: row.href, traits: [row.division ? "NFC West division game" : "Non-division game", row.primeTime ? "Prime-time game" : "Standard broadcast window", `Status: ${row.stateLabel}`] }));
+const gameMeta = games.map(({ game, row }) => ({ id:String(game.id), venue:game.venue, city:game.isHome ? "Seattle, WA" : "City TBD", week:row.week, homeAwayLabel:row.homeAwayLabel, opponentName:row.opponentName, date:row.date, kickoff:row.kickoff, startsAt:game.date ?? "", matchup:game.isHome ? `Seattle Seahawks vs. ${row.opponentName}` : `Seattle Seahawks at ${row.opponentName}` }));
 const initialGame = gameMeta[0];
 ---
 
-<SeahawksLayout
-  title={beta ? "Seahawks Ticket Finder Beta" : "Seahawks Ticket Comparison"}
-  pageTitle="Seahawks Ticket Finder"
-  pageTagline={beta ? "Check official provider event availability for upcoming Seahawks games." : "Compare ticket details from connected official and resale partners for upcoming Seahawks games."}
-  description="Check validated provider event summaries for upcoming Seahawks games."
-  seo={{ title: beta ? "Seahawks Ticket Finder Beta | Seahawks Fan Zone" : "Seahawks Ticket Finder | Seahawks Fan Zone", description: runtime ? "Check official provider ticket availability for upcoming Seahawks games." : "Preview Seahawks ticket-finder functionality.", canonicalPath: TICKET_FEATURE.canonical ? "/tickets" : null, robots: TICKET_FEATURE.robots }}
-  activePath="/tickets"
-  pageType="tickets"
-  monetizationEligible={false}
->
-  {TICKET_FINDER_STATE === "disabled" ? (
-    <section class="ticket-empty" aria-labelledby="tickets-disabled"><h2 id="tickets-disabled">Ticket Finder unavailable</h2><p>This preview is currently disabled. Upcoming games remain available on the <a href="/schedule">Seahawks schedule</a>.</p></section>
-  ) : (
-    <div id="ticket-finder">
-      <section class="trust-panel" aria-label="Beta and ticket information">
-        <p><strong>{beta ? "Live beta:" : "Independent ticket information:"}</strong> Seahawks Fan Zone is an independent fan site, not the Seahawks, NFL, or a ticket seller. Provider coverage, prices, and availability can change; confirm final details and fees on the provider site.</p>
-      </section>
-
-      <noscript><div class="ticket-empty"><h2>JavaScript is off</h2><p>Ticket data requires JavaScript. Upcoming games and the official Seahawks ticket link remain available.</p></div></noscript>
-
-      <form class="ticket-controls" id="runtime-game-controls" method="get" aria-labelledby="runtime-game-heading">
-        <div class="controls-heading"><div><p class="control-kicker">Upcoming games</p><h2 id="runtime-game-heading">Choose a game</h2></div></div>
-        <div class="filter-fields"><label class="wide" for="runtime-game-select">Upcoming Seahawks game<select id="runtime-game-select" name="game">{gameMeta.map((game) => <option value={game.id} data-week={game.week} data-home-away-label={game.homeAwayLabel} data-home-away={game.homeAway} data-opponent={game.opponentName} data-date={game.date} data-kickoff={game.kickoff} data-venue={game.venue ?? "Venue TBD"} data-preview={game.href} data-traits={JSON.stringify(game.traits)}>{game.week}: {game.homeAwayLabel} {game.homeAway} {game.opponentName} — {game.date}, {game.kickoff}</option>)}</select></label></div>
-      </form>
-
-      <p class="inline-disclosure"><strong>Before visiting a provider:</strong> We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect provider order. Ticketmaster event summaries are not price ranked.</p>
-
-      <section class="selected-game" aria-labelledby="selected-game-heading">
-        <div><p class="control-kicker">Selected matchup</p><h2 id="selected-game-heading">Upcoming Seahawks game</h2></div>
-        {initialGame && <article data-selected-game-summary data-game-id={initialGame.id}>
-          <div><strong data-game-week>{initialGame.week} · {initialGame.homeAwayLabel}</strong><h3 data-game-opponent>{initialGame.homeAway} {initialGame.opponentName}</h3><p><span data-game-date>{initialGame.date}</span> · <span data-game-kickoff>{initialGame.kickoff}</span> · <span data-game-venue>{initialGame.venue ?? "Venue TBD"}</span></p></div>
-          <ul aria-label="Game details" data-game-traits>{initialGame.traits.map((trait) => <li>{trait}</li>)}</ul>
-          <div class="game-links"><a href={initialGame.href} data-game-preview>Game preview</a><a href="/schedule">Full schedule</a></div>
-        </article>}
-      </section>
-
-      <section class="results-section" aria-labelledby="results-heading">
-        <div class="results-heading"><div><p class="control-kicker">Selected-game providers</p><h2 id="results-heading">Provider availability</h2></div><p id="result-count" role="status" aria-live="polite" aria-atomic="true">Checking provider availability…</p></div>
-        <p class="comparison-note">Ticketmaster event summaries are not individual listings, quantity-specific offers, or cheapest-price comparisons. Confirm current availability on Ticketmaster.</p>
-        <div class="ticket-results" id="runtime-providers" aria-live="polite" aria-busy="true"></div>
-        <div class="ticket-empty" id="runtime-unmatched" hidden><h3>No verified provider match for this game</h3><p>The connected provider has not supplied a verified event match for the selected game. Check the official Seahawks ticket page below or try again later.</p></div>
-        <div class="ticket-empty" id="runtime-unavailable" hidden><h3>Provider information is temporarily unavailable</h3><p>We could not verify current provider data for this game. Use the official Seahawks ticket page below while the feed recovers.</p></div>
-      </section>
-
-      <section class="official-fallback" aria-labelledby="official-heading">
-        <div><h2 id="official-heading">Official Seahawks tickets</h2><p>For team ticket information and any options not covered above, use the official Seahawks ticket page.</p></div>
-        <a class="provider-button" href="https://www.seahawks.com/tickets/" rel="noopener">Visit official ticket page</a>
-      </section>
-      <p class="mobile-entry-link">Using mobile tickets? <a href="https://www.seahawks.com/tickets/mobile-ticket-guide" rel="noopener">Read the official mobile-entry guide</a>.</p>
-
-      <details class="coverage" id="runtime-diagnostics" hidden><summary>Technical and source details</summary><p data-runtime-checked></p><ul class="coverage-list" data-runtime-coverage-list></ul></details>
-
-      <p class="final-disclosure">We may earn a commission from some provider links. Commission never influences provider order. Prices, availability, and fees can change; verify the checkout total before purchase. <a href="/disclosure">Affiliate disclosure</a>.</p>
-
-    </div>
-  )}
+<SeahawksLayout title={beta ? "Seahawks Ticket Dashboard Beta" : "Seahawks Ticket Dashboard"} pageTitle="Seahawks Ticket Dashboard" pageTagline="Validated ticket-source information and twice-daily observed prices for upcoming Seahawks games." description="Review validated ticket sources and observed get-in price history for upcoming Seahawks games." seo={{ title:"Seahawks Ticket Dashboard | Seahawks Fan Zone", description:"Review validated ticket-source information for upcoming Seahawks games.", canonicalPath:TICKET_FEATURE.canonical ? "/tickets" : null, robots:TICKET_FEATURE.robots }} activePath="/tickets" pageType="tickets" monetizationEligible={false}>
+{TICKET_FINDER_STATE === "disabled" ? <section class="ticket-empty"><h2>Ticket dashboard unavailable</h2><p>Upcoming games remain available on the <a href="/schedule">Seahawks schedule</a>.</p></section> :
+<main class="ticket-dashboard" id="ticket-finder">
+  <noscript><div class="ticket-empty"><h2>JavaScript is off</h2><p>Ticket data requires JavaScript.</p></div></noscript>
+  {initialGame && <section class="game-hero" data-selected-game-summary data-game-id={initialGame.id} aria-labelledby="selected-game-heading">
+    <div><p class="game-badge" data-game-week>{initialGame.week} · {initialGame.homeAwayLabel}</p><h2 id="selected-game-heading" data-game-matchup>{initialGame.matchup}</h2><p><span data-game-venue>{initialGame.venue ?? "Venue TBD"}</span> · <span data-game-city>{initialGame.city}</span></p><p><span data-game-date>{initialGame.date}</span> · <span data-game-kickoff>{initialGame.kickoff}</span></p></div>
+    <form class="game-selector" id="runtime-game-controls" method="get"><label for="runtime-game-select">Choose another game</label><select id="runtime-game-select" name="game">{gameMeta.map((game) => <option value={game.id} data-week={game.week} data-home-away-label={game.homeAwayLabel} data-matchup={game.matchup} data-date={game.date} data-kickoff={game.kickoff} data-starts-at={game.startsAt} data-city={game.city} data-venue={game.venue ?? "Venue TBD"}>{game.week}: {game.matchup}</option>)}</select></form>
+  </section>}
+  <section class="metrics-section" aria-labelledby="metrics-heading"><div class="section-heading"><div><p class="eyebrow">Selected-game snapshot</p><h2 id="metrics-heading">Ticket outlook</h2></div><p id="result-count" role="status" aria-live="polite">Checking stored observations…</p></div><div class="metric-grid" id="runtime-metrics"></div><p class="price-qualifier">Prices are twice-daily observations and can change. Verify availability and checkout total with the seller.</p></section>
+  <section class="results-section" aria-labelledby="results-heading"><div class="section-heading"><div><p class="eyebrow">Validated sources</p><h2 id="results-heading">Provider and source comparison</h2></div></div><div class="ticket-results" id="runtime-providers" aria-live="polite" aria-busy="true"></div><div class="ticket-empty" id="runtime-unmatched" hidden><h3>No verified source match for this game</h3><p>No connected source has supplied a verified match for the selected game.</p></div><div class="ticket-empty" id="runtime-unavailable" hidden><h3>Ticket information is temporarily unavailable</h3><p>Stored source data could not be validated for this game.</p></div></section>
+  <section class="history-section" id="runtime-history" aria-labelledby="history-heading" hidden><div class="section-heading"><div><p class="eyebrow">Stored EventSpy samples</p><h2 id="history-heading">Twice-daily observed get-in price history</h2></div><div class="range-controls" role="group" aria-label="History period"><button type="button" data-days="7">7 days</button><button type="button" data-days="14">14 days</button><button type="button" data-days="30">30 days</button></div></div><p class="sr-only" id="history-summary"></p><div class="chart-wrap" id="history-chart" role="img" aria-labelledby="history-heading history-summary"></div><details class="history-table"><summary>View price history table</summary><div class="table-scroll"><table><caption>Twice-daily EventSpy get-in price observations</caption><thead><tr><th scope="col">Observed</th><th scope="col">Lowest observed price</th><th scope="col">Fee basis</th></tr></thead><tbody id="history-table-body"></tbody></table></div></details></section>
+  <section class="ticket-empty" id="runtime-history-empty" hidden><h2>Twice-daily observed get-in price history</h2><p data-history-empty-copy>Price history is not yet available.</p></section>
+  <p class="official-fallback">Need another option? <a href="https://www.seahawks.com/tickets/" rel="noopener">Visit the official Seahawks ticket page</a>.</p>
+  <details class="technical-details" id="runtime-diagnostics" hidden><summary>Technical details</summary><p data-runtime-checked></p><ul data-runtime-coverage-list></ul></details>
+  <p class="final-disclosure"><strong>Affiliate and source disclosure:</strong> Seahawks Fan Zone is an independent fan site, not the Seahawks, NFL, Ticketmaster, EventSpy, or a ticket seller. We may earn a commission from some approved outbound links; commission does not influence presentation. Ticketmaster data is an official Discovery API event summary. EventSpy values are twice-daily aggregate observations, not listings or guaranteed inventory. Prices, availability, and fee treatment can change; verify the checkout total with the seller. <a href="/disclosure">Full disclosure</a>.</p>
+</main>}
 </SeahawksLayout>
 
 <style>
-  .inline-disclosure{margin:0 0 1.5rem;padding:.8rem 1rem;border:var(--border-crisp);border-top:0;background:#fff}
-  .trust-panel,.ticket-empty{padding:1rem;border:var(--border-crisp);border-left:5px solid var(--action-green);background:var(--slate-100)}
-  .trust-panel{margin-bottom:1.25rem}.trust-panel p{margin:0}
-  .ticket-controls{margin:1.5rem 0 0;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--action-green);background:var(--slate-100)}
-  .controls-heading,.results-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}
-  .controls-heading h2,.results-heading h2{margin:.1rem 0 .75rem}
-  .control-kicker{margin:0;color:#4b711f;font-size:.7rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-  .filter-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.8rem}
-  .filter-fields>label{display:grid;gap:.25rem;color:var(--slate-700);font-size:.72rem;font-weight:900;text-transform:uppercase}
-  .filter-fields .wide{grid-column:span 2}.filter-fields select{width:100%;padding:.45rem .55rem}
-  .selected-game{margin:1.5rem 0}.selected-game>article{display:grid;grid-template-columns:1.5fr 1fr auto;gap:1rem;align-items:center;padding:1rem;border:var(--border-crisp);background:#fff}
-  .selected-game h3{margin:.15rem 0}.selected-game p{margin:.2rem 0}.selected-game ul{margin:0;padding-left:1.1rem}.game-links{display:grid;gap:.35rem}
-  .results-section,.coverage{margin-top:1.5rem}.ticket-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
-  .ticket-card{display:flex;flex-direction:column;gap:.75rem;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--navy-800);background:#fff}
-  .group-price{margin:.15rem 0;font:900 clamp(1.6rem,4vw,2.25rem)/1.1 var(--font-display);color:var(--navy-900)}
-  .provider-line{display:flex;justify-content:space-between;gap:.5rem}.health{display:inline-flex;align-items:center;padding:.2rem .45rem;border:1px solid currentColor;font-size:.68rem;font-weight:900;text-transform:uppercase}
-  .ticket-card dl{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin:0}.ticket-card dl div{padding:.45rem;background:var(--slate-100)}
-  .ticket-card dt{font-size:.65rem;font-weight:900;text-transform:uppercase}.ticket-card dd{margin:0}.freshness{margin:auto 0 0;color:var(--slate-700);font-size:.72rem}
-  .provider-button{display:inline-flex;width:100%;min-height:44px;align-items:center;justify-content:center;padding:.6rem .85rem;border:2px solid var(--navy-900);background:var(--navy-900);color:#fff;font-weight:900;text-decoration:none}
-  .comparison-note{color:var(--slate-700);font-size:.8rem}.ticket-empty{margin:1rem 0}.ticket-empty h2,.ticket-empty h3{margin-top:0}
-  .official-fallback{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;margin-top:1.25rem;padding:1rem;border:var(--border-crisp);background:var(--slate-100)}
-  .official-fallback h2,.official-fallback p{margin:.15rem 0}.official-fallback .provider-button{width:auto;white-space:nowrap}
-  .mobile-entry-link,.final-disclosure{font-size:.8rem}.final-disclosure{padding-top:1rem;border-top:1px solid var(--slate-300)}
-  .coverage{padding:.8rem;border:var(--border-crisp)}.coverage summary{font-weight:900;cursor:pointer}
-  .coverage-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;padding:0;list-style:none}
-  .coverage-list li{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.7rem;border:1px solid var(--slate-300)}
-  .coverage-list small{display:block;color:var(--slate-700)}.health--stale,.health--error{font-weight:900}.health--stale::before{content:"Warning: "}.health--error::before{content:"Error: "}
-  @media(max-width:800px){.filter-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.selected-game>article{grid-template-columns:1fr 1fr}.game-links{grid-column:1/-1;display:flex}.ticket-results{grid-template-columns:1fr}}
-  @media(max-width:600px){.filter-fields{grid-template-columns:1fr}.filter-fields .wide{grid-column:auto}.selected-game>article{grid-template-columns:1fr}.game-links{grid-column:auto}.results-heading,.official-fallback{display:block}.official-fallback .provider-button{width:100%;margin-top:.75rem}.coverage-list,.ticket-card dl{grid-template-columns:1fr}.ticket-card{padding:.85rem}}
-  :is(.ticket-controls select,.provider-button,.game-links a,.official-fallback a,.mobile-entry-link a,details summary):focus-visible{outline:3px solid var(--action-green);outline-offset:3px}
-  @media print{.ticket-controls,.provider-button,.mobile-entry-link,.coverage,.game-links a:last-child{display:none!important}.ticket-card,.selected-game>article,.official-fallback{break-inside:avoid}.ticket-results{display:block}.ticket-card{margin-bottom:1rem}}
+.ticket-dashboard{width:min(100%,1120px);margin:auto}.game-hero{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(17rem,.7fr);gap:2rem;align-items:end;padding:clamp(1.25rem,4vw,2.5rem);background:var(--navy-900);color:#fff;border-top:6px solid var(--action-green)}.game-badge{display:inline-block;margin:0 0 .75rem;padding:.3rem .6rem;border:1px solid var(--action-green);color:var(--action-green);font-size:.75rem;font-weight:900;text-transform:uppercase}.game-hero h2{max-width:20ch;margin:0 0 .8rem;color:#fff;font-size:clamp(1.8rem,5vw,3.4rem);line-height:1}.game-hero p{margin:.3rem 0}.game-selector{display:grid;gap:.4rem}.game-selector label,.eyebrow{font-size:.72rem;font-weight:900;text-transform:uppercase}.game-selector select{width:100%;min-height:44px;padding:.55rem;border:2px solid #fff}.metrics-section,.results-section,.history-section{margin-top:2rem}.section-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem}.section-heading h2{margin:.1rem 0 .75rem}.eyebrow{margin:0;color:#4b711f;letter-spacing:.1em}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}.metric-card{padding:1rem;border:var(--border-crisp);border-top:5px solid var(--action-green);background:#fff}.metric-label{margin:0;font-size:.72rem;font-weight:900;text-transform:uppercase}.metric-value{margin:.35rem 0;font:900 clamp(1.7rem,4vw,2.4rem)/1 var(--font-display);color:var(--navy-900)}.metric-meta,.source-note,#result-count{margin:0;color:var(--slate-700);font-size:.78rem}.price-qualifier{padding:.75rem 1rem;background:var(--slate-100);font-size:.82rem}.ticket-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.ticket-card{display:flex;flex-direction:column;gap:.75rem;padding:1rem;border:var(--border-crisp);border-top:5px solid var(--navy-800);background:#fff}.provider-line{display:flex;justify-content:space-between;gap:.75rem}.source-state{padding:.2rem .45rem;border:1px solid;font-size:.68rem;font-weight:900;text-transform:uppercase}.source-price{margin:0;font:900 clamp(1.4rem,3vw,2rem)/1.1 var(--font-display);color:var(--navy-900)}.source-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin:0}.source-details div{padding:.5rem;background:var(--slate-100)}.source-details dt{font-size:.65rem;font-weight:900;text-transform:uppercase}.source-details dd{margin:.15rem 0 0;font-size:.8rem}.provider-button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;margin-top:auto;padding:.6rem;border:2px solid var(--navy-900);background:var(--navy-900);color:#fff;font-weight:900;text-decoration:none}.range-controls{display:flex;gap:.4rem}.range-controls button{min-width:44px;min-height:44px;border:2px solid var(--navy-900);background:#fff;font-weight:900}.range-controls button[aria-pressed=true]{background:var(--navy-900);color:#fff}.range-controls button:disabled{opacity:.45}.chart-wrap{overflow:hidden;padding:1rem;border:var(--border-crisp)}.price-chart{display:block;width:100%;height:auto}.chart-grid{stroke:var(--slate-300)}.chart-line{fill:none;stroke:var(--action-green);stroke-width:4}.chart-point{fill:var(--navy-900);stroke:#fff;stroke-width:2}.chart-label{fill:var(--slate-700);font-size:12px}.history-table summary,.technical-details summary{min-height:44px;padding:.7rem 0;font-weight:900;cursor:pointer}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{padding:.65rem;text-align:left;border:1px solid var(--slate-300)}.ticket-empty{margin:1rem 0;padding:1rem;border:var(--border-crisp);border-left:5px solid var(--action-green);background:var(--slate-100)}.official-fallback,.final-disclosure{font-size:.8rem}.technical-details{padding:.5rem 1rem;border:var(--border-crisp)}.final-disclosure{margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--slate-300)}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0)}:is(select,button,a,summary):focus-visible{outline:3px solid var(--action-green);outline-offset:3px}@media(max-width:800px){.game-hero{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,1fr)}.ticket-results{grid-template-columns:1fr}}@media(max-width:560px){.metric-grid{grid-template-columns:1fr}.section-heading{display:block}.range-controls{margin-bottom:.75rem}.source-details{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}@media print{.game-selector,.range-controls,.technical-details,.official-fallback,.provider-button,[class*=skip]{display:none!important}.game-hero,.ticket-card,.metric-card,.history-section{break-inside:avoid}.ticket-results,.metric-grid{grid-template-columns:1fr 1fr}}
 </style>
 
 <script>
-  import { providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, selectRuntimeEvent, validateRuntimeEvent, validateRuntimeIndex, validateRuntimeStatus } from "../lib/tickets/runtime-view.mjs";
-  if (document.getElementById('ticket-finder')) (async () => {
-    const results = document.getElementById('runtime-providers');
-    const unavailable = document.getElementById('runtime-unavailable');
-    const unmatched = document.getElementById('runtime-unmatched');
-    const diagnostics = document.getElementById('runtime-diagnostics');
-    const count = document.getElementById('result-count');
-    const controls = document.getElementById('runtime-game-controls');
-    const gameSelect = controls?.elements?.game;
-    const allowedGames = [...(gameSelect?.options || [])].map((option) => option.value);
-    const text = (tag, value, className) => { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node; };
-    const providerName = (value) => String(value).replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-    const dateTime = (value) => new Intl.DateTimeFormat('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:'America/Los_Angeles', timeZoneName:'short' }).format(new Date(value));
-    const json = async (url) => { const response = await fetch(url, { headers: { accept: 'application/json' } }); if (!response.ok) throw new Error('runtime unavailable'); return response.json(); };
-    const clearRuntime = () => { results.replaceChildren(); results.setAttribute('aria-busy', 'true'); unavailable.hidden = true; unmatched.hidden = true; diagnostics.hidden = true; };
-    const showFailure = () => { clearRuntime(); results.setAttribute('aria-busy', 'false'); unavailable.hidden = false; count.textContent = 'Provider information could not be loaded.'; };
-    const updateGame = (gameId) => {
-      const option = [...gameSelect.options].find((candidate) => candidate.value === gameId) ?? gameSelect.options[0];
-      if (!option) return;
-      gameSelect.value = option.value;
-      const summary = document.querySelector('[data-selected-game-summary]'); summary.dataset.gameId = option.value;
-      summary.querySelector('[data-game-week]').textContent = `${option.dataset.week} · ${option.dataset.homeAwayLabel}`;
-      summary.querySelector('[data-game-opponent]').textContent = `${option.dataset.homeAway} ${option.dataset.opponent}`;
-      summary.querySelector('[data-game-date]').textContent = option.dataset.date;
-      summary.querySelector('[data-game-kickoff]').textContent = option.dataset.kickoff;
-      summary.querySelector('[data-game-venue]').textContent = option.dataset.venue;
-      summary.querySelector('[data-game-preview]').href = option.dataset.preview;
-      summary.querySelector('[data-game-traits]').replaceChildren(...JSON.parse(option.dataset.traits).map((trait) => text('li', trait)));
-    };
-    const providerCard = (summary, reference) => {
-      const card = document.createElement('article'); card.className = 'ticket-card event-summary-card'; card.dataset.referenceGame = String(reference.gameId ?? '');
-      const line = document.createElement('div'); line.className = 'provider-line'; line.append(text('strong', summary.provider), text('span', summary.stale ? 'Stale match' : 'Matched', `health health--${summary.stale ? 'stale' : 'success'}`)); card.append(line);
-      card.append(text('p', summary.priceCopy, 'group-price'));
-      for (const price of summary.prices.slice(1)) card.append(text('p', price.copy, 'comparison-note'));
-      const details = document.createElement('dl');
-      for (const [term, value] of [['Coverage', summary.status], ['Data type', 'Event summary'], ['Last checked', dateTime(summary.checkedAt)]]) { const row = document.createElement('div'); row.append(text('dt', term), text('dd', value)); details.append(row); }
-      card.append(details);
-      if (summary.stale) card.append(text('p', 'This is the last successful provider response and may be out of date.', 'comparison-note'));
-      card.append(text('p', summary.disclosure, 'comparison-note'));
-      if (summary.href) { const link = text('a', `View tickets on ${summary.provider}`, 'provider-button'); link.href = summary.href; link.target = '_blank'; link.rel = 'nofollow noopener'; link.dataset.ticketOutbound = ''; link.dataset.provider = reference.provider; link.dataset.sourceKind = 'official-primary'; link.dataset.linkPlacement = 'event-summary'; card.append(link); }
-      return card;
-    };
-    const initialRequest = new URLSearchParams(location.search).get('game');
-    updateGame(allowedGames.includes(initialRequest) ? initialRequest : allowedGames[0]);
-    try {
-      const now = Date.now();
-      const [status, index] = await Promise.all([
-        json('/data/tickets/status.json').then((value) => validateRuntimeStatus(value, now)),
-        json('/data/tickets/index.json').then((value) => validateRuntimeIndex(value, now)),
-      ]);
-      if (status.generatedAt !== index.generatedAt) throw new Error('incompatible runtime snapshot');
-      const loadSelected = async (requested) => {
-        clearRuntime(); count.textContent = 'Checking provider availability…';
-        const selected = selectRuntimeEvent(index, requested, allowedGames);
-        updateGame(selected.gameId);
-        if (!selected.row) { results.setAttribute('aria-busy', 'false'); unmatched.hidden = false; count.textContent = 'No verified provider match for this game.'; return; }
-        try {
-          const event = validateRuntimeEvent(await json(runtimeEventUrl(selected.row)), selected.row, Date.now());
-          if (event.generatedAt !== status.generatedAt) throw new Error('incompatible runtime event');
-          const view = runtimeTicketView(event); const visibleProviders = new Set();
-          for (const reference of view.summaries) { const summary = providerEventSummaryModel(reference); results.append(providerCard(summary, { ...reference, gameId: event.event.gameId })); visibleProviders.add(reference.provider); }
-          for (const provider of status.providers.filter((item) => item.state === 'error' && !visibleProviders.has(item.provider))) { const card = document.createElement('article'); card.className = 'ticket-card provider-failure'; const line = document.createElement('div'); line.className = 'provider-line'; line.append(text('strong', providerName(provider.provider)), text('span', 'Unavailable', 'health health--error')); card.append(line, text('p', 'Provider check failed. No current event information is available.', 'comparison-note'), text('p', `Data type: ${provider.mode === 'event-summary' ? 'Event summary' : providerName(provider.mode)}`, 'freshness'), text('p', provider.lastSuccess ? `Last successful check ${dateTime(provider.lastSuccess)}` : 'No successful check is available.', 'freshness')); results.append(card); }
-          results.setAttribute('aria-busy', 'false');
-          if (!results.children.length) { unmatched.hidden = false; count.textContent = 'No verified provider match for this game.'; } else count.textContent = view.summaries.length ? 'Provider information available for this game.' : 'A provider check failed for this game.';
-          const coverage = runtimeProviderCoverage(status, event).filter((provider) => !['disabled','pending'].includes(provider.state)); const list = diagnostics.querySelector('[data-runtime-coverage-list]'); list.replaceChildren();
-          for (const provider of coverage) { const item = document.createElement('li'); item.append(text('strong', provider.provider), text('small', `${provider.mode} · ${provider.state} · Rejected ${provider.rejectedEvents} · Unmatched ${provider.unmatchedEvents}`)); list.append(item); }
-          diagnostics.querySelector('[data-runtime-checked]').textContent = `Snapshot checked ${dateTime(status.generatedAt)}. Counts below are feed diagnostics, not selected-game availability.`; diagnostics.hidden = coverage.length === 0;
-        } catch { showFailure(); }
-      };
-      await loadSelected(initialRequest);
-      if (initialRequest && initialRequest !== gameSelect.value) { const params = new URLSearchParams(location.search); params.set('game', gameSelect.value); history.replaceState(null, '', `${location.pathname}?${params}`); }
-      controls?.addEventListener('submit', (event) => event.preventDefault());
-      gameSelect?.addEventListener('change', async () => { const params = new URLSearchParams(location.search); params.set('game', gameSelect.value); history.pushState(null, '', `${location.pathname}?${params}`); await loadSelected(gameSelect.value); });
-      addEventListener('popstate', () => loadSelected(new URLSearchParams(location.search).get('game')));
-    } catch { showFailure(); }
-  })();
+import { eventSpyObservationModel, providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, selectRuntimeEvent, validateRuntimeEvent, validateRuntimeIndex, validateRuntimeStatus } from "../lib/tickets/runtime-view.mjs";
+if(document.getElementById("ticket-finder"))(async()=>{const $=s=>document.querySelector(s),results=$("#runtime-providers"),metrics=$("#runtime-metrics"),unavailable=$("#runtime-unavailable"),unmatched=$("#runtime-unmatched"),diagnostics=$("#runtime-diagnostics"),count=$("#result-count"),controls=$("#runtime-game-controls"),gameSelect=controls?.elements?.game,allowedGames=[...(gameSelect?.options||[])].map(o=>o.value);const text=(tag,value,cls)=>{const n=document.createElement(tag);n.textContent=value;if(cls)n.className=cls;return n},money=c=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:c%100?2:0}).format(c/100),dateTime=v=>new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"America/Los_Angeles",timeZoneName:"short"}).format(new Date(v)),age=ms=>ms<3600000?`${Math.max(1,Math.round(ms/60000))} min ago`:ms<86400000?`${Math.round(ms/3600000)} hr ago`:`${Math.round(ms/86400000)} days ago`,providerName=v=>String(v).replaceAll("-"," ").replace(/\b\w/g,l=>l.toUpperCase()),json=async url=>{const r=await fetch(url,{headers:{accept:"application/json"}});if(!r.ok)throw Error();return r.json()};
+const metric=(label,value,meta)=>{const c=document.createElement("article");c.className="metric-card";c.append(text("p",label,"metric-label"),text("p",value,"metric-value"),text("p",meta,"metric-meta"));metrics.append(c)},updateGame=id=>{const o=[...gameSelect.options].find(x=>x.value===id)||gameSelect.options[0];if(!o)return;gameSelect.value=o.value;const s=$("[data-selected-game-summary]");s.dataset.gameId=o.value;for(const [q,v] of [["[data-game-week]",`${o.dataset.week} · ${o.dataset.homeAwayLabel}`],["[data-game-matchup]",o.dataset.matchup],["[data-game-date]",o.dataset.date],["[data-game-kickoff]",o.dataset.kickoff],["[data-game-venue]",o.dataset.venue],["[data-game-city]",o.dataset.city]])s.querySelector(q).textContent=v},clear=()=>{results.replaceChildren();metrics.replaceChildren();results.ariaBusy="true";unavailable.hidden=unmatched.hidden=true;diagnostics.hidden=true;$("#runtime-history").hidden=$("#runtime-history-empty").hidden=true},fail=()=>{clear();results.ariaBusy="false";unavailable.hidden=false;count.textContent="Ticket information could not be loaded."};
+const card=(name,price,saleStatus,observationState,source,observed,note,href,provider)=>{const c=document.createElement("article");c.className="ticket-card";const line=document.createElement("div");line.className="provider-line";line.append(text("strong",name),text("span",observationState,"source-state"));c.append(line,text("p",price,"source-price"));const dl=document.createElement("dl");dl.className="source-details";for(const [a,b] of [["Sale status",saleStatus],["Observation state",observationState],["Source",source],["Observed",observed]]){const d=document.createElement("div");d.append(text("dt",a),text("dd",b));dl.append(d)}c.append(dl,text("p",note,"source-note"));if(href){const a=text("a",`Check availability on ${name}`,"provider-button");Object.assign(a,{href,target:"_blank",rel:"nofollow noopener"});Object.assign(a.dataset,{ticketOutbound:"",provider,sourceKind:"official-primary",linkPlacement:"event-summary"});c.append(a)}return c};
+const renderHistory=(model,days=7)=>{const end=Date.parse(model.latest.observedAt),start=end-days*86400000,points=model.observations.filter(x=>Date.parse(x.observedAt)>=start);for(const b of document.querySelectorAll("[data-days]")){const period=Number(b.dataset.days);b.disabled=!model.observations.some(x=>Date.parse(x.observedAt)<=end-period*86400000);b.ariaPressed=String(period===days);b.onclick=()=>renderHistory(model,period)}$("#runtime-history").hidden=false;const vals=points.map(x=>x.priceCents),min=Math.min(...vals),max=Math.max(...vals),W=900,H=280,L=72,R=20,T=20,B=45,span=Math.max(1,max-min),x=p=>L+(Date.parse(p.observedAt)-start)/(end-start)*(W-L-R),y=v=>T+(max-v)/span*(H-T-B),ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("class","price-chart");svg.ariaHidden="true";for(const v of [max,(max+min)/2,min]){const l=document.createElementNS(ns,"line"),t=document.createElementNS(ns,"text");for(const [k,z] of [["x1",L],["x2",W-R],["y1",y(v)],["y2",y(v)]])l.setAttribute(k,z);l.setAttribute("class","chart-grid");t.setAttribute("x","4");t.setAttribute("y",y(v)+4);t.setAttribute("class","chart-label");t.textContent=money(Math.round(v));svg.append(l,t)}let d="",prior=null;for(const p of points){const gap=prior&&Date.parse(p.observedAt)-Date.parse(prior.observedAt)>64800000;d+=`${!prior||gap?"M":"L"}${x(p)},${y(p.priceCents)} `;prior=p}const path=document.createElementNS(ns,"path");path.setAttribute("d",d);path.setAttribute("class","chart-line");svg.append(path);for(const p of points){const c=document.createElementNS(ns,"circle");c.setAttribute("cx",x(p));c.setAttribute("cy",y(p.priceCents));c.setAttribute("r","5");c.setAttribute("class","chart-point");svg.append(c)}$("#history-chart").replaceChildren(svg);$("#history-summary").textContent=`${points.length} stored observations. Lowest ${money(min)}. Highest observed get-in price ${money(max)}.`;$("#history-table-body").replaceChildren(...points.slice().reverse().map(p=>{const r=document.createElement("tr");for(const v of [dateTime(p.observedAt),money(p.priceCents),p.feeBasis==="unknown"?"Fee basis may vary; verify checkout total":"Estimated fees and taxes where available"])r.append(text("td",v));return r}))};
+const requested=new URLSearchParams(location.search).get("game");updateGame(allowedGames.includes(requested)?requested:allowedGames[0]);try{const now=Date.now(),[status,index]=await Promise.all([json("/data/tickets/status.json").then(v=>validateRuntimeStatus(v,now)),json("/data/tickets/index.json").then(v=>validateRuntimeIndex(v,now))]);if(status.generatedAt!==index.generatedAt)throw Error();const load=async wanted=>{clear();const selected=selectRuntimeEvent(index,wanted,allowedGames);updateGame(selected.gameId);const option=gameSelect.selectedOptions[0],kickoff=Date.parse(option?.dataset.startsAt);if(Number.isFinite(kickoff)&&kickoff>now)metric("Days until kickoff",String(Math.ceil((kickoff-now)/86400000)),`${option.dataset.date} · ${option.dataset.kickoff}`);if(!selected.row){results.ariaBusy="false";unmatched.hidden=false;return}try{const event=validateRuntimeEvent(await json(runtimeEventUrl(selected.row)),selected.row,Date.now()),view=runtimeTicketView(event),obs=eventSpyObservationModel(event,Date.now());for(const ref of view.summaries){const s=providerEventSummaryModel(ref);results.append(card(s.provider,s.priceCopy,s.status,s.stale?"Last observed":"Fresh",s.source,dateTime(s.checkedAt),s.disclosure,s.href,ref.provider))}if(obs.latest){const label=obs.stale?"Last observed":"Lowest price observed via EventSpy";metric(label,money(obs.latest.priceCents),`EventSpy · ${age(obs.ageMs)}`);if(obs.sevenDayLowCents!==null)metric("Seven-day observed low",money(obs.sevenDayLowCents),"EventSpy · stored observations");const winner=obs.latest.winnerMarketplace?`Lowest marketplace observed by EventSpy: ${obs.latest.winnerMarketplace}. `:"",fee=obs.latest.feeBasis==="unknown"?"Fee basis may vary; verify checkout total.":"Estimated fees and taxes where available; verify checkout total.";results.append(card("EventSpy",`${label}: ${money(obs.latest.priceCents)}`,"Not applicable",obs.stale?"Last observed":"Fresh","EventSpy",dateTime(obs.latest.observedAt),winner+fee,null,"eventspy"));if(obs.observations.length>1)renderHistory(obs);else{const e=$("#runtime-history-empty");e.hidden=false;e.querySelector("[data-history-empty-copy]").textContent=`Price tracking began ${new Intl.DateTimeFormat("en-US",{dateStyle:"long",timeZone:"America/Los_Angeles"}).format(new Date(obs.latest.observedAt))}. History will appear after additional twice-daily observations.`}}else{const e=$("#runtime-history-empty");e.hidden=false;e.querySelector("[data-history-empty-copy]").textContent="No stored EventSpy observations are available for this game."}for(const p of status.providers.filter(p=>p.state==="error"&&!view.summaries.some(r=>r.provider===p.provider)))results.append(card(providerName(p.provider),"No validated price available","Unknown","Unavailable","Provider feed",p.lastSuccess?dateTime(p.lastSuccess):"No successful observation","The provider check failed; no current claim is shown.",null,p.provider));results.ariaBusy="false";count.textContent=results.children.length?"Validated source information available.":"No verified source match for this game.";if(!results.children.length)unmatched.hidden=false;const coverage=runtimeProviderCoverage(status,event).filter(p=>!["disabled","pending"].includes(p.state)),list=diagnostics.querySelector("[data-runtime-coverage-list]");list.replaceChildren(...coverage.map(p=>text("li",`${p.provider}: ${p.state}; rejected ${p.rejectedEvents}; unmatched ${p.unmatchedEvents}`)));diagnostics.querySelector("[data-runtime-checked]").textContent=`Snapshot checked ${dateTime(status.generatedAt)}. Feed diagnostics only.`;diagnostics.hidden=!coverage.length}catch{fail()}};await load(requested);controls?.addEventListener("submit",e=>e.preventDefault());gameSelect?.addEventListener("change",async()=>{const p=new URLSearchParams(location.search);p.set("game",gameSelect.value);history.pushState(null,"",`${location.pathname}?${p}`);await load(gameSelect.value)});addEventListener("popstate",()=>load(new URLSearchParams(location.search).get("game")))}catch{fail()}})();
 </script>
-
-<script>
-  import { ticketClickEvent } from "../lib/tickets/analytics.mjs";
-
-  document.addEventListener("click", (event) => {
-    const link = event.target?.closest?.("[data-ticket-outbound]");
-    if (!link) return;
-    const detail = ticketClickEvent(window.sfzPrivacy?.getState?.(), {
-      selectedGame: document.querySelector("#runtime-game-controls")?.elements?.game?.value,
-      provider: link.dataset.provider,
-      sourceKind: link.dataset.sourceKind,
-      linkPlacement: link.dataset.linkPlacement,
-    });
-    if (!detail) return;
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push(detail);
-    window.dispatchEvent(new CustomEvent("sfz:analytics", { detail }));
-  });
-</script>
+<script>import { ticketClickEvent } from "../lib/tickets/analytics.mjs";document.addEventListener("click",event=>{const link=event.target?.closest?.("[data-ticket-outbound]");if(!link)return;const detail=ticketClickEvent(window.sfzPrivacy?.getState?.(),{selectedGame:document.querySelector("#runtime-game-controls")?.elements?.game?.value,provider:link.dataset.provider,sourceKind:link.dataset.sourceKind,linkPlacement:link.dataset.linkPlacement});if(detail){window.dataLayer=window.dataLayer||[];window.dataLayer.push(detail);window.dispatchEvent(new CustomEvent("sfz:analytics",{detail}))}});</script>
