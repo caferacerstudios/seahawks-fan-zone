@@ -125,7 +125,27 @@ test("Ticketmaster season discovery rejects malformed pages and honors timeout/r
     { _embedded: { events: [] }, page: { number: 1, totalPages: 2 } },
     { _embedded: { events: [] }, page: { number: 0, totalPages: -1 } },
   ]) await assert.rejects(providerRegistry().ticketmaster.sync({ ...base, maxRetries: 0, rateLimitMs: 0, fetch: async () => ({ ok: true, json: async () => body }) }), { code: "INVALID_RESPONSE" });
-  await assert.rejects(providerRegistry().ticketmaster.sync({ ...base, maxRetries: 0, rateLimitMs: 0, fetch: async (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }))))) }), { code: "REQUEST_TIMEOUT" });
+  await assert.rejects(
+    providerRegistry().ticketmaster.sync({
+      ...base,
+      maxRetries: 0,
+      rateLimitMs: 0,
+      fetch: async (_url, { signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () =>
+              reject(
+                Object.assign(new Error("aborted"), {
+                  name: "AbortError",
+                }),
+              ),
+            { once: true },
+          );
+        }),
+    }),
+    { code: "REQUEST_TIMEOUT" },
+  );
   let calls = 0; const sleeps = [];
   await providerRegistry().ticketmaster.sync({ ...base, maxRetries: 1, rateLimitMs: 25, sleep: async (ms) => sleeps.push(ms), random: () => 0, fetch: async () => ++calls === 1 ? { ok: false, status: 429 } : { ok: true, json: async () => ({ _embedded: { events: [] }, page: { number: 0, totalPages: 1 } }) } });
   assert.equal(calls, 2); assert.ok(sleeps.some((ms) => ms >= 25)); assert.ok(sleeps.some((ms) => ms >= 200));

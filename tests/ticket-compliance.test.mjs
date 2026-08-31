@@ -85,6 +85,17 @@ test("runtime selection is labelled, navigable, and used by outbound analytics",
   assert.match(ticketsPage, /@media print/);
 });
 
+test("ticket print styles suppress global chrome, controls, and empty chart shells", () => {
+  const printStyles = ticketsPage.match(/@media print\{([\s\S]*?)\}\s*<\/style>/)?.[1];
+  assert.ok(printStyles, "ticket page should define print styles");
+  assert.match(printStyles, /:global\(\.skip-link\)[^{}]*display:none!important/);
+  assert.match(printStyles, /:global\(\.lr-header\)[^{}]*display:none!important/);
+  assert.match(printStyles, /:global\(\.lr-footer\)[^{}]*display:none!important/);
+  assert.match(printStyles, /form,.ranges,.official,details#runtime-diagnostics\{display:none!important\}/);
+  assert.match(printStyles, /\.chart:empty\{display:none\}/);
+  assert.match(printStyles, /:global\(\.lr-middle\).*:global\(\.lr-main\).*:global\(\.lr-paper\)[^{}]*overflow:visible!important/);
+});
+
 test("runtime outbound analytics omit fixture-only sort and quantity dimensions", () => {
   const event = ticketClickEvent({ ready: true, analytics: true }, { selectedGame: "week-7", provider: "ticketmaster", sourceKind: "official-primary", linkPlacement: "event-summary" }, new Date("2026-08-29T12:00:00Z"));
   assert.equal(event.selected_game, "week-7");
