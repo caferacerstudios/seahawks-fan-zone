@@ -29,20 +29,8 @@ even when a useful matched provider event link exists.
 | Event-summary | Matched event metadata and provider event URL; never an individual offer | Ticketmaster is approved/enabled by operator configuration and its Discovery adapter emits no `listings` field |
 | Listing-level | Individual authorized offers with price, quantity, location, freshness, and outbound URL | No real provider is approved or implemented; `fixture-market` exercises this contract only in explicit fixture mode |
 | Deep-link-only | Provider/event navigation without price inventory | The data/UI contracts support it; no live deep-link provider is enabled |
-| Fixture/test | Deterministic synthetic inventory for offline tests and preview | `fixture-market` and committed fictional development snapshots; forbidden from live labeling |
-| Pending shell | No rights, credentials, hosts, or usable adapter | StubHub, TickPick, and TicketNetwork fail closed; `provider-shell` is unimplemented |
-
-## What task 8.b did and did not accomplish
-
-The checked-in work established TickPick as a named pending shell and added a
-rights-review document and fail-closed tests. It did **not** add an approval
-record, credential environment name, API/outbound host allowlist, documented
-endpoint or schema mapping, functioning adapter, production configuration, or
-enabled listing-level source. `TickPick.md` explicitly leaves approval pending;
-`providers.mjs` has `approvalStatus: "pending"`, `credentialEnv: null`, an
-empty `allowedHosts`, and an adapter that throws `RIGHTS_APPROVAL_REQUIRED`.
-Configuration rejects attempts to enable it. Therefore the task prepared a
-safe placeholder but did not complete its titled outcome.
+| Fixture/test | Deterministic synthetic inventory for offline acceptance | `fixture-market` exercises publication and the committed legacy-contract fixture exercises validation; neither is live data |
+| Planned provider | No rights, credentials, hosts, or usable adapter | StubHub remains in the registry and fails closed behind its rights gate |
 
 ## Deployment boundary
 

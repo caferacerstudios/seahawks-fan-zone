@@ -24,7 +24,7 @@ The generated and untracked `src/data/nfl/` directory is absent. Conclusions abo
 
 Use a new `src/pages/tickets.astro` page rendered with `SeahawksLayout`; do not reuse `/games-for-sale`. Add `Tickets` to navigation only at launch. Follow the site's canonical convention (`/tickets` canonical path; `/tickets/` is the user-facing route resolved by static hosting).
 
-The built page should contain useful editorial guidance, disclosures, update time, coverage/fee warnings, and a no-data state. At build time it should import one validated, publishable snapshot from a non-secret path. The browser may filter/sort the embedded snapshot, but it must not call providers, contain credentials, or calculate undisclosed approximations.
+The built page contains disclosures, selected-game context, provider freshness and failure states, and an official fallback. The browser reads only atomically published, validated runtime JSON under `/data/tickets`; it does not call providers, contain credentials, or calculate price rankings.
 
 Recommended separation:
 
@@ -32,7 +32,7 @@ Recommended separation:
 2. Each adapter maps only contract-approved fields into the canonical contract, records provider health, and writes a candidate snapshot.
 3. Validation checks schema, event identity, currency, timestamps, price/fee semantics, URLs, duplicates, expiry, and provider authorization.
 4. Publication atomically promotes the candidate to the last-known-good snapshot only if launch gates pass.
-5. Astro reads the promoted snapshot and emits static HTML. Filters and sorting operate on that bounded data in the browser.
+5. The ticket page reads the promoted runtime index, status, and selected-event file, validates each response, and renders only fresh allowlisted provider data.
 
 ### Why synchronization must not be in `npm prebuild`
 
@@ -61,7 +61,7 @@ The current `prebuild` is already coupled to network data and credentials. Ticke
 - Source page: `src/pages/tickets.astro`
 - Ticket components: `src/components/tickets/`
 - Canonical types/schema/validation: `src/lib/tickets/`
-- Synthetic fixture: `src/data/tickets/fixtures/development.snapshot.json`
+- Legacy-contract acceptance fixture: `src/data/tickets/fixtures/development.snapshot.json`
 - Build-consumed promoted snapshot: `src/data/tickets/published.snapshot.json`
 - Private synchronization entry point: `scripts/tickets/sync.mjs`
 - Provider adapters: `scripts/tickets/providers/`

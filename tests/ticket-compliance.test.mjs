@@ -9,9 +9,9 @@ const sitemap = await readFile(new URL("../src/pages/sitemap.xml.ts", import.met
 const fetchNfl = await readFile(new URL("../scripts/fetch-nfl.mjs", import.meta.url), "utf8");
 const syncDockerfile = await readFile(new URL("../deployment/ticket-sync/Dockerfile", import.meta.url), "utf8");
 
-test("ticket disclosure is visible beside the comparison controls and outbound results", () => {
-  const copy = "We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect ticket rankings.";
-  const controls = ticketsPage.indexOf('id="ticket-controls"');
+test("ticket disclosure is visible beside the runtime controls and outbound results", () => {
+  const copy = "We may earn a commission if you purchase tickets through some links on this page. Commission arrangements do not affect provider order.";
+  const controls = ticketsPage.indexOf('id="runtime-game-controls"');
   const nearbyCopy = ticketsPage.indexOf(copy, controls);
   assert.ok(nearbyCopy > controls);
   assert.ok(nearbyCopy < ticketsPage.indexOf('class="results-section"'));
@@ -47,12 +47,6 @@ test("provider URLs fail closed for malformed, unsafe-scheme, credential, secret
 test("affiliate provider links carry sponsored, nofollow, and noopener", () => {
   const link = providerOutboundLink("fictional-market-a", "https://fictional-market-a.example.invalid/listing", "https://fictional-market-a.example.invalid/go?campaign=public");
   assert.deepEqual(new Set(link.rel.split(" ")), new Set(["sponsored", "nofollow", "noopener"]));
-});
-
-test("stale and unknown-fee explanations are explicit", () => {
-  assert.match(ticketsPage, /Provider stale/);
-  assert.match(ticketsPage, /unknown-fee values are not ranked as cheapest/);
-  assert.match(ticketsPage, /Fee-complete group total not supplied/);
 });
 
 test("ticket click analytics are consent gated and limited to approved fields", () => {

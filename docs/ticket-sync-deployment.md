@@ -137,9 +137,9 @@ contract. After approval, repository work must record its credential variable,
 exact API and outbound host allowlists, documented response-to-adapter mapping,
 and rights-approved retention in the provider registry/rights summary. Only
 then may its ID be enabled as `mode: "listing-level"` in
-`TICKETS_PROVIDERS_JSON`. No current variable can make TickPick, StubHub, or
-TicketNetwork live because all three deliberately have no credential variable,
-no allowed hosts, and a pending adapter.
+`TICKETS_PROVIDERS_JSON`. StubHub is the planned next provider, but no current
+variable can make it live because its registry entry deliberately has no
+credential variable or allowed hosts and remains behind the rights gate.
 
 ## Review and disposable validation
 

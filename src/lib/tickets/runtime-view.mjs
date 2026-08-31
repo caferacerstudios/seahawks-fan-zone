@@ -19,8 +19,6 @@ const version = (value, name) => {
   if (value !== SCHEMA_VERSION) throw new TypeError(`${name} uses an incompatible schema version.`);
 };
 
-export const ticketModeUsesFixtures = (mode) => mode === "preview";
-
 export function runtimeEventUrl(indexRow) {
   if (!indexRow || !EVENT_FILE.test(indexRow.eventFile || "")) throw new TypeError("Invalid runtime ticket event path.");
   return `/data/tickets/${indexRow.eventFile}`;

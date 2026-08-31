@@ -35,4 +35,4 @@ A block takes precedence over automatic evidence. A map is a reviewed, high-conf
 
 ## Fixture review
 
-Run `node scripts/tickets/generate-match-report.mjs` to regenerate `docs/ticket-finder/match-review.md` from committed synthetic fixtures. The script makes no network calls.
+The ticket-sync operator owns the committed match-review artifact. Run `npm run tickets:match-report` to regenerate `docs/ticket-finder/match-review.md` from committed synthetic fixtures before reviewing match-rule or override changes. The command makes no network calls.

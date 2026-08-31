@@ -6,7 +6,7 @@ export function ticketFeatureState(modeValue, indexingValue) {
   const indexingState = TICKET_INDEXING_STATES.includes(indexingValue) ? indexingValue : "disabled";
   const runtime = mode === "beta" || mode === "live";
   const indexable = mode === "live" && indexingState === "enabled";
-  return Object.freeze({ mode, indexingState, enabled: mode !== "disabled", fixture: mode === "preview", runtime, indexable, robots: indexable ? "index, follow" : "noindex, nofollow", includeInSitemap: indexable, canonical: indexable });
+  return Object.freeze({ mode, indexingState, enabled: mode !== "disabled", runtime, indexable, robots: indexable ? "index, follow" : "noindex, nofollow", includeInSitemap: indexable, canonical: indexable });
 }
 
 export function ticketCtaLabel(capability = "event-summary") {

@@ -4,7 +4,6 @@ import { ticketCtaLabel, ticketFeatureState } from "../src/lib/tickets/feature-s
 
 test("ticket modes centralize visibility, runtime, robots, canonical, and sitemap semantics", () => {
   assert.equal(ticketFeatureState("disabled", "enabled").enabled, false);
-  assert.equal(ticketFeatureState("preview", "enabled").fixture, true);
   assert.equal(ticketFeatureState("preview", "enabled").indexable, false);
   assert.equal(ticketFeatureState("beta", "enabled").runtime, true);
   assert.equal(ticketFeatureState("beta", "enabled").indexable, false);

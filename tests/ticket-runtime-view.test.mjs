@@ -1,17 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadRuntimeTicketData, providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, ticketModeUsesFixtures, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeStatus } from "../src/lib/tickets/runtime-view.mjs";
+import { loadRuntimeTicketData, providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeStatus } from "../src/lib/tickets/runtime-view.mjs";
 import { eventSummaryAdapterPayload, listingAdapterPayload } from "../scripts/tickets/listing-adapter.mjs";
 
 const future = "2030-01-01T00:00:00Z";
 const past = "2020-01-01T00:00:00Z";
-
-test("only preview mode permits bundled fixture records", () => {
-  assert.equal(ticketModeUsesFixtures("preview"), true);
-  assert.equal(ticketModeUsesFixtures("beta"), false);
-  assert.equal(ticketModeUsesFixtures("live"), false);
-  assert.equal(ticketModeUsesFixtures("disabled"), false);
-});
 
 test("event-summary price ranges never become listing inventory", () => {
   const view = runtimeTicketView({

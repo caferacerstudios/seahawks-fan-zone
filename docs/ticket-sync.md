@@ -30,7 +30,7 @@ Run a no-network complete synchronization with:
 TICKETS_FIXTURE=true TICKETS_OUTPUT_DIR=/var/tmp/sfz-tickets npm run tickets:sync
 ```
 
-Normal one-shot invocation is `npm run tickets:sync`. Ticketmaster uses only the documented Discovery API v2 event search and is an event-summary provider. Season mode sends one attraction query over the earliest-to-latest upcoming canonical schedule dates, follows pages only within both configured caps, and deduplicates event IDs before matching; it does not query once per game. `provider-shell` is disabled and pending by default. Fixture mode activates only `fixture-market` using `scripts/tickets/fixtures/provider.json` and needs no credentials or network.
+Normal one-shot invocation is `npm run tickets:sync`. Ticketmaster uses only the documented Discovery API v2 event search and is an event-summary provider. Season mode sends one attraction query over the earliest-to-latest upcoming canonical schedule dates, follows pages only within both configured caps, and deduplicates event IDs before matching; it does not query once per game. Fixture mode activates only `fixture-market` using `scripts/tickets/fixtures/provider.json` and needs no credentials or network.
 
 The `stubhub` registry entry is also unconditionally pending and disabled. It has no credential variable or hostname allowlist, and configuration rejects attempts to enable it until the operator-reviewed checklist in `docs/ticket-finder/provider-rights/StubHub.md` is complete and the approval matrix is updated.
 
