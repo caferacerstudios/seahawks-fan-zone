@@ -71,6 +71,8 @@ interface ProviderStatus {
 
 Provider IDs must be lowercase safe IDs. Error codes are bounded uppercase public-safe codes, not provider messages. Provider timestamps, counts, and optional matched-summary count are runtime-validated. Beta/live additionally requires both `fixture === false` and `scheduleFixture === false`; missing provenance fails closed.
 
+Every eligible event file is published and may carry `marketObservations` plus sanitized `eventSpyState`: `current`, `stale`, `not_collected`, `source_unavailable`, or `last_collection_failed`. Its mapping must match the canonical coverage row. The private ledger and raw errors are never published. `collectedAt` is SFZ collection time; `sourcePointAt`/`seriesPoint.observedAt` is visible-tooltip time. Four nullable cents values are retained marketplace lowest-price observations; null is a gap. A selected-window low–high is across retained lows, not provider inventory.
+
 ## Event files
 
 Each index row points to one event file:

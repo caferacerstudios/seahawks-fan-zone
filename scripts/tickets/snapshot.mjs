@@ -1,5 +1,6 @@
 import { validateProviderEventPrice } from "../../src/lib/tickets/provider-event-price.mjs";
 import { validateMarketObservation } from "../../src/lib/tickets/market-observation.mjs";
+import { eventSpyCoverageForGame } from "../../src/lib/tickets/eventspy-coverage.mjs";
 
 const VERSION = "1.0.0";
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
@@ -42,6 +43,9 @@ export function validateSnapshotFile(value, kind, allowedHosts = {}) {
         if (String(observation.gameId) !== String(value.event.gameId)) throw new TypeError("Market observation game identity does not match its event.");
       }
     }
+    if (value.eventSpyState !== undefined) object(value.eventSpyState, "event.eventSpyState");
+    if (value.eventSpyState !== undefined && (!["current","stale","not_collected","source_unavailable","last_collection_failed"].includes(value.eventSpyState.state) ||
+        (value.eventSpyState.sourceUrl !== null && value.eventSpyState.sourceUrl !== eventSpyCoverageForGame(value.event.gameId)?.sourceUrl)) throw new TypeError("Invalid public EventSpy state.");
     for (const reference of value.providerReferences) {
       for (const field of ["canonicalUrl"]) {
         if (reference[field] === null) continue;

@@ -73,7 +73,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
   if (lockHeartbeatMs * 3 >= lockStaleMs) throw new Error("TICKETS_LOCK_HEARTBEAT_MS must be safely shorter than TICKETS_LOCK_STALE_MS (less than one third).");
   return {
     environment, fixture, outputDir,
-    eventSpyHistoryDir: resolve(cwd, env.EVENTSPY_HISTORY_DIR || "runtime/eventspy/current"),
+    eventSpyHistoryRoot: resolve(cwd, env.EVENTSPY_HISTORY_ROOT || env.EVENTSPY_HISTORY_DIR || "runtime/eventspy"),
     gamesFile: resolve(cwd, env.TICKETS_GAMES_FILE || "src/data/nfl/seahawks.json"),
     overridesFile: resolve(cwd, env.TICKETS_OVERRIDES_FILE || "src/data/tickets/match-overrides.json"),
     fixtureFile: resolve(cwd, env.TICKETS_FIXTURE_FILE || "scripts/tickets/fixtures/provider.json"),

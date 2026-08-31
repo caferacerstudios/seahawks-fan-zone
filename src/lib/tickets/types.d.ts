@@ -7,7 +7,11 @@ export interface MarketObservation {
   schemaVersion: "1.0.0";
   source: "eventspy";
   sourceUrl: string;
-  gameId: "1392216";
+  gameId: string;
+  sourceEventId?: string;
+  sourcePointAt?: string;
+  attemptId?: string;
+  sampleId?: string;
   collectedAt: string;
   currency: "USD";
   summary: {

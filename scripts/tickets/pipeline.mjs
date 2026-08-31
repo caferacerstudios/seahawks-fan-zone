@@ -8,7 +8,8 @@ import { configuredProviders } from "./providers.mjs";
 import { eventSummaryAdapterPayload, listingAdapterPayload } from "./listing-adapter.mjs";
 import { safeEventFilename, snapshotSchemaVersion, validateSnapshotFile } from "./snapshot.mjs";
 import { providerEventPricesFromRanges } from "../../src/lib/tickets/provider-event-price.mjs";
-import { readEventSpyHistory } from "./eventspy-history.mjs";
+import { readEventSpyHistoryForGame } from "./eventspy-history.mjs";
+import { eventSpyCoverageForGame } from "../../src/lib/tickets/eventspy-coverage.mjs";
 
 const safeCode = (error) => /^[A-Z][A-Z0-9_]{1,63}$/.test(error?.code) ? error.code : "PROVIDER_FAILED";
 const iso = (ms) => new Date(ms).toISOString();
@@ -222,9 +223,6 @@ export async function runTicketSync(config, options = {}) {
       }
     }
     const [rawGames, overrides, previous] = await Promise.all([json(config.gamesFile), json(config.overridesFile).then(validateMatchOverrides), previousSnapshot(config.outputDir)]);
-    let eventSpyHistory = null;
-    try { eventSpyHistory = await readEventSpyHistory(config.eventSpyHistoryDir, { now: started }); }
-    catch { eventSpyHistory = null; }
     if (!config.fixture && rawGames.fixture !== false) throw Object.assign(new Error("Non-fixture sync requires a schedule explicitly marked fixture:false."), { code: "SCHEDULE_FIXTURE" });
     const games = normalizeSchedule(rawGames).games.filter((game) => ["upcoming", "tbd", "postponed"].includes(game.state) && !game.bye && game.opponentConfirmed);
     const eventMap = new Map(games.map((game) => [sfzEventKey(game), { game, references: [], listings: [] }]));
@@ -286,10 +284,11 @@ export async function runTicketSync(config, options = {}) {
     for (const [eventKey, data] of eventMap) {
       const game = data.game; const grouped = { admission: [], parking: [], other: [] };
       for (const item of data.listings) grouped[item.productType].push(item);
-      const priorObservations = previous.events[eventKey]?.marketObservations;
-      const marketObservations = String(game.id) === "1392216"
-        ? (eventSpyHistory?.observations ?? (Array.isArray(priorObservations) ? priorObservations : [])) : [];
-      const eventFile = { schemaVersion: snapshotSchemaVersion, generatedAt: now, event: { eventKey, gameId: game.id, season: game.season, phase: game.phase, week: game.week, startsAt: game.startsAt, date: game.date, homeAway: game.isHome ? "home" : "away", opponent: { abbreviation: game.opponent.abbreviation, name: game.opponent.full_name ?? game.opponent.name }, venue: game.venue }, providerReferences: data.references, marketObservations, listings: grouped };
+      const mapping=eventSpyCoverageForGame(game.id),priorObservations=previous.events[eventKey]?.marketObservations,priorState=previous.events[eventKey]?.eventSpyState;
+      let marketObservations=[],eventSpyState={state:"not_collected",sourceUrl:mapping?.sourceUrl??null,sourceEventId:mapping?.sourceEventId??null,reasonCode:null,lastObservedAt:null};
+      if(mapping?.state==="unavailable")eventSpyState={...eventSpyState,state:"source_unavailable",reasonCode:mapping.reasonCode};
+      else if(mapping?.state==="authorized")try{const history=await readEventSpyHistoryForGame(config.eventSpyHistoryRoot,mapping,{now:started});marketObservations=history.observations;eventSpyState={...eventSpyState,state:marketObservations.length?"current":"not_collected",lastObservedAt:marketObservations.at(-1)?.sourcePointAt??marketObservations.at(-1)?.seriesPoint.observedAt??null}}catch{if(Array.isArray(priorObservations)&&priorObservations.length){marketObservations=priorObservations;eventSpyState={...eventSpyState,state:"last_collection_failed",lastObservedAt:priorState?.lastObservedAt??priorObservations.at(-1).seriesPoint.observedAt}}}
+      const eventFile = { schemaVersion: snapshotSchemaVersion, generatedAt: now, event: { eventKey, gameId: game.id, season: game.season, phase: game.phase, week: game.week, startsAt: game.startsAt, date: game.date, homeAway: game.isHome ? "home" : "away", opponent: { abbreviation: game.opponent.abbreviation, name: game.opponent.full_name ?? game.opponent.name }, venue: game.venue }, providerReferences: data.references, eventSpyState, marketObservations, listings: grouped };
       validateSnapshotFile(eventFile, "event", allowedHosts); const filename = safeEventFilename(eventKey); await writeJson(join(stage, "events", filename), eventFile);
       indexEvents.push({ eventKey, gameId: game.id, startsAt: game.startsAt, date: game.date, opponent: eventFile.event.opponent, homeAway: eventFile.event.homeAway, counts: { admission: grouped.admission.length, parking: grouped.parking.length, other: grouped.other.length }, eventFile: `events/${filename}` });
       log(sink, "info", "event_complete", { eventKey, admission: grouped.admission.length, parking: grouped.parking.length, other: grouped.other.length });

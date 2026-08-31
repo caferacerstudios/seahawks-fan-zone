@@ -17,12 +17,12 @@ services:
     build:
       context: .
       dockerfile: deployment/ticket-sync/Dockerfile
-    image: seahawksfanzone-ticket-sync:local
+    image: ${TICKET_SYNC_IMAGE:-seahawksfanzone-ticket-sync:local}
     env_file:
       - ${TICKET_SYNC_ENV_FILE:-deployment/ticket-sync/example.env}
     environment:
       TICKETS_OUTPUT_DIR: /srv/ticket-data/current
-      EVENTSPY_HISTORY_DIR: /srv/eventspy/current
+      EVENTSPY_HISTORY_ROOT: /srv/eventspy
     volumes:
       - ${TICKET_DATA_ROOT:-./runtime/tickets}:/srv/ticket-data
       - ${EVENTSPY_DATA_ROOT:-./runtime/eventspy}:/srv/eventspy:ro
@@ -42,8 +42,9 @@ services:
       context: .
       dockerfile: deployment/eventspy-collector/Dockerfile
       args:
-        EVENTSPY_BROWSER_IMAGE: ${EVENTSPY_BROWSER_IMAGE:?reviewed immutable browser image digest required}
-    image: seahawksfanzone-eventspy-collector:local
+        BROWSER_BASE_IMAGE: ${BROWSER_BASE_IMAGE:?operator-reviewed immutable browser image digest required}
+    image: ${EVENTSPY_COLLECTOR_IMAGE:-seahawksfanzone-eventspy-collector:local}
+    pull_policy: never
     env_file:
       - ${EVENTSPY_ENV_FILE:-deployment/eventspy-collector/example.env}
     environment:
@@ -55,5 +56,6 @@ services:
       - /tmp:rw,nosuid,nodev,size=128m,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    user: "1000:1000"
     init: true
     restart: "no"

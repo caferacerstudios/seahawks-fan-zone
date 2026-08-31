@@ -1,29 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { AUTHORIZED_EVENTSPY_URL, parseEventSpyHtml, validateMarketObservation } from "../src/lib/tickets/market-observation.mjs";
-const fixture = await readFile(new URL("./fixtures/eventspy-sanitized.html", import.meta.url), "utf8");
-const collectedAt = "2026-08-31T02:00:00Z", now = Date.parse(collectedAt);
-const parse = (html = fixture, options = {}) => parseEventSpyHtml(html, { sourceUrl: AUTHORIZED_EVENTSPY_URL, collectedAt, now, ...options });
-
-test("parses summary separately from a four-marketplace series point", () => {
-  const value = parse(); assert.equal(value.gameId, "1392216"); assert.equal(value.summary.currentLowestPriceCents, 26775);
-  assert.equal(value.summary.currentLowestSeenAt, "2026-08-31T01:40:00Z"); assert.equal(value.seriesPoint.observedAt, "2026-08-31T01:45:00Z");
-  assert.deepEqual(value.seriesPoint.marketplaces.map((item) => [item.marketplace, item.lowestPriceCents]), [["ticketmaster",26775],["stubhub",30200],["vividseats",28300],["seatgeek",35300]]);
-  assert.equal(value.seriesPoint.marketplaces[0].sectionLabel, "Section 300"); assert.equal(Object.hasOwn(value.seriesPoint.marketplaces[3], "sectionLabel"), false);
-});
-test("missing marketplace is an explicit gap, not zero", () => assert.equal(parse(fixture.replace("<dd>$302.00</dd>", "<dd>Unavailable</dd>")).seriesPoint.marketplaces[1].lowestPriceCents, null));
-test("fails closed on selector failure, malformed prices, wrong identity and URL", () => {
-  assert.throws(() => parse(fixture.replace("Ticketmaster Price", "Ticketmaster Get In")), /label/);
-  for (const bad of ["$12", "USD 12.00", "$1,2.00"]) assert.throws(() => parse(fixture.replace("$302.00", bad)), /Malformed/);
-  assert.throws(() => parse(fixture.replace("<dd>374440</dd>", "<dd>1</dd>")), /identity/);
-  assert.throws(() => parse(fixture, { sourceUrl: `${AUTHORIZED_EVENTSPY_URL}?token=x` }), /authorized/);
-});
-test("validation rejects duplicates, wrong game and secret-bearing or future observations", () => {
-  const value = parse(); assert.throws(() => validateMarketObservation({ ...value, gameId: "1" }, { now }), /identity/);
-  const duplicate = structuredClone(value); duplicate.seriesPoint.marketplaces[1].marketplace = "ticketmaster"; assert.throws(() => validateMarketObservation(duplicate, { now }), /Duplicate/);
-  const secret = structuredClone(value); secret.seriesPoint.marketplaces[0].sectionLabel = "api_key=bad"; assert.throws(() => validateMarketObservation(secret, { now }), /sectionLabel|secret/);
-  const future = structuredClone(value); future.seriesPoint.observedAt = "2026-09-01T02:00:00Z"; assert.throws(() => validateMarketObservation(future, { now }), /observedAt/);
-});
-test("summary need not equal the series point when source timestamps differ", () => { const value = parse(fixture.replace("$267.75</dd><dt>Current Lowest Marketplace", "$260.00</dd><dt>Current Lowest Marketplace")); assert.equal(value.summary.currentLowestPriceCents, 26000); assert.equal(value.seriesPoint.marketplaces[0].lowestPriceCents, 26775); });
-test("there is no coordinate, color, OCR, or pixel fallback", () => assert.throws(() => parse('<svg><circle cx="1" cy="2" fill="red"/></svg>'), /label/));
+import { EVENTSPY_COVERAGE,validateEventSpyCoverage } from "../src/lib/tickets/eventspy-coverage.mjs";
+import { buildMarketObservation,parseEventSpyTooltipText,validateMarketObservation } from "../src/lib/tickets/market-observation.mjs";
+const tooltip=await readFile(new URL("./fixtures/eventspy-tooltip.txt",import.meta.url),"utf8"),schedule=JSON.parse(await readFile(new URL("./fixtures/eventspy-full-season.json",import.meta.url),"utf8")),now=Date.parse("2026-08-31T02:01:00Z");
+test("canonical coverage contains 16 authorized rows and explicit unavailable Week 18",()=>{assert.equal(validateEventSpyCoverage(EVENTSPY_COVERAGE,schedule).filter(x=>x.state==="authorized").length,16);assert.deepEqual(EVENTSPY_COVERAGE.at(-1),{gameId:"1392478",state:"unavailable",opponent:"Los Angeles Rams",homeAway:"away",localDate:null,sourceEventId:null,sourceUrl:null,reasonCode:"SOURCE_PAGE_NOT_AVAILABLE"})});
+test("coverage rejects duplicates, gaps, wrong identity, and unsafe reviewed URL shapes",()=>{for(const mutate of [r=>r.push({...r[0]}),r=>r.pop(),r=>r[0]={...r[0],opponent:"Other"},r=>r[0]={...r[0],sourceUrl:"https://www.event-spy.com/performer/seahawks/374440"},r=>r[0]={...r[0],sourceUrl:`${r[0].sourceUrl}?q=x`}]){const rows=structuredClone(EVENTSPY_COVERAGE);mutate(rows);assert.throws(()=>validateEventSpyCoverage(rows,schedule))}});
+test("real visible tooltip grammar produces deterministic nullable slots",()=>{const point=parseEventSpyTooltipText(tooltip,{now});assert.equal(point.sourcePointAt,"2026-08-31T02:00:00.000Z");assert.deepEqual(point.marketplaces.map(x=>x.lowestPriceCents),[29750,31366,28300,35296]);const gap=parseEventSpyTooltipText(tooltip.replace(/\nSeatGeek[\s\S]*$/,"\n"),{now});assert.equal(gap.marketplaces[3].lowestPriceCents,null)});
+test("tooltip rejects JSON, unknown zones, malformed/duplicate/future values and marketplaces",()=>{for(const bad of [JSON.stringify({x:1}),tooltip.replace("PDT","UTC"),tooltip.replace("$313.66","$313"),tooltip.replace("$313.66","$283.00"),tooltip.replace("StubHub","Ticketmaster")])assert.throws(()=>parseEventSpyTooltipText(bad,{now}));assert.throws(()=>parseEventSpyTooltipText(tooltip,{now:now-120000}),/future/)});
+test("observation binds exact mapping and stable attempt identity",()=>{const mapping=EVENTSPY_COVERAGE[0],point=parseEventSpyTooltipText(tooltip,{now}),value=buildMarketObservation(point,{mapping,collectedAt:new Date(now).toISOString(),attemptId:"2026-08-30:1",now});assert.equal(value.sourceEventId,mapping.sourceEventId);assert.equal(value.sourcePointAt,point.sourcePointAt);assert.equal(value.sampleId.length,32);assert.equal(validateMarketObservation(value,{mapping,now}),value);assert.throws(()=>validateMarketObservation({...value,sourceUrl:EVENTSPY_COVERAGE[1].sourceUrl},{mapping,now}),/identity/)});
+test("collector source cannot regress to JSON tooltip or disallowed fallback",async()=>{const source=await readFile(new URL("../scripts/tickets/eventspy-collector.mjs",import.meta.url),"utf8");assert.doesNotMatch(source,/JSON\.parse\(text\)|recharts-active-dot|\.hover\(|coordinate|OCR|screenshot|response\.body/);assert.match(source,/getByRole\("tooltip"\)/);assert.match(source,/press\("ArrowRight"\)/)});

@@ -1,99 +1,40 @@
-export const AUTHORIZED_EVENTSPY_URL = "https://www.event-spy.com/event/seattle-seahawks-seattle-sep-09-2026/374440";
-export const AUTHORIZED_EVENTSPY_GAME_ID = "1392216";
-export const EVENTSPY_MARKETPLACES = Object.freeze(["ticketmaster", "stubhub", "vividseats", "seatgeek"]);
-export const MARKET_OBSERVATION_SCHEMA_VERSION = "1.0.0";
-export const MAX_RESPONSE_BYTES = 256 * 1024;
-export const MAX_PRICE_CENTS = 10_000_000;
-const MARKETPLACE_SET = new Set(EVENTSPY_MARKETPLACES);
-const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
-const SECRET = /(?:api[_-]?key|access[_-]?token|authorization|cookie|password|secret|signature|bearer)/i;
-const PLAIN = /^[^<>\u0000-\u001f\u007f]*$/;
-const fail = (message) => { throw new TypeError(message); };
+import { EVENTSPY_COVERAGE, eventSpyCoverageForGame, eventSpyCoverageForUrl } from "./eventspy-coverage.mjs";
+export const AUTHORIZED_EVENTSPY_URL=EVENTSPY_COVERAGE[0].sourceUrl;
+export const AUTHORIZED_EVENTSPY_GAME_ID=EVENTSPY_COVERAGE[0].gameId;
+export const EVENTSPY_MARKETPLACES=Object.freeze(["ticketmaster","stubhub","vividseats","seatgeek"]);
+export const MARKET_OBSERVATION_SCHEMA_VERSION="1.0.0";
+export const MAX_PRICE_CENTS=10_000_000;
+const labels=new Map([["Ticketmaster","ticketmaster"],["StubHub","stubhub"],["VividSeats","vividseats"],["SeatGeek","seatgeek"]]);
+const offsets={PST:"-08:00",PDT:"-07:00",MST:"-07:00",MDT:"-06:00",CST:"-06:00",CDT:"-05:00",EST:"-05:00",EDT:"-04:00"};
+const ISO=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+const fail=m=>{throw new TypeError(m)};
+const exact=(v,required,optional,name)=>{if(!v||typeof v!=="object"||Array.isArray(v))fail(`Invalid ${name}.`);const keys=Object.keys(v);if(required.some(k=>!Object.hasOwn(v,k))||keys.some(k=>!required.includes(k)&&!optional.includes(k)))fail(`Invalid ${name} fields.`)};
+const time=(v,name,now)=>{if(typeof v!=="string"||!ISO.test(v))fail(`Invalid ${name}.`);const n=Date.parse(v);if(!Number.isFinite(n)||n<Date.parse("2020-01-01T00:00:00Z")||n>now+60_000)fail(`Invalid ${name}.`);return n};
+const money=(v,name)=>{if(!/^\$(?:0|[1-9]\d{0,5}|[1-9]\d{0,2}(?:,\d{3}){1,2})\.\d{2}$/.test(v))fail(`Malformed money for ${name}.`);const n=Math.round(Number(v.slice(1).replaceAll(",",""))*100);if(!Number.isSafeInteger(n)||n<0||n>MAX_PRICE_CENTS)fail(`Malformed money for ${name}.`);return n};
+const sampleHash=value=>{let out="";for(const seed of [2166136261,2246822519,3266489917,668265263]){let hash=seed;for(let i=0;i<value.length;i++){hash^=value.charCodeAt(i);hash=Math.imul(hash,16777619)}out+=(hash>>>0).toString(16).padStart(8,"0")}return out};
+export function eventSpyMapping(url){const row=eventSpyCoverageForUrl(url);return row?.state==="authorized"?row:null}
 
-const timestamp = (value, field, now) => {
-  if (typeof value !== "string" || value.length > 32 || !ISO.test(value)) fail(`Invalid ${field}.`);
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms) || ms < Date.parse("2020-01-01T00:00:00Z") || ms > now + 60_000) fail(`Invalid ${field}.`);
-  return ms;
-};
-const price = (value, field, nullable = false) => {
-  if (value === null && nullable) return;
-  if (!Number.isSafeInteger(value) || value < 0 || value > MAX_PRICE_CENTS) fail(`Invalid ${field}.`);
-};
-const exactKeys = (value, required, optional, field) => {
-  const keys = Object.keys(value);
-  if (required.some((key) => !Object.hasOwn(value, key)) || keys.some((key) => !required.includes(key) && !optional.includes(key))) fail(`${field} contains missing or prohibited fields.`);
-};
-
-export function eventSpyMapping(url) { return url === AUTHORIZED_EVENTSPY_URL ? { sourceEventId: "374440", gameId: AUTHORIZED_EVENTSPY_GAME_ID } : null; }
-
-export function validateMarketObservation(value, { now = Date.now() } = {}) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) fail("Market observation must be an object.");
-  exactKeys(value, ["schemaVersion", "source", "sourceUrl", "gameId", "collectedAt", "currency", "summary", "seriesPoint"], [], "Market observation");
-  if (value.schemaVersion !== MARKET_OBSERVATION_SCHEMA_VERSION || value.source !== "eventspy" || value.sourceUrl !== AUTHORIZED_EVENTSPY_URL || value.gameId !== AUTHORIZED_EVENTSPY_GAME_ID) fail("Invalid market observation identity.");
-  if (value.currency !== "USD") fail("Unsupported currency.");
-  const collected = timestamp(value.collectedAt, "collectedAt", now);
-  if (!value.summary || typeof value.summary !== "object" || Array.isArray(value.summary)) fail("Invalid summary.");
-  exactKeys(value.summary, ["currentLowestPriceCents", "currentLowestSeenAt", "currentLowestMarketplace", "sevenDayLowestPriceCents", "sevenDayLowestSeenAt"], [], "summary");
-  price(value.summary.currentLowestPriceCents, "summary.currentLowestPriceCents", true);
-  price(value.summary.sevenDayLowestPriceCents, "summary.sevenDayLowestPriceCents", true);
-  const currentAt = timestamp(value.summary.currentLowestSeenAt, "summary.currentLowestSeenAt", now);
-  timestamp(value.summary.sevenDayLowestSeenAt, "summary.sevenDayLowestSeenAt", now);
-  if (value.summary.currentLowestMarketplace !== null && !MARKETPLACE_SET.has(value.summary.currentLowestMarketplace)) fail("Invalid summary marketplace.");
-  if ((value.summary.currentLowestPriceCents === null) !== (value.summary.currentLowestMarketplace === null)) fail("Summary lowest price and marketplace must both be present or null.");
-  if (!value.seriesPoint || typeof value.seriesPoint !== "object" || Array.isArray(value.seriesPoint)) fail("Invalid seriesPoint.");
-  exactKeys(value.seriesPoint, ["observedAt", "marketplaces"], [], "seriesPoint");
-  const observed = timestamp(value.seriesPoint.observedAt, "seriesPoint.observedAt", now);
-  if (collected < observed || collected - observed > 7 * 86400_000 || collected < currentAt) fail("Observation timestamps are inconsistent.");
-  if (!Array.isArray(value.seriesPoint.marketplaces) || value.seriesPoint.marketplaces.length !== 4) fail("All supported marketplaces must be represented once.");
-  const seen = new Set();
-  for (const item of value.seriesPoint.marketplaces) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) fail("Invalid marketplace observation.");
-    exactKeys(item, ["marketplace", "lowestPriceCents"], ["sectionLabel"], "marketplace observation");
-    if (!MARKETPLACE_SET.has(item.marketplace) || seen.has(item.marketplace)) fail("Duplicate or unsupported marketplace.");
-    seen.add(item.marketplace); price(item.lowestPriceCents, `${item.marketplace}.lowestPriceCents`, true);
-    if (Object.hasOwn(item, "sectionLabel") && (typeof item.sectionLabel !== "string" || !item.sectionLabel.trim() || item.sectionLabel.length > 80 || !PLAIN.test(item.sectionLabel) || SECRET.test(item.sectionLabel))) fail("Invalid sectionLabel.");
-  }
-  if (SECRET.test(JSON.stringify(value))) fail("Observation contains secret-bearing data.");
-  return value;
+export function parseEventSpyTooltipText(text,{now=Date.now()}={}){
+ if(typeof text!=="string"||text.length>4096||/[<>{}]/.test(text))fail("Malformed or ambiguous tooltip.");
+ const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),m=lines[0]?.match(/^(\d{2}) ([A-Z]{3}) (\d{2}) - (\d{2}):(\d{2}) (PST|PDT|MST|MDT|CST|CDT|EST|EDT)$/);
+ if(!m)fail("Invalid or unsupported tooltip timestamp.");const months={JAN:"01",FEB:"02",MAR:"03",APR:"04",MAY:"05",JUN:"06",JUL:"07",AUG:"08",SEP:"09",OCT:"10",NOV:"11",DEC:"12"};const [,d,mon,y,h,min,z]=m;if(!months[mon])fail("Invalid tooltip timestamp.");
+ const parsed=Date.parse(`20${y}-${months[mon]}-${d}T${h}:${min}:00${offsets[z]}`);if(!Number.isFinite(parsed)||parsed>now+60_000)fail("Impossible or future tooltip timestamp.");
+ const seen=new Set(),prices=new Set(),values=new Map();let i=1;while(i<lines.length){const id=labels.get(lines[i++]);if(!id||seen.has(id))fail("Duplicate or unexpected marketplace label.");seen.add(id);if(i>=lines.length)fail("Missing marketplace money.");const cents=money(lines[i++],id);if(prices.has(cents))fail("Duplicate marketplace price.");prices.add(cents);if(i<lines.length&&/^Section:/i.test(lines[i])){if(!/^Section:\s+[^<>\u0000-\u001f]{1,80}$/i.test(lines[i]))fail("Malformed section delimiter.");i++}values.set(id,cents)}
+ return{sourcePointAt:new Date(parsed).toISOString(),marketplaces:EVENTSPY_MARKETPLACES.map(marketplace=>({marketplace,lowestPriceCents:values.get(marketplace)??null}))};
 }
 
-function labelledValue(html, label, optional = false) {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const matches = [...html.matchAll(new RegExp(`<dt(?:\\s[^>]*)?>\\s*${escaped}\\s*</dt>\\s*<dd(?:\\s[^>]*)?>\\s*([^<]*?)\\s*</dd>`, "gi"))];
-  if (!matches.length && optional) return null;
-  if (matches.length !== 1) fail(`Missing or ambiguous EventSpy label: ${label}.`);
-  return matches[0][1].trim();
-}
-function parseUsd(value, field, nullable = false) {
-  if (nullable && /^(?:unavailable|n\/a|—|-)$/i.test(value)) return null;
-  if (!/^\$(?:0|[1-9]\d{0,5}|[1-9]\d{0,2}(?:,\d{3}){1,2})\.\d{2}$/.test(value)) fail(`Malformed USD value for ${field}.`);
-  const result = Math.round(Number(value.slice(1).replaceAll(",", "")) * 100); price(result, field); return result;
-}
-const labels = { ticketmaster: "Ticketmaster", stubhub: "StubHub", vividseats: "VividSeats", seatgeek: "SeatGeek" };
-
-export function parseEventSpyHtml(html, { sourceUrl, collectedAt, fetchedAt, now = Date.now() } = {}) {
-  if (typeof html !== "string" || new TextEncoder().encode(html).byteLength > MAX_RESPONSE_BYTES) fail("EventSpy response is missing or exceeds the size limit.");
-  if (!eventSpyMapping(sourceUrl)) fail("EventSpy URL is not explicitly authorized.");
-  if (labelledValue(html, "Event ID") !== "374440") fail("EventSpy event identity does not match the authorized URL.");
-  const marketplaces = EVENTSPY_MARKETPLACES.map((marketplace) => {
-    const label = labels[marketplace];
-    const item = { marketplace, lowestPriceCents: parseUsd(labelledValue(html, `${label} Price`), `${marketplace}.lowestPriceCents`, true) };
-    const section = labelledValue(html, `${label} Section`, true);
-    if (section && !/^(?:unavailable|n\/a|—|-)$/i.test(section)) item.sectionLabel = section;
-    return item;
-  });
-  const rawWinner = labelledValue(html, "Current Lowest Marketplace");
-  const currentLowestMarketplace = Object.entries(labels).find(([, label]) => label.toLowerCase() === rawWinner.toLowerCase())?.[0] ?? null;
-  if (!currentLowestMarketplace && !/^(?:unavailable|n\/a|—|-)$/i.test(rawWinner)) fail("Unsupported current-low marketplace.");
-  return validateMarketObservation({
-    schemaVersion: MARKET_OBSERVATION_SCHEMA_VERSION, source: "eventspy", sourceUrl, gameId: AUTHORIZED_EVENTSPY_GAME_ID, collectedAt: collectedAt ?? fetchedAt, currency: "USD",
-    summary: { currentLowestPriceCents: parseUsd(labelledValue(html, "Current Lowest Price"), "summary.currentLowestPriceCents", true), currentLowestSeenAt: labelledValue(html, "Current Lowest Seen At"), currentLowestMarketplace, sevenDayLowestPriceCents: parseUsd(labelledValue(html, "Seven-Day Lowest Price"), "summary.sevenDayLowestPriceCents", true), sevenDayLowestSeenAt: labelledValue(html, "Seven-Day Lowest Seen At") },
-    seriesPoint: { observedAt: labelledValue(html, "Series Observed At"), marketplaces },
-  }, { now });
+export function buildMarketObservation(point,{mapping,collectedAt,attemptId,now=Date.now()}){
+ if(!mapping||eventSpyCoverageForGame(mapping.gameId)!==mapping||mapping.state!=="authorized")fail("Invalid market observation mapping.");time(collectedAt,"collectedAt",now);time(point.sourcePointAt,"sourcePointAt",now);if(Date.parse(collectedAt)<Date.parse(point.sourcePointAt))fail("Observation timestamps are inconsistent.");if(typeof attemptId!=="string"||!/^[-A-Za-z0-9._:]{1,100}$/.test(attemptId))fail("Invalid attempt ID.");
+ const priced=point.marketplaces.filter(x=>Number.isSafeInteger(x.lowestPriceCents)),current=priced.reduce((a,x)=>!a||x.lowestPriceCents<a.lowestPriceCents?x:a,null);return validateMarketObservation({schemaVersion:"1.0.0",source:"eventspy",sourceUrl:mapping.sourceUrl,sourceEventId:mapping.sourceEventId,gameId:mapping.gameId,attemptId,sampleId:sampleHash(`${mapping.gameId}\0${attemptId}`),collectedAt,sourcePointAt:point.sourcePointAt,currency:"USD",summary:{currentLowestPriceCents:current?.lowestPriceCents??null,currentLowestSeenAt:point.sourcePointAt,currentLowestMarketplace:current?.marketplace??null,sevenDayLowestPriceCents:current?.lowestPriceCents??null,sevenDayLowestSeenAt:point.sourcePointAt},seriesPoint:{observedAt:point.sourcePointAt,marketplaces:point.marketplaces}},{mapping,now});
 }
 
-export function parseEventSpyTooltipPayload(payload, options = {}) {
-  if (typeof payload === "string") return parseEventSpyHtml(payload, options);
-  return validateMarketObservation(payload, { now: options.now });
+export function validateMarketObservation(v,{mapping=eventSpyCoverageForGame(v?.gameId),now=Date.now()}={}){
+ exact(v,["schemaVersion","source","sourceUrl","gameId","collectedAt","currency","summary","seriesPoint"],["sourceEventId","sourcePointAt","attemptId","sampleId"],"market observation");if(!mapping||mapping.state!=="authorized"||v.schemaVersion!=="1.0.0"||v.source!=="eventspy"||v.sourceUrl!==mapping.sourceUrl||String(v.gameId)!==mapping.gameId||(v.sourceEventId!==undefined&&v.sourceEventId!==mapping.sourceEventId)||v.currency!=="USD")fail("Invalid market observation identity.");
+ const collected=time(v.collectedAt,"collectedAt",now),source=time(v.sourcePointAt??v.seriesPoint?.observedAt,"sourcePointAt",now);if(collected<source)fail("Observation timestamps are inconsistent.");exact(v.summary,["currentLowestPriceCents","currentLowestSeenAt","currentLowestMarketplace","sevenDayLowestPriceCents","sevenDayLowestSeenAt"],[],"summary");for(const k of ["currentLowestPriceCents","sevenDayLowestPriceCents"])if(v.summary[k]!==null&&(!Number.isSafeInteger(v.summary[k])||v.summary[k]<0||v.summary[k]>MAX_PRICE_CENTS))fail("Invalid summary price.");time(v.summary.currentLowestSeenAt,"currentLowestSeenAt",now);time(v.summary.sevenDayLowestSeenAt,"sevenDayLowestSeenAt",now);if((v.summary.currentLowestPriceCents===null)!==(v.summary.currentLowestMarketplace===null)||v.summary.currentLowestMarketplace!==null&&!EVENTSPY_MARKETPLACES.includes(v.summary.currentLowestMarketplace))fail("Invalid summary marketplace.");
+ exact(v.seriesPoint,["observedAt","marketplaces"],[],"series point");if(v.seriesPoint.observedAt!==(v.sourcePointAt??v.seriesPoint.observedAt)||!Array.isArray(v.seriesPoint.marketplaces)||v.seriesPoint.marketplaces.length!==4)fail("Invalid series point.");const seen=new Set();for(const x of v.seriesPoint.marketplaces){exact(x,["marketplace","lowestPriceCents"],["sectionLabel"],"marketplace");if(!EVENTSPY_MARKETPLACES.includes(x.marketplace)||seen.has(x.marketplace))fail("Duplicate or unsupported marketplace.");seen.add(x.marketplace);if(x.lowestPriceCents!==null&&(!Number.isSafeInteger(x.lowestPriceCents)||x.lowestPriceCents<0||x.lowestPriceCents>MAX_PRICE_CENTS))fail("Invalid marketplace price.");if(x.sectionLabel!==undefined&&(!/^[^<>\u0000-\u001f]{1,80}$/.test(x.sectionLabel)||/(?:api[_-]?key|token|cookie|secret|password)/i.test(x.sectionLabel)))fail("Invalid sectionLabel.");}
+ if(v.attemptId!==undefined&&(!/^[-A-Za-z0-9._:]{1,100}$/.test(v.attemptId)||!/^\w{32}$/.test(v.sampleId)))fail("Invalid sample identity.");return v;
 }
+
+// Sanitized-fixture compatibility only. The browser path never parses HTML.
+export function parseEventSpyHtml(html,{sourceUrl,collectedAt,now=Date.now()}={}){const mapping=eventSpyMapping(sourceUrl);if(!mapping)fail("EventSpy URL is not explicitly authorized.");const get=(label,opt=false)=>{const e=label.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),m=[...String(html).matchAll(new RegExp(`<dt(?:\\s[^>]*)?>\\s*${e}\\s*</dt>\\s*<dd(?:\\s[^>]*)?>\\s*([^<]*?)\\s*</dd>`,`gi`))];if(!m.length&&opt)return null;if(m.length!==1)fail(`Missing or ambiguous EventSpy label: ${label}.`);return m[0][1].trim()};if(get("Event ID")!==mapping.sourceEventId)fail("EventSpy event identity does not match the authorized URL.");const old={ticketmaster:"Ticketmaster",stubhub:"StubHub",vividseats:"VividSeats",seatgeek:"SeatGeek"},marketplaces=EVENTSPY_MARKETPLACES.map(id=>{const raw=get(`${old[id]} Price`),section=get(`${old[id]} Section`,true);return{marketplace:id,lowestPriceCents:/^(Unavailable|N\/A|—|-)$/i.test(raw)?null:money(raw,id),...(section&&!/^(Unavailable|N\/A|—|-)$/i.test(section)?{sectionLabel:section}:{})}}),winner=[...labels].find(([x])=>x.toLowerCase()===get("Current Lowest Marketplace").toLowerCase())?.[1]??null;return validateMarketObservation({schemaVersion:"1.0.0",source:"eventspy",sourceUrl,gameId:mapping.gameId,collectedAt,currency:"USD",summary:{currentLowestPriceCents:money(get("Current Lowest Price"),"current"),currentLowestSeenAt:get("Current Lowest Seen At"),currentLowestMarketplace:winner,sevenDayLowestPriceCents:money(get("Seven-Day Lowest Price"),"seven"),sevenDayLowestSeenAt:get("Seven-Day Lowest Seen At")},seriesPoint:{observedAt:get("Series Observed At"),marketplaces}},{mapping,now})}
+export function parseEventSpyTooltipPayload(payload,options={}){if(typeof payload!=="string")return validateMarketObservation(payload,{now:options.now});return buildMarketObservation(parseEventSpyTooltipText(payload,{now:options.now}),{mapping:eventSpyMapping(options.sourceUrl),collectedAt:options.collectedAt,attemptId:options.attemptId??"legacy-fixture",now:options.now})}

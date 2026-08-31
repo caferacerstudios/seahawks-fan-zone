@@ -74,6 +74,8 @@ export function validateRuntimeEvent(value, indexRow, now = Date.now()) {
   if (!Array.isArray(eventFile.providerReferences)) throw new TypeError("Invalid runtime provider references.");
   record(eventFile.listings, "event.listings");
   if (eventFile.marketObservations !== undefined && !Array.isArray(eventFile.marketObservations)) throw new TypeError("Invalid runtime market observations.");
+  if (eventFile.eventSpyState !== undefined) record(eventFile.eventSpyState, "event.eventSpyState");
+  if (eventFile.eventSpyState !== undefined && !["current","stale","not_collected","source_unavailable","last_collection_failed"].includes(eventFile.eventSpyState.state)) throw new TypeError("Invalid runtime EventSpy state.");
   for (const observation of eventFile.marketObservations ?? []) {
     validateMarketObservation(observation, { now });
     if (observation.gameId !== String(eventFile.event.gameId)) throw new TypeError("Runtime market observation game identity is invalid.");
@@ -142,7 +144,7 @@ export function eventSpyObservationModel(event, now = Date.now()) {
   const observations = (event?.marketObservations ?? []).filter((item) => item?.source === "eventspy")
     .slice().sort((a, b) => Date.parse(a.seriesPoint.observedAt) - Date.parse(b.seriesPoint.observedAt));
   const latest = observations.at(-1) ?? null;
-  if (!latest) return { observations: [], latest: null, marketplaces: [], sevenDayLowCents: null, ageMs: null, stale: false };
+  if (!latest) return { observations: [], latest: null, marketplaces: [], sevenDayLowCents: null, ageMs: null, stale: false, sourceState:event?.eventSpyState?.state??"not_collected", sourceUrl:event?.eventSpyState?.sourceUrl??null };
   const latestAt = Date.parse(latest.seriesPoint.observedAt), sevenDayStart = latestAt - 7 * 86400_000;
   const values = observations.filter((item) => Date.parse(item.seriesPoint.observedAt) >= sevenDayStart).flatMap((item) => item.seriesPoint.marketplaces.map((market) => market.lowestPriceCents)).filter(Number.isSafeInteger);
   const marketplaces = EVENTSPY_MARKETPLACES.map((id) => {
@@ -152,7 +154,7 @@ export function eventSpyObservationModel(event, now = Date.now()) {
   return {
     observations, latest, marketplaces,
     sevenDayLowCents: latest.summary.sevenDayLowestPriceCents ?? (values.length ? Math.min(...values) : null),
-    ageMs: Math.max(0, now - latestAt), stale: now - latestAt > 36 * 60 * 60 * 1000,
+    ageMs: Math.max(0, now - latestAt), stale: now - latestAt > 36 * 60 * 60 * 1000 || ["stale","last_collection_failed"].includes(event?.eventSpyState?.state), sourceState:event?.eventSpyState?.state??"current", sourceUrl:event?.eventSpyState?.sourceUrl??null,
   };
 }
 

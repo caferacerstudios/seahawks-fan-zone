@@ -1,47 +1,15 @@
-import { mkdir, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { mkdir,readFile,readdir,rename,rm,symlink,writeFile,lstat } from "node:fs/promises";
+import { basename,dirname,join } from "node:path";
 import { validateMarketObservation } from "../../src/lib/tickets/market-observation.mjs";
+import { EVENTSPY_COVERAGE,eventSpyCoverageForGame,isSafeEventSpyGameId } from "../../src/lib/tickets/eventspy-coverage.mjs";
+export const EVENTSPY_HISTORY_RETENTION_MS=45*86400_000;
+const mappingFor=(gameId,mapping)=>mapping??eventSpyCoverageForGame(gameId);
+const sampleKey=x=>x.sampleId??`${x.collectedAt}:${x.sourcePointAt??x.seriesPoint.observedAt}`;
+export function validateEventSpyHistory(value,{now=Date.now(),mapping=mappingFor(value?.gameId)}={}){if(value?.schemaVersion!=="1.0.0"||value.source!=="eventspy"||!mapping||value.gameId!==mapping.gameId||value.sourceEventId!==mapping.sourceEventId||value.sourceUrl!==mapping.sourceUrl||!Array.isArray(value.observations)||value.observations.length>100||!Number.isFinite(Date.parse(value.generatedAt))||Date.parse(value.generatedAt)>now+60_000)throw new TypeError("Invalid EventSpy history.");let prior=-Infinity;const ids=new Set();for(const item of value.observations){validateMarketObservation(item,{now,mapping});const at=Date.parse(item.collectedAt),id=sampleKey(item);if(at<prior||ids.has(id))throw new TypeError("EventSpy history is unsorted or duplicated.");prior=at;ids.add(id)}return value}
+export function mergeEventSpyHistory(previous,observation,now=Date.now(),options={}){const mapping=mappingFor(observation.gameId,options.mapping);validateMarketObservation(observation,{now,mapping});const retained=(previous?.observations??[]).filter(x=>Date.parse(x.collectedAt)>=now-EVENTSPY_HISTORY_RETENTION_MS),byId=new Map(retained.map(x=>[sampleKey(x),x]));byId.set(sampleKey(observation),observation);const observations=[...byId.values()].sort((a,b)=>Date.parse(a.collectedAt)-Date.parse(b.collectedAt)||sampleKey(a).localeCompare(sampleKey(b))).slice(-100);return validateEventSpyHistory({schemaVersion:"1.0.0",source:"eventspy",gameId:mapping.gameId,sourceEventId:mapping.sourceEventId,sourceUrl:mapping.sourceUrl,generatedAt:new Date(now).toISOString(),observations},{now,mapping})}
+export async function readEventSpyHistory(current,{now=Date.now(),mapping,gameId}={}){const value=JSON.parse(await readFile(join(current,"history.json"),"utf8"));return validateEventSpyHistory(value,{now,mapping:mappingFor(gameId??value.gameId,mapping)})}
+export const eventSpyHistoryCurrent=(root,gameId)=>{if(!isSafeEventSpyGameId(gameId))throw new TypeError("Unsafe EventSpy game ID.");return join(root,"games",String(gameId),"current")};
+export async function publishEventSpyHistory(current,observation,{now=Date.now(),mapping=mappingFor(observation.gameId),injectFailure=async()=>{}}={}){let previous=null;try{previous=await readEventSpyHistory(current,{now,mapping})}catch(e){if(e.code!=="ENOENT")throw e}const history=mergeEventSpyHistory(previous,observation,now,{mapping}),parent=dirname(current),name=basename(current),versions=join(parent,`.${name}.versions`),id=`${now}-${observation.sampleId??process.pid}`,stage=join(parent,`.${name}.stage-${id}`);await mkdir(stage,{recursive:true});await writeFile(join(stage,"history.json"),`${JSON.stringify(history,null,2)}\n`,{mode:0o644});validateEventSpyHistory(JSON.parse(await readFile(join(stage,"history.json"),"utf8")),{now,mapping});await injectFailure("validated");await mkdir(versions,{recursive:true});await rename(stage,join(versions,id));const pointer=join(parent,`.${name}.pointer-${id}`);await symlink(join(`.${name}.versions`,id),pointer);await injectFailure("before-pointer");try{const info=await lstat(current);if(!info.isSymbolicLink())await rename(current,join(versions,`legacy-${id}`))}catch(e){if(e.code!=="ENOENT")throw e}await rename(pointer,current);const entries=(await readdir(versions,{withFileTypes:true})).filter(x=>x.isDirectory()).sort((a,b)=>b.name.localeCompare(a.name));for(const entry of entries.slice(3))await rm(join(versions,entry.name),{recursive:true});return history}
 
-export const EVENTSPY_HISTORY_RETENTION_MS = 45 * 86400_000;
-export function validateEventSpyHistory(value, { now = Date.now() } = {}) {
-  if (value?.schemaVersion !== "1.0.0" || value.source !== "eventspy" || value.gameId !== "1392216" || !Array.isArray(value.observations) || value.observations.length > 100) throw new TypeError("Invalid EventSpy history.");
-  if (Object.keys(value).sort().join(",") !== "gameId,generatedAt,observations,schemaVersion,source" || !Number.isFinite(Date.parse(value.generatedAt)) || Date.parse(value.generatedAt) > now + 60_000) throw new TypeError("Invalid EventSpy history metadata.");
-  let prior = -Infinity; const keys = new Set();
-  for (const item of value.observations) {
-    validateMarketObservation(item, { now }); const at = Date.parse(item.seriesPoint.observedAt);
-    if (at < prior) throw new TypeError("EventSpy history is not sorted."); prior = at;
-    const key = `${item.seriesPoint.observedAt}:${JSON.stringify(item.seriesPoint.marketplaces)}`;
-    if (keys.has(key)) throw new TypeError("Duplicate EventSpy observation."); keys.add(key);
-  }
-  return value;
-}
-export function mergeEventSpyHistory(previous, observation, now = Date.now()) {
-  validateMarketObservation(observation, { now });
-  const retained = (previous?.observations ?? []).filter((item) => Date.parse(item.seriesPoint.observedAt) >= now - EVENTSPY_HISTORY_RETENTION_MS);
-  const byTimestamp = new Map(retained.map((item) => [item.seriesPoint.observedAt, item]));
-  const existing = byTimestamp.get(observation.seriesPoint.observedAt);
-  if (existing) {
-    const merged = structuredClone(observation);
-    for (const market of merged.seriesPoint.marketplaces) if (market.lowestPriceCents === null) {
-      const old = existing.seriesPoint.marketplaces.find((item) => item.marketplace === market.marketplace);
-      if (old?.lowestPriceCents != null) Object.assign(market, old);
-    }
-    byTimestamp.set(observation.seriesPoint.observedAt, merged);
-  } else byTimestamp.set(observation.seriesPoint.observedAt, observation);
-  return validateEventSpyHistory({ schemaVersion: "1.0.0", source: "eventspy", gameId: "1392216", generatedAt: new Date(now).toISOString(), observations: [...byTimestamp.values()].sort((a, b) => Date.parse(a.seriesPoint.observedAt) - Date.parse(b.seriesPoint.observedAt)) }, { now });
-}
-export async function readEventSpyHistory(current, { now = Date.now() } = {}) {
-  return validateEventSpyHistory(JSON.parse(await readFile(join(current, "history.json"), "utf8")), { now });
-}
-export async function publishEventSpyHistory(current, observation, { now = Date.now(), injectFailure = async () => {} } = {}) {
-  let previous = null; try { previous = await readEventSpyHistory(current, { now }); } catch (error) { if (error.code !== "ENOENT") throw error; }
-  const history = mergeEventSpyHistory(previous, observation, now), parent = dirname(current), name = basename(current), versions = join(parent, `.${name}.versions`), id = `${now}-${process.pid}`, stage = join(parent, `.${name}.stage-${id}`);
-  await mkdir(stage, { recursive: true }); await writeFile(join(stage, "history.json"), `${JSON.stringify(history, null, 2)}\n`, { mode: 0o644 });
-  validateEventSpyHistory(JSON.parse(await readFile(join(stage, "history.json"), "utf8")), { now }); await injectFailure("validated");
-  await mkdir(versions, { recursive: true }); await rename(stage, join(versions, id));
-  const pointer = join(parent, `.${name}.pointer-${id}`); await symlink(join(`.${name}.versions`, id), pointer); await injectFailure("before-pointer");
-  try { await rename(pointer, current); } catch (error) { if (error.code !== "ENOTEMPTY" && error.code !== "EEXIST") throw error; const old = join(versions, `legacy-${id}`); await rename(current, old); await rename(pointer, current); }
-  const entries = (await readdir(versions, { withFileTypes: true })).filter((entry) => entry.isDirectory()).sort((a, b) => b.name.localeCompare(a.name));
-  for (const entry of entries.slice(3)) await rm(join(versions, entry.name), { recursive: true });
-  return history;
-}
+// One-time conservative read: only the reviewed Patriots mapping may consume a legacy singleton.
+export async function readEventSpyHistoryForGame(root,mapping,{now=Date.now()}={}){const current=eventSpyHistoryCurrent(root,mapping.gameId);try{return await readEventSpyHistory(current,{now,mapping})}catch(e){if(e.code!=="ENOENT"||mapping.gameId!==EVENTSPY_COVERAGE[0].gameId)throw e;return readEventSpyHistory(join(root,"current"),{now,mapping})}}

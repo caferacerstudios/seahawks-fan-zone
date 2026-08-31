@@ -1,39 +1,42 @@
 #!/usr/bin/env node
+import { readFile,rename,writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { AUTHORIZED_EVENTSPY_URL, parseEventSpyTooltipPayload } from "../../src/lib/tickets/market-observation.mjs";
-import { reserveEventSpyAttempt } from "./eventspy-ledger.mjs";
-import { publishEventSpyHistory } from "./eventspy-history.mjs";
+import { EVENTSPY_COVERAGE,validateEventSpyCoverage } from "../../src/lib/tickets/eventspy-coverage.mjs";
+import { buildMarketObservation,parseEventSpyTooltipText } from "../../src/lib/tickets/market-observation.mjs";
+import { eventSpyGameRoot,eventSpyPacificDate,readEventSpyLedger,reserveEventSpyAttempt } from "./eventspy-ledger.mjs";
+import { eventSpyHistoryCurrent,publishEventSpyHistory,readEventSpyHistoryForGame } from "./eventspy-history.mjs";
+const code=e=>/^[A-Z][A-Z0-9_]{1,63}$/.test(e?.code)?e.code:"EVENTSPY_COLLECTION_FAILED";
+const error=(message,c)=>Object.assign(new Error(message),{code:c});
+const baseCounts=()=>({manifestRows:17,authorized:16,unavailable:1,attempted:0,succeeded:0,failed:0,dailyLimited:0,skipped:1});
+const configOk=config=>{validateEventSpyCoverage(config.coverage);if(config.maxAttempts!==2||config.navigationsPerGame!==1)throw error("Unsafe EventSpy limits.","EVENTSPY_CONFIG_INVALID");if(Object.hasOwn(process.env,"EVENTSPY_SOURCE_URL")||Object.hasOwn(process.env,"EVENTSPY_GAME_ID"))throw error("Arbitrary EventSpy mapping overrides are prohibited.","EVENTSPY_CONFIG_INVALID")};
+async function recordCollectionState(root,mapping,outcome,now){const value={schemaVersion:1,gameId:mapping.gameId,sourceEventId:mapping.sourceEventId,recordedAt:new Date(now).toISOString(),outcome},parent=eventSpyGameRoot(root,mapping.gameId),temp=`${parent}/.collection-state-${randomUUID()}.tmp`;await writeFile(temp,`${JSON.stringify(value)}\n`,{flag:"wx",mode:0o600});await rename(temp,`${parent}/collection-state.json`)}
+const safeRecordCollectionState=(...args)=>recordCollectionState(...args).catch(()=>{});
 
-const emit = (outcome, fields = {}, stream = process.stdout) => stream.write(`${JSON.stringify({ outcome, ...fields })}\n`);
-export async function runEventSpyCollector(config, options = {}) {
-  if (!config.enabled) return { outcome: "EVENTSPY_COLLECTION_DISABLED" };
-  if (config.sourceUrl !== AUTHORIZED_EVENTSPY_URL || config.gameId !== "1392216") throw Object.assign(new Error("Unauthorized EventSpy mapping."), { code: "EVENTSPY_CONFIG_INVALID" });
-  const now = options.now ?? Date.now(), reservation = await reserveEventSpyAttempt(config.root, now);
-  if (!reservation.allowed) return reservation;
-  let payload;
-  try { payload = await options.extract(config, now); } catch { throw Object.assign(new Error("EventSpy extraction failed."), { code: "EVENTSPY_PARSE_FAILED" }); }
-  let observation;
-  try { observation = parseEventSpyTooltipPayload(payload, { sourceUrl: config.sourceUrl, collectedAt: new Date(now).toISOString(), now }); } catch { throw Object.assign(new Error("EventSpy validation failed."), { code: "EVENTSPY_VALIDATION_FAILED" }); }
-  try { await publishEventSpyHistory(config.historyCurrent, observation, { now }); } catch { throw Object.assign(new Error("EventSpy history publication failed."), { code: "EVENTSPY_PUBLISH_FAILED" }); }
-  return { outcome: "EVENTSPY_COLLECTION_SUCCESS", observedAt: observation.seriesPoint.observedAt, collectedAt: observation.collectedAt };
+export async function extractLatestTooltip(page,mapping,config={}){
+ let mainNavigated=false;page.on("popup",popup=>{popup.close().catch(()=>{});mainNavigated=true});page.on("download",download=>{download.cancel().catch(()=>{});mainNavigated=true});page.on("framenavigated",frame=>{if(frame===page.mainFrame()&&frame.url()!=="about:blank"&&frame.url()!==mapping.sourceUrl)mainNavigated=true});
+ await page.goto(mapping.sourceUrl,{waitUntil:"domcontentloaded",timeout:config.navigationTimeoutMs??20_000});if(page.url()!==mapping.sourceUrl||mainNavigated)throw error("Unapproved EventSpy redirect.","EVENTSPY_REDIRECT_BLOCKED");
+ const consent=page.getByRole("dialog").filter({hasText:/consent|cookie/i});if(await consent.count()){const button=consent.getByRole("button",{name:/accept|agree|continue|dismiss|close/i}).first();if(await button.count())await button.click({timeout:2000})}
+ const identity=page.getByText(mapping.opponent,{exact:false}).first(),eventIdentity=page.getByText(mapping.sourceEventId,{exact:false}).first();await identity.waitFor({state:"visible",timeout:config.renderTimeoutMs??15_000});await eventIdentity.waitFor({state:"visible",timeout:config.renderTimeoutMs??15_000});const heading=page.getByRole("heading",{name:/Lowest Ticket Price History/i}).first();await heading.waitFor({state:"visible",timeout:config.renderTimeoutMs??15_000});const chart=heading.locator("xpath=following::*[@role='application'][1]");await chart.waitFor({state:"visible",timeout:config.renderTimeoutMs??15_000});await chart.focus();
+ let best=null,last=null,unchanged=0;for(let presses=0;presses<200&&unchanged<3;presses++){await chart.press("ArrowRight");const tooltip=page.getByRole("tooltip").filter({visible:true}).first();const text=await tooltip.innerText({timeout:config.parseTimeoutMs??5000});const point=parseEventSpyTooltipText(text,{now:config.now??Date.now()});if(point.sourcePointAt===last)unchanged++;else unchanged=0;last=point.sourcePointAt;if(!best||Date.parse(point.sourcePointAt)>Date.parse(best.sourcePointAt))best=point;if(page.url()!==mapping.sourceUrl||mainNavigated)throw error("Unexpected EventSpy navigation.","EVENTSPY_NAVIGATION_BLOCKED")}
+ if(!best||unchanged<3)throw error("EventSpy tooltip traversal did not converge.","EVENTSPY_PARSE_FAILED");return best;
 }
 
-export async function browserExtract(config) {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const context = await browser.newContext({ userAgent: config.userAgent, storageState: undefined }); const page = await context.newPage();
-    await page.goto(config.sourceUrl, { waitUntil: "domcontentloaded", timeout: config.navigationTimeoutMs });
-    await page.locator(".recharts-wrapper").first().waitFor({ state: "visible", timeout: config.renderTimeoutMs });
-    const point = page.locator(".recharts-active-dot, .recharts-dot").last(); await point.focus().catch(() => {}); await point.hover({ timeout: config.parseTimeoutMs });
-    const text = await page.locator("[role=tooltip], .recharts-tooltip-wrapper").filter({ visible: true }).first().innerText({ timeout: config.parseTimeoutMs });
-    return JSON.parse(text); // reviewed deployment selector adapter must emit normalized JSON text
-  } finally { await browser.close(); }
-}
+export async function browserExtractBatch(config,jobs){const {chromium}=await import("playwright-core");const browser=await chromium.launch({headless:true});let context;try{context=await browser.newContext({storageState:undefined,httpCredentials:undefined,acceptDownloads:false});const results=[];for(const job of jobs){let page;try{page=await context.newPage();results.push({job,point:await extractLatestTooltip(page,job.mapping,{...config,now:job.now})})}catch(cause){results.push({job,error:code(cause)})}finally{await page?.close().catch(()=>{})}}return results}finally{await context?.close().catch(()=>{});await browser.close().catch(()=>{})}}
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
-  const env = process.env, root = resolve(env.EVENTSPY_RUNTIME_ROOT || "runtime/eventspy");
-  const config = { enabled: env.EVENTSPY_ENABLED === "true", sourceUrl: env.EVENTSPY_SOURCE_URL, gameId: env.EVENTSPY_GAME_ID, root, historyCurrent: resolve(root, "current"), userAgent: env.EVENTSPY_USER_AGENT || "SeahawksFanZone-EventSpyCollector/1.0 (+https://seahawksfanzone.com/about)", navigationTimeoutMs: Number(env.EVENTSPY_NAVIGATION_TIMEOUT_MS || 20000), renderTimeoutMs: Number(env.EVENTSPY_RENDER_TIMEOUT_MS || 15000), parseTimeoutMs: Number(env.EVENTSPY_PARSE_TIMEOUT_MS || 5000) };
-  try { const result = await runEventSpyCollector(config, { extract: browserExtract }); emit(result.outcome, result); if (result.outcome === "EVENTSPY_DAILY_LIMIT") process.exitCode = 2; }
-  catch (error) { emit(error.code || "EVENTSPY_COLLECTION_FAILED", {}, process.stderr); process.exitCode = 1; }
+export async function runEventSpyCollector(config,options={}){
+ configOk(config);const counts=baseCounts(),outcomes=[];if(!config.enabled)return{outcome:"EVENTSPY_COLLECTION_DISABLED",counts,outcomes};const now=options.now??Date.now(),jobs=[];
+ for(const mapping of options.coverage??config.coverage){if(mapping.state!=="authorized"){outcomes.push({gameId:mapping.gameId,outcome:"EVENTSPY_SOURCE_UNAVAILABLE"});continue}let reservation;try{reservation=await reserveEventSpyAttempt(config.root,mapping.gameId,now)}catch(e){counts.failed++;outcomes.push({gameId:mapping.gameId,outcome:code(e)});continue}if(!reservation.allowed){counts.dailyLimited++;outcomes.push({gameId:mapping.gameId,outcome:reservation.outcome});continue}counts.attempted++;jobs.push({mapping,reservation,now})}
+ const extracted=options.extractOne?await sequentialFixtureExtract(jobs,options.extractOne,config):await (options.extractBatch??browserExtractBatch)(config,jobs);
+ for(const result of extracted){const {mapping,reservation}=result.job;if(result.error){counts.failed++;await safeRecordCollectionState(config.root,mapping,result.error,now);outcomes.push({gameId:mapping.gameId,outcome:result.error});continue}try{const collectedAt=new Date(now).toISOString(),observation=buildMarketObservation(result.point,{mapping,collectedAt,attemptId:reservation.attemptId,now});await (options.publish??publishEventSpyHistory)(eventSpyHistoryCurrent(config.root,mapping.gameId),observation,{now,mapping});await safeRecordCollectionState(config.root,mapping,"EVENTSPY_COLLECTION_SUCCESS",now);counts.succeeded++;outcomes.push({gameId:mapping.gameId,outcome:"EVENTSPY_COLLECTION_SUCCESS",collectedAt,sourcePointAt:observation.sourcePointAt})}catch(e){const outcome=code(e)==="EVENTSPY_COLLECTION_FAILED"?"EVENTSPY_PUBLISH_FAILED":code(e);await safeRecordCollectionState(config.root,mapping,outcome,now);counts.failed++;outcomes.push({gameId:mapping.gameId,outcome})}}
+ return{outcome:counts.failed?"EVENTSPY_BATCH_PARTIAL_FAILURE":"EVENTSPY_BATCH_SUCCESS",counts,outcomes};
 }
+async function sequentialFixtureExtract(jobs,extractOne,config){const out=[];for(const job of jobs)try{out.push({job,point:await extractOne(job.mapping,{...config,now:job.now})})}catch(e){out.push({job,error:code(e)==="EVENTSPY_COLLECTION_FAILED"?"EVENTSPY_PARSE_FAILED":code(e)})}return out}
+
+export async function eventSpyStatus(config,now=Date.now()){configOk(config);const today=eventSpyPacificDate(now),games=[];for(const mapping of config.coverage){let attempts=0,ledgerState="valid";if(mapping.state==="authorized")try{const ledger=await readEventSpyLedger(config.root,mapping.gameId,now);attempts=ledger.days.find(x=>x.date===today)?.attempts??0}catch{ledgerState="invalid"}games.push({gameId:mapping.gameId,state:mapping.state,reasonCode:mapping.reasonCode,attempts,ledgerState})}return{outcome:"EVENTSPY_STATUS",pacificDate:today,counts:baseCounts(),games}}
+export async function validateLocal(config,now=Date.now()){configOk(config);for(const mapping of config.coverage.filter(x=>x.state==="authorized")){await readEventSpyLedger(config.root,mapping.gameId,now);try{await readEventSpyHistoryForGame(config.root,mapping,{now})}catch(e){if(e.code!=="ENOENT")throw e}}return{outcome:"EVENTSPY_VALIDATE_OK",counts:baseCounts()}}
+export async function rehearse(config,{fixtureText,now=Date.now()}={}){if(!config.rehearsalRoot)throw error("Rehearsal requires an explicit disposable runtime root.","EVENTSPY_CONFIG_INVALID");const rehearsal={...config,root:config.rehearsalRoot,enabled:true};const text=fixtureText??await readFile(new URL("../../tests/fixtures/eventspy-tooltip.txt",import.meta.url),"utf8");return runEventSpyCollector(rehearsal,{now,extractOne:async()=>parseEventSpyTooltipText(text,{now})})}
+
+const emit=(v,s=process.stdout)=>s.write(`${JSON.stringify(v)}\n`);
+export function configFromEnv(env=process.env){return{enabled:env.EVENTSPY_ENABLED==="true",root:resolve(env.EVENTSPY_RUNTIME_ROOT||"runtime/eventspy"),rehearsalRoot:env.EVENTSPY_REHEARSAL_ROOT?resolve(env.EVENTSPY_REHEARSAL_ROOT):null,coverage:EVENTSPY_COVERAGE,maxAttempts:Number(env.EVENTSPY_MAX_ATTEMPTS_PER_GAME_PER_PACIFIC_DAY??2),navigationsPerGame:Number(env.EVENTSPY_NAVIGATIONS_PER_GAME_PER_RUN??1),navigationTimeoutMs:Number(env.EVENTSPY_NAVIGATION_TIMEOUT_MS??20000),renderTimeoutMs:Number(env.EVENTSPY_RENDER_TIMEOUT_MS??15000),parseTimeoutMs:Number(env.EVENTSPY_PARSE_TIMEOUT_MS??5000)}}
+if(process.argv[1]&&import.meta.url===new URL(`file://${process.argv[1]}`).href){const command=process.argv[2]??"collect",config=configFromEnv();try{let result;if(command==="validate")result=await validateLocal(config);else if(command==="rehearse")result=await rehearse(config);else if(command==="status"&&process.argv.includes("--json"))result=await eventSpyStatus(config);else if(command==="collect")result=await runEventSpyCollector(config);else throw error("Unknown EventSpy command.","EVENTSPY_COMMAND_INVALID");emit(result);if(result.outcome==="EVENTSPY_BATCH_PARTIAL_FAILURE")process.exitCode=1}catch(e){emit({outcome:code(e)},process.stderr);process.exitCode=1}}
