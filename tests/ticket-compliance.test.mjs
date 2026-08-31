@@ -88,12 +88,36 @@ test("runtime selection is labelled, navigable, and used by outbound analytics",
 test("ticket print styles suppress global chrome, controls, and empty chart shells", () => {
   const printStyles = ticketsPage.match(/@media print\{([\s\S]*?)\}\s*<\/style>/)?.[1];
   assert.ok(printStyles, "ticket page should define print styles");
-  assert.match(printStyles, /:global\(\.skip-link\)[^{}]*display:none!important/);
-  assert.match(printStyles, /:global\(\.lr-header\)[^{}]*display:none!important/);
-  assert.match(printStyles, /:global\(\.lr-footer\)[^{}]*display:none!important/);
-  assert.match(printStyles, /form,.ranges,.official,details#runtime-diagnostics\{display:none!important\}/);
+
+  const rules = [...printStyles.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selectors, declarations]) => ({
+    selectors: selectors.split(",").map((selector) => selector.replace(/\s+/g, "")),
+    declarations: declarations.replace(/\s+/g, ""),
+  }));
+  const ruleContaining = (requiredSelectors) => rules.find(({ selectors }) =>
+    requiredSelectors.every((selector) => selectors.includes(selector))
+  );
+
+  const hiddenRule = ruleContaining([
+    ":global(.skip-link)",
+    ":global(.lr-header)",
+    ":global(.lr-footer)",
+    "form",
+    ".ranges",
+    ".official",
+    "details#runtime-diagnostics",
+  ]);
+  assert.ok(hiddenRule, "print hidden rule should contain every chrome and control selector");
+  assert.match(hiddenRule.declarations, /(?:^|;)display:none!important(?:;|$)/);
+
+  const layoutResetRule = ruleContaining([
+    ":global(.lr-middle)",
+    ":global(.lr-main)",
+    ":global(.lr-paper)",
+  ]);
+  assert.ok(layoutResetRule, "print layout reset rule should contain every layout selector");
+  assert.match(layoutResetRule.declarations, /(?:^|;)overflow:visible!important(?:;|$)/);
+
   assert.match(printStyles, /\.chart:empty\{display:none\}/);
-  assert.match(printStyles, /:global\(\.lr-middle\).*:global\(\.lr-main\).*:global\(\.lr-paper\)[^{}]*overflow:visible!important/);
 });
 
 test("runtime outbound analytics omit fixture-only sort and quantity dimensions", () => {

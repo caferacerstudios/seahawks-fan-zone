@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { eventSpyObservationModel, loadRuntimeTicketData, providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeStatus } from "../src/lib/tickets/runtime-view.mjs";
+import { eventSpyObservationModel, loadRuntimeTicketData, providerEventSummaryModel, runtimeEventUrl, runtimeProviderCoverage, runtimeTicketView, selectRuntimeEvent, ticketmasterSummaryModel, validateRuntimeEvent, validateRuntimeStatus } from "../src/lib/tickets/runtime-view.mjs";
 import { eventSummaryAdapterPayload, listingAdapterPayload } from "../scripts/tickets/listing-adapter.mjs";
 
 const future = "2030-01-01T00:00:00Z";
