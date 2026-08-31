@@ -52,6 +52,8 @@ services:
     volumes:
       - ${EVENTSPY_DATA_ROOT:-./runtime/eventspy}:/srv/eventspy
     read_only: true
+    shm_size: 256m
+    pids_limit: 256
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=128m,mode=1777
     cap_drop: [ALL]

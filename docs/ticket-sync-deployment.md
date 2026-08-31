@@ -5,7 +5,7 @@ manual. This repository task does not modify a host, start or restart a
 container, enable a timer, expose a port, deploy production, or contact a
 provider.
 
-The repository supplies a disabled `eventspy-collector` Compose profile and twice-daily systemd templates. They are proposals, not installed state. Set installed dev to `SFZ_TICKET_DATA_MODE=live` and `SFZ_TICKET_INDEXING_STATE=disabled`. Preserve the operator-owned `/home/laurawkr/seahawksfanzone-dev/docker-compose.yml` and `4324:80`; apply reviewed overlays/drop-ins only. The collector requires an operator-reviewed immutable `BROWSER_BASE_IMAGE` digest in the Playwright 1.55 browser family, matching lockfile-pinned `playwright-core` 1.55.0. Select promoted immutable service images with `EVENTSPY_COLLECTOR_IMAGE` and `TICKET_SYNC_IMAGE`.
+The repository supplies a disabled `eventspy-collector` Compose profile, narrow collector/ticket-sync overlays, and twice-daily systemd templates. They are proposals, not installed state. Set installed dev to `SFZ_TICKET_DATA_MODE=live` and `SFZ_TICKET_INDEXING_STATE=disabled`. Preserve the operator-owned `/home/laurawkr/seahawksfanzone-dev/docker-compose.yml`; parsed `docker compose ... config` output must confirm the effective mapping remains exactly `4324:80`, and neither overlay may define `web` or ports. The collector requires an operator-reviewed digest shaped exactly `mcr.microsoft.com/playwright:v1.62.0-noble@sha256:<64 lowercase hex>`, matching lockfile-pinned `playwright-core` 1.62.0. Select immutable service images built from the same source SHA with `EVENTSPY_COLLECTOR_IMAGE` and `TICKET_SYNC_IMAGE`.
 
 ## EventSpy collector operations
 

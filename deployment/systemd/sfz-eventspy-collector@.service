@@ -1,6 +1,6 @@
 [Unit]
 Description=Seahawks Fan Zone EventSpy observation collector (%i)
-Documentation=file:/opt/seahawks-fan-zone/current/docs/ticket-sync-deployment.md
+Documentation=file:/home/laurawkr/seahawksfanzone-dev/source/docs/ticket-sync-deployment.md
 After=docker.service
 Requires=docker.service
 OnSuccess=sfz-ticket-sync@%i.service
@@ -11,14 +11,16 @@ Type=oneshot
 EnvironmentFile=/etc/sfz-eventspy/%i.env
 Environment=EVENTSPY_DATA_ROOT=/var/lib/sfz-eventspy/%i
 Environment=EVENTSPY_ENV_FILE=/etc/sfz-eventspy/%i.env
-WorkingDirectory=/opt/seahawks-fan-zone/current
-ExecStart=/usr/bin/flock --nonblock /run/lock/sfz-eventspy-%i.lock /usr/bin/docker compose --project-name sfz-eventspy-%i --profile eventspy-collector run --rm --no-deps eventspy-collector collect
+WorkingDirectory=/home/laurawkr/seahawksfanzone-dev
+ExecStart=/usr/bin/flock --nonblock /run/lock/sfz-eventspy-%i.lock /usr/bin/docker compose --project-name sfz-eventspy-%i --file docker-compose.yml --file source/deployment/eventspy-collector/dev.compose.yml --profile eventspy-collector run --rm --no-deps eventspy-collector collect
+SuccessExitStatus=2
 TimeoutStartSec=20min
 Restart=no
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectHome=true
+ProtectHome=read-only
 ProtectSystem=strict
+ReadWritePaths=/run/lock
 
 [Install]
 WantedBy=multi-user.target

@@ -1,4 +1,5 @@
 ARG BROWSER_BASE_IMAGE
+# Must be mcr.microsoft.com/playwright:v1.62.0-noble@sha256:<64 lowercase hex>.
 FROM ${BROWSER_BASE_IMAGE}
 WORKDIR /app
 ENV NODE_ENV=production HOME=/tmp/eventspy-home
