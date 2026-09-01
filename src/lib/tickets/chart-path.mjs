@@ -1,5 +1,15 @@
 const coordinate = value => Number.isFinite(value) ? String(value) : "";
 
+export function providerChartPoints(points, market, x, y) {
+  return points
+    .map((point, sourceIndex) => {
+      const value = point[`${market}Cents`];
+      if (!Number.isSafeInteger(value)) return null;
+      return { x: x(sourceIndex), y: y(value), value, observedAt: point.observedAt, sourceIndex };
+    })
+    .filter(Boolean);
+}
+
 export function chartPath(points) {
   if (!points.length) return "";
   if (points.length === 1) return `M${coordinate(points[0].x)},${coordinate(points[0].y)}`;
