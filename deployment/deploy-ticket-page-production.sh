@@ -83,7 +83,7 @@ chmod --reference="${env_file}" "${second_env}"
 mv -- "${second_env}" "${env_file}"
 
 npm ci --ignore-scripts --no-audit --no-fund
-npm run build:offline
+npm run build:production-offline
 docker compose config -q
 docker compose up -d --force-recreate web
 docker exec seahawksfanzone-web nginx -t

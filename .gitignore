@@ -5,6 +5,7 @@ dist/
 
 # server-generated ticket snapshots
 runtime/tickets/
+runtime/player-profiles/
 public/data/tickets/**
 !public/data/tickets/.gitkeep
 
