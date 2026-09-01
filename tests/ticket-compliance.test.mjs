@@ -11,8 +11,9 @@ const fetchNfl = await readFile(new URL("../scripts/fetch-nfl.mjs", import.meta.
 const syncDockerfile = await readFile(new URL("../deployment/ticket-sync/Dockerfile", import.meta.url), "utf8");
 
 test("ticket page has one complete disclosure and one compact price qualifier", () => {
-  assert.equal((ticketsPage.match(/Affiliate and source disclosure:/g) || []).length, 1);
-  assert.equal((ticketsPage.match(/Prices and outbound links are attributed to the authorized EventSpy page and can change/g) || []).length, 1);
+  const disclosure = "Price snapshots can change at any time and may not include taxes or fees. Confirm availability and the final checkout total with the ticket provider. Seahawks Fan Zone may earn a commission from qualifying purchases.";
+  assert.equal((ticketsPage.match(new RegExp(disclosure.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length, 1);
+  assert.equal((ticketsPage.match(/class="disclosure"/g) || []).length, 1);
 });
 
 test("robots and sitemap use the shared, separately gated feature state", () => {
@@ -56,16 +57,35 @@ test("ticket click analytics are consent gated and limited to approved fields", 
   assert.equal(event.quantity_bucket, "3-4");
 });
 
-test("runtime page renders the fixed EventSpy mirror", () => {
-  assert.match(ticketsPage, /id="eventspy-mirror"/);
+test("runtime page renders the neutral ticket price explorer", () => {
+  assert.match(ticketsPage, /id="ticket-price-explorer"/);
+  assert.match(ticketsPage, /ticketPageReady:"true"/);
+  assert.doesNotMatch(ticketsPage, /id="eventspy-mirror"|eventspyMirrorReady/);
   assert.match(ticketsPage, /Lowest Ticket Price History/);
   assert.match(runtimeView, /Ticketmaster did not supply an event range/);
   assert.doesNotMatch(ticketsPage, /Marketplace overview|No collection has occurred|0 listing-level offers/);
 });
 
-test("mirror terminology is source-scoped", () => {
-  assert.match(ticketsPage, /Prices and outbound links are attributed to the authorized EventSpy page/);
+test("public presentation is source-neutral", () => {
+  const publicPresentation = ticketsPage
+    .replace(/import \{EVENTSPY_COVERAGE,eventSpyCoverageForGame\}[^\n]+/g, "")
+    .replace(/import \{validateEventSpyMirror,MIRROR_MARKETS\}[^\n]+/g, "")
+    .replace(/EVENTSPY_COVERAGE|eventSpyCoverageForGame|validateEventSpyMirror|eventspy-mirror/g, "");
+  assert.doesNotMatch(publicPresentation, /eventspy/i);
+  assert.doesNotMatch(ticketsPage, /Track prices on EventSpy|authorized EventSpy page|EventSpy ticket tracking|EventSpy snapshot/i);
   assert.doesNotMatch(ticketsPage, /StubHub connected|Data type|>Coverage</);
+});
+
+test("FAQ and its questions are absent", () => {
+  assert.doesNotMatch(ticketsPage, /Frequently Asked Questions|What is the current starting price\?|What is the recent low\?|Which marketplace is currently cheapest\?|class="faq"/i);
+});
+
+test("last checked is semantic, exact, and snapshot-driven", () => {
+  assert.match(ticketsPage, /<time data-last-checked datetime="\$\{esc\(s\)\}">/);
+  assert.match(ticketsPage, /checkedTime\(v\.collectedAt\)/);
+  assert.match(ticketsPage, /America\/Los_Angeles/);
+  assert.match(ticketsPage, /timeZoneName:"short"/);
+  assert.match(ticketsPage, /Prices have not been refreshed recently\. Last checked \$\{checkedTime\(v\.collectedAt\)\}/);
 });
 
 test("mirror controls are labelled and accessible", () => {
