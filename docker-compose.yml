@@ -10,6 +10,7 @@ services:
       # Snapshot state is independent of immutable site releases. Select the
       # dev or production host path with the operator-owned Compose env file.
       - ${TICKET_DATA_ROOT:-./runtime/tickets}:/srv/ticket-data:ro
+      - ${EVENTSPY_MIRROR_ROOT:-./runtime/eventspy-mirror/public}:/srv/eventspy-mirror:ro
     restart: unless-stopped
 
   ticket-sync:
