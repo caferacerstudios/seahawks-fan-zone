@@ -44,6 +44,10 @@ const analyticsConfigured = Boolean(String(import.meta.env.PUBLIC_CLOUDFLARE_ANA
 
     <h2>Analytics</h2>
     {analyticsConfigured ? <p>This build is configured for Cloudflare Web Analytics. Its browser script loads only after the consent state permits analytics. The hosting provider may separately process request information in server logs for delivery, security, abuse prevention, and diagnostics.</p> : <p>This build is not configured to load browser analytics. The hosting provider may still process request information in server logs for delivery, security, abuse prevention, and diagnostics.</p>}
+    <p>When analytics consent permits it, the Ticket Finder may measure an outbound provider click using only the selected game, provider, source kind, link placement, sort mode, a quantity bucket, and click timestamp. SFZ does not include seller information, exact seat searches, ticket-account details, payment data, or email addresses in that event. If analytics consent is not ready or is declined, the event is not recorded.</p>
+
+    <h2>Ticket providers and affiliate platforms</h2>
+    <p>Ticket links send you to an external provider and may pass a public affiliate or campaign identifier in the approved link format. The provider or affiliate platform may receive ordinary request information when you follow the link and will handle later activity under its own privacy policy. SFZ does not collect payment-card information, ticket-account credentials, or other ticket-account data.</p>
 
     <h2>Cookies</h2>
     <p>
@@ -68,7 +72,8 @@ const analyticsConfigured = Boolean(String(import.meta.env.PUBLIC_CLOUDFLARE_ANA
 
     <h2>External links</h2>
     <p>
-      This site may link to external sites. We are not responsible for the privacy practices of those sites.
+      This site may link to external sites, including official ticket sites and resale marketplaces. Their privacy policies and
+      consent choices apply after you leave SFZ; SFZ is not responsible for their privacy practices.
     </p>
 
     <h2>Children</h2>

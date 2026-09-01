@@ -6,7 +6,11 @@ const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const SF = { abbreviation: "SF", full_name: "San Francisco 49ers" };
 const LAR = { abbreviation: "LAR", full_name: "Los Angeles Rams" };
 const game = (id, phase, date, extra = {}) => ({ id, season: 2026, week: 1, season_type: phase, date, status: "Scheduled", home_team: SEA, visitor_team: SF, ...extra });
-const final = (id, phase, date, sea = 24, other = 17, extra = {}) => game(id, phase, date, { status: "Final", home_team_score: sea, visitor_team_score: other, ...extra });
+const final = (id, phase, date, sea = 24, other = 17, extra = {}) => {
+  const fixture = game(id, phase, date, { status: "Final", ...extra });
+  const seahawksAreHome = fixture.home_team.abbreviation === SEA.abbreviation;
+  return { ...fixture, home_team_score: seahawksAreHome ? sea : other, visitor_team_score: seahawksAreHome ? other : sea };
+};
 const leaders = [
   { player_id: 1, player: { id: 1, first_name: "Pass", last_name: "Leader" }, passing_yards: 1000 },
   { player_id: 2, player: { id: 2, first_name: "Rush", last_name: "Leader" }, rushing_yards: 500 },
@@ -17,9 +21,9 @@ const standings = { season: 2026, data: [{ team: SEA, division_rank: 2 }] };
 
 test("preseason record is explicit and never produces an NFC West rank", () => {
   const model = buildHomepageGlance({ nfl: payload([
-    final("pre-final", "preseason", "2026-08-20T17:00:00-07:00"),
-    game("pre-next", "preseason", "2026-08-30T17:00:00-07:00"),
-    game("opener", "regular", "2026-09-13T17:00:00-07:00"),
+    final("pre-final", "preseason", "2026-08-20T17:00:00-07:00", 24, 17, { week: 1 }),
+    game("pre-next", "preseason", "2026-08-30T17:00:00-07:00", { week: 2 }),
+    game("opener", "regular", "2026-09-13T17:00:00-07:00", { week: 1 }),
   ]), standings, now: new Date("2026-08-28T12:00:00-07:00") });
   assert.deepEqual({ label: model.seasonStatus.label, record: model.seasonStatus.record, rank: model.seasonStatus.rank }, { label: "Preseason", record: "1-0", rank: null });
   assert.equal(model.lastResult.phase, "Preseason");
@@ -35,8 +39,8 @@ test("first regular-season week shows the opener state instead of a zero record"
 
 test("midseason exposes regular standings and current-season leaders", () => {
   const model = buildHomepageGlance({ nfl: payload([
-    final("week-1", "regular", "2026-09-13T17:00:00-07:00"),
-    final("week-2", "regular", "2026-09-20T17:00:00-07:00", 14, 21, { home_team: LAR, visitor_team: SEA }),
+    final("week-1", "regular", "2026-09-13T17:00:00-07:00", 24, 17, { week: 1 }),
+    final("week-2", "regular", "2026-09-20T17:00:00-07:00", 14, 21, { week: 2, home_team: LAR, visitor_team: SEA }),
   ], { playerStatsSeason: 2026, playerSeasonStats: leaders }), standings, now: new Date("2026-10-01T12:00:00-07:00") });
   assert.equal(model.seasonStatus.record, "1-1");
   assert.equal(model.seasonStatus.rank, "2nd");

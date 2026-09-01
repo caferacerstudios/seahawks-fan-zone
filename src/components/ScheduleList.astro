@@ -2,6 +2,7 @@
 import TeamMark from "./TeamMark.astro";
 import { groupScheduleMonths, scheduleGameMatches, scheduleRow } from "../lib/schedule-display.mjs";
 import { gameCalendar } from "../lib/game-day.mjs";
+import { TICKET_FEATURE } from "../lib/tickets/config";
 
 const { sections, nextGameId, canonicalBase, filterState = { status: "all", filters: [] } } = Astro.props;
 const slug = (value) => String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -56,6 +57,7 @@ const monthLinks = sections.flatMap((section) => groupScheduleMonths(section.gam
                   <button type="button" class="copy-game" data-copy={copyText}>Copy game information</button>
                   {row.venueUrl && <a href={row.venueUrl} target="_blank" rel="noopener noreferrer" aria-label={`Venue information for ${row.venue} (opens in a new tab)`}>Venue information</a>}
                   {row.watchUrl && <a href={row.watchUrl} target="_blank" rel="noopener noreferrer" aria-label={`Watch or listen information for Seahawks ${row.homeAway === "vs" ? "versus" : "at"} ${row.opponentName} (opens in a new tab)`}>Watch/listen information</a>}
+                  {TICKET_FEATURE.enabled && !['completed', 'canceled'].includes(row.state) && <a href={`/tickets?game=${encodeURIComponent(String(game.id))}`}>Check ticket availability</a>}
                 </div></details>
               </td>
             </tr>;
