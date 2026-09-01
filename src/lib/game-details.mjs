@@ -1,4 +1,5 @@
 import { normalizeGame } from "./schedule.mjs";
+import { nflTeamLogoUrl } from "./team-logos.mjs";
 
 const TEAM_ABBR = new Map([
   ["Arizona Cardinals", "ARI"], ["Carolina Panthers", "CAR"], ["Chicago Bears", "CHI"],
@@ -68,15 +69,29 @@ export function gameDetails(archive, requestedId, { coverage = [] } = {}) {
   };
 }
 
-export function ticketGameModels(archive, coverage = []) {
+export function ticketGameModels(archive, coverage = [], recaps = null) {
   return Object.fromEntries(coverage.map((row, index) => {
     const detail = gameDetails(archive, row.gameId, { coverage });
+    const recap = recaps?.recaps?.[String(row.gameId)] ?? null;
     return [row.gameId, detail && {
       id: detail.id, game: detail.game, home: detail.home, completed: detail.completed,
       opponentAbbr: detail.opponentAbbr, opponentName: detail.opponentName, venue: detail.venue,
+      seahawksLogo: nflTeamLogoUrl("SEA"), opponentLogo: nflTeamLogoUrl(detail.opponentAbbr),
       seaScore: detail.seaScore, opponentScore: detail.opponentScore, outcome: detail.outcome,
       weekLabel: detail.weekLabel, previousId: coverage[index - 1]?.gameId ?? null,
       nextId: coverage[index + 1]?.gameId ?? null,
+      recap: recap ? { text: recap.text ?? null, bullets: Array.isArray(recap.bullets) ? recap.bullets : [] } : null,
     }];
   }));
+}
+
+export function gameDayPageModel(archive, requestedId, coverage = []) {
+  const details = gameDetails(archive, requestedId, { coverage });
+  if (!details) return null;
+  return {
+    ...details,
+    seahawksLogo: nflTeamLogoUrl("SEA"),
+    opponentLogo: nflTeamLogoUrl(details.opponentAbbr),
+    ticketSnapshot: coverage.find((row) => String(row.gameId) === details.id) ?? null,
+  };
 }
