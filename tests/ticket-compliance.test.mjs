@@ -10,10 +10,21 @@ const sitemap = await readFile(new URL("../src/pages/sitemap.xml.ts", import.met
 const fetchNfl = await readFile(new URL("../scripts/fetch-nfl.mjs", import.meta.url), "utf8");
 const syncDockerfile = await readFile(new URL("../deployment/ticket-sync/Dockerfile", import.meta.url), "utf8");
 
-test("ticket page has one complete disclosure and one compact price qualifier", () => {
-  const disclosure = "Price snapshots can change at any time and may not include taxes or fees. Confirm availability and the final checkout total with the ticket provider. Seahawks Fan Zone may earn a commission from qualifying purchases.";
+test("ticket page has exactly one neutral price disclosure and no relationship claims", () => {
+  const disclosure = "Price snapshots can change at any time and may not include taxes or fees. Confirm availability and the final checkout total with the ticket provider.";
   assert.equal((ticketsPage.match(new RegExp(disclosure.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length, 1);
   assert.equal((ticketsPage.match(/class="disclosure"/g) || []).length, 1);
+  assert.doesNotMatch(ticketsPage, /may earn a commission\.|affiliate|sponsor(?:ed|ship)?|compensat(?:e|ed|ion)|partner(?:ship)?|referral payment/i);
+});
+
+test("current provider cards are non-affiliate links without fabricated tracking", () => {
+  const card = ticketsPage.match(/<a class="provider-card"[^>]+>/)?.[0];
+  assert.ok(card, "provider card template should remain present");
+  assert.match(card, /target="_blank"/);
+  assert.match(card, /rel="nofollow noopener"/);
+  assert.doesNotMatch(card, /sponsored/);
+  assert.match(ticketsPage, /order=\["ticketmaster","stubhub","vividseats","seatgeek"\]/);
+  assert.doesNotMatch(ticketsPage, /[?&](?:aff(?:iliate)?|affiliate_id|aff_id|campaign|campaign_id|publisher|publisher_id|ref|referral|referral_code|subid|tag)=/i);
 });
 
 test("robots and sitemap use the shared, separately gated feature state", () => {
