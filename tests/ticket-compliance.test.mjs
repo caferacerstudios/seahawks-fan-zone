@@ -70,7 +70,8 @@ test("mirror terminology is source-scoped", () => {
 
 test("mirror controls are labelled and accessible", () => {
   assert.match(ticketsPage, /data-market-selector/);
-  assert.match(ticketsPage, /data-show-filters/);
+  assert.doesNotMatch(ticketsPage, /Show Filters|data-show-filters|market-filters|data-filter/);
+  assert.match(ticketsPage, /aria-label="Marketplace line colors"/);
   assert.match(ticketsPage, /aria-live="polite"/);
   assert.match(ticketsPage, /aria-live="polite" aria-busy="true"/);
   assert.match(ticketsPage, /@media print/);
