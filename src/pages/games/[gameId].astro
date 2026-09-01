@@ -5,7 +5,8 @@ import GameCenter from "../../components/GameCenter.astro";
 import TopicChips from "../../components/TopicChips.astro";
 import ContinueFanZone from "../../components/ContinueFanZone.astro";
 import { getAvailableSeasonContexts, getGameState, getSeasonContext, isFinalGame } from "../../lib/season-context";
-import { formatKickoff, normalizeGame } from "../../lib/schedule.mjs";
+import { formatKickoff } from "../../lib/schedule.mjs";
+import { gameDetails } from "../../lib/game-details.mjs";
 import { TICKET_FEATURE } from "../../lib/tickets/config";
 import scheduleData from "../../data/nfl/seahawks.json";
 import gameRecaps from "../../data/nfl/gameRecaps.json";
@@ -193,25 +194,6 @@ function isSeahawksWin(game) {
   return seaScore > oppScore;
 }
 
-function sortByDate(a, b) {
-  const ad = a?.date ? new Date(a.date).getTime() : 0;
-  const bd = b?.date ? new Date(b.date).getTime() : 0;
-  if (ad !== bd) return ad - bd;
-  const aw = Number(a?.week);
-  const bw = Number(b?.week);
-  if (Number.isFinite(aw) && Number.isFinite(bw)) return aw - bw;
-  return 0;
-}
-
-function getRawGamesLocal() {
-  const records = Array.isArray(scheduleArchive?.seasons) ? scheduleArchive.seasons : [scheduleArchive];
-  return records.flatMap((record) => (Array.isArray(record?.games)
-    ? record.games
-    : [...(record?.gamesPreseason || []), ...(record?.gamesRegular || []), ...(record?.gamesPostseason || [])])
-    .map((game) => normalizeGame(game, record?.season ?? game?.season)))
-    .filter((game) => game?.state !== "bye" && game?.bye !== true);
-}
-
 function gameKey(g, idx) {
   return String(g?.id ?? g?.game_id ?? idx);
 }
@@ -249,10 +231,10 @@ export function getStaticPaths() {
    ======================= */
 const { gameId } = Astro.params;
 
-const allGames = getRawGamesLocal();
-const game = allGames.find((g, i) => gameKey(g, i) === String(gameId)) ?? null;
-const ordered = allGames.filter((row) => Number(row?.season) === Number(game?.season)).sort(sortByDate);
-const idx = game ? ordered.findIndex((row) => String(row?.id ?? row?.game_id) === String(game?.id ?? game?.game_id)) : -1;
+const sharedDetails = gameDetails(scheduleArchive, gameId);
+const game = sharedDetails?.game ?? null;
+const ordered = sharedDetails?.ordered ?? [];
+const idx = sharedDetails?.index ?? -1;
 const gameSeasonData = Array.isArray(scheduleArchive?.seasons)
   ? scheduleArchive.seasons.find((record) => Number(record?.season) === Number(game?.season)) ?? scheduleArchive
   : scheduleArchive;
@@ -263,8 +245,8 @@ const gameContext = getSeasonContext({
 }, gameSeasonType);
 const seasonOptions = getAvailableSeasonContexts(gameSeasonData, gameSeasonType);
 
-const prev = idx > 0 ? ordered[idx - 1] : null;
-const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
+const prev = sharedDetails?.previous ?? null;
+const next = sharedDetails?.next ?? null;
 
 const opp = game ? oppAbbr(game) : "";
 

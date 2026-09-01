@@ -1,0 +1,19 @@
+{
+  "fixture": true,
+  "season": 2026,
+  "updatedAt": "2026-08-29T12:00:00Z",
+  "profiles": {
+    "12345": {
+      "playerId": "12345",
+      "name": "Numeric Route Test Player",
+      "bio": "SFZ PLAYER BIO ACCEPTANCE SENTINEL numeric route.",
+      "recap": { "paragraph": "Fixture recap.", "bullets": [] }
+    },
+    "jaxon-smith-njigba": {
+      "playerId": "jaxon-smith-njigba",
+      "name": "Jaxon Smith-Njigba",
+      "bio": "SFZ PLAYER BIO ACCEPTANCE SENTINEL alias route.",
+      "recap": { "paragraph": "Fixture recap.", "bullets": [] }
+    }
+  }
+}

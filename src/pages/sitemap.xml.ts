@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { absoluteUrl, PUBLIC_PAGES } from "../lib/seo";
 import { NEWS_CATEGORIES, categorySlug, publishedArticles } from "../lib/news";
 import { TICKET_FEATURE } from "../lib/tickets/config";
+import { readPlayerProfiles } from "../lib/player-profiles.mjs";
 
 const SUBSTANTIVE_TOPIC_PATHS = ["/topics/players", "/topics/roster", "/topics/injuries", "/topics/opponents", "/topics/game-week", "/topics/nfc-west", "/topics/position-groups", "/topics/championship"];
 
@@ -16,7 +17,7 @@ export const GET: APIRoute = async () => {
   let standings: any = null;
   try { nfl = (await import("../data/nfl/seahawks.json")).default; } catch {}
   try { recaps = (await import("../data/nfl/gameRecaps.json")).default; } catch {}
-  try { profiles = (await import("../data/nfl/playerProfiles.json")).default; } catch {}
+  try { profiles = readPlayerProfiles().data; } catch {}
   try { players = (await import("../data/nfl/players.json")).default; } catch {}
   try { standings = (await import("../data/nfl/standings.json")).default; } catch {}
 
@@ -41,6 +42,7 @@ export const GET: APIRoute = async () => {
   const playerIds = new Set([
     ...roster.map((player) => player?.id ?? player?.player_id ?? player?.player?.id),
     ...(nfl?.playerSeasonStats ?? []).map((player: any) => player?.player?.id ?? player?.player_id),
+    ...Object.keys(profiles?.profiles ?? {}),
   ].filter((id) => id != null).map(String));
   const pages = [
     ...PUBLIC_PAGES.filter((page) => includeStatic(page.canonicalPath)).map((page) => ({ loc: page.canonicalPath, lastmod: validDate(page.lastModified ?? (["/", "/schedule", "/weekly-recap", "/standings", "/team", "/players"].includes(page.canonicalPath) ? nfl?.updatedAt : undefined)) })),

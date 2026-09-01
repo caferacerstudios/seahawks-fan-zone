@@ -9,7 +9,7 @@
  *    - short bio
  *    - short gameplay recap (1 paragraph + 3 bullets)
  * - writes:
- *    - src/data/nfl/playerProfiles.json
+ *    - runtime/player-profiles/playerProfiles.json (durable last-known-good data)
  *    - src/data/nfl/injuries.json
  *
  * ENV:
@@ -20,6 +20,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { readPlayerProfiles, writePlayerProfilesArtifact } from "../src/lib/player-profiles.mjs";
 
 const BDL_BASE = "https://api.balldontlie.io/nfl/v1";
 const OPENAI_BASE = "https://api.openai.com/v1";
@@ -42,7 +43,6 @@ const projectRoot = process.cwd();
 const seahawksPath = path.join(projectRoot, "src", "data", "nfl", "seahawks.json");
 const rosterPath = path.join(projectRoot, "src", "data", "team", "roster.json");
 
-const outProfilesPath = path.join(projectRoot, "src", "data", "nfl", "playerProfiles.json");
 const outInjuriesPath = path.join(projectRoot, "src", "data", "nfl", "injuries.json");
 
 function readJson(p) {
@@ -421,9 +421,9 @@ async function main() {
   }
 
   // Load existing profiles to avoid re-spending tokens
-  const existing = fs.existsSync(outProfilesPath)
-    ? readJson(outProfilesPath)
-    : { season, updatedAt: null, profiles: {} };
+  // Seed from the durable artifact, or from the checked-in fixture on first use.
+  // Existing profiles remain in this map when an individual refresh fails.
+  const existing = readPlayerProfiles().data;
 
   const profiles = existing?.profiles && typeof existing.profiles === "object" ? existing.profiles : {};
 
@@ -449,6 +449,9 @@ async function main() {
     let out;
     try {
       out = await openaiPlayerProfile(prompt);
+      if (!String(out?.bio || "").trim() || !String(out?.recap?.paragraph || "").trim()) {
+        throw new Error("OpenAI response contained an empty bio or recap paragraph");
+      }
     } catch (e) {
       skippedDueToErrors++;
       console.warn(
@@ -495,7 +498,8 @@ async function main() {
     injuries: Array.from(injuriesByPlayerId.values()),
   };
 
-  writeJson(outProfilesPath, outProfiles);
+  // Atomic replacement protects the last-known-good collection from a partial write.
+  const outProfilesPath = writePlayerProfilesArtifact(outProfiles);
   writeJson(outInjuriesPath, outInjuries);
 
   console.log(`wrote ${path.relative(process.cwd(), outProfilesPath)} (new profiles: ${wrote})`);
