@@ -12,10 +12,9 @@ const stripNonVisible = (html) => html
   .replace(/\s+/g, " ")
   .trim();
 const publisherText = (html) => {
-  const start = html.search(/<div class="ticket-publisher-content"[^>]*data-ticket-publisher-content/i);
-  const end = html.search(/<section id="ticket-price-explorer"/i);
-  assert.ok(start >= 0 && end > start, "built page should contain publisher content before the interactive region");
-  return stripNonVisible(html.slice(start, end));
+  const regions = html.match(/<div class="ticket-publisher-content"[^>]*data-ticket-publisher-content/gi) ?? [];
+  assert.ok(regions.length >= 2, "built page should contain intro and supporting publisher regions");
+  return stripNonVisible(html);
 };
 const h1Count = (html) => (html.match(/<h1\b/gi) || []).length;
 
@@ -51,4 +50,11 @@ test("a generated game page exposes factual game HTML and the permanent guide", 
   assert.doesNotMatch(gameHtml, /eventspy/i);
   assert.doesNotMatch(gameHtml, /["']@type["']\s*:\s*["']Offer["']/i);
   assert.doesNotMatch(visible, /Frequently Asked Questions/i);
+  const overview = gameHtml.indexOf('class="game-overview"');
+  const explorer = gameHtml.indexOf('id="ticket-price-explorer"');
+  const supporting = gameHtml.indexOf('id="ticket-information-heading"');
+  const watch = gameHtml.indexOf("Where to Watch");
+  assert.ok(overview >= 0 && overview < explorer && explorer < supporting && supporting < watch, "game sections should follow overview, ticket experience, FAQ, then viewing information");
+  assert.match(gameHtml, /<details>\s*<summary><h3>Provider links and disclosure<\/h3><\/summary>/i);
+  assert.doesNotMatch(gameHtml, /<details\s+open/i);
 });
