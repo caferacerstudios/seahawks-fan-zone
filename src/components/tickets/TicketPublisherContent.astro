@@ -1,0 +1,131 @@
+---
+import { MARKETPLACE_IDS } from "../../lib/tickets/provider-quotes.mjs";
+
+const { routeStyle = "tickets", game = null, eligibleGames = [] } = Astro.props;
+const marketplaceLabels = Object.freeze({
+  ticketmaster: "Ticketmaster",
+  stubhub: "StubHub",
+  vividseats: "Vivid Seats",
+  seatgeek: "SeatGeek",
+});
+const marketplaceNames = MARKETPLACE_IDS.map((id) => marketplaceLabels[id]).filter(Boolean);
+const dateValue = game?.game?.date ? String(game.game.date) : null;
+const parsedDate = dateValue ? new Date(dateValue) : null;
+const hasDate = parsedDate && Number.isFinite(parsedDate.getTime());
+const dateLabel = hasDate ? new Intl.DateTimeFormat("en-US", {
+  weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles",
+}).format(parsedDate) : null;
+const kickoffLabel = hasDate && /T\d{2}:\d{2}/.test(dateValue) ? new Intl.DateTimeFormat("en-US", {
+  hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles", timeZoneName: "short",
+}).format(parsedDate) : null;
+const matchup = game ? `${game.home ? "Seattle Seahawks vs." : "Seattle Seahawks at"} ${game.opponentName}` : null;
+const datedGames = eligibleGames.filter((item) => item && !item.completed);
+---
+
+<div class="ticket-publisher-content" data-ticket-publisher-content>
+  <header class="publisher-intro">
+    <h1>{routeStyle === "tickets" ? "Seattle Seahawks Ticket Finder" : matchup ?? "Seattle Seahawks game tickets"}</h1>
+    <p>Use the Ticket Finder to compare recent Seattle Seahawks ticket price snapshots before visiting a provider. Seahawks Fan Zone does not sell tickets, hold ticket inventory, or guarantee that a displayed price is still available. The tool organizes validated event summaries and marketplace observations so fans can see what was reported, when it was checked, and what limitations apply.</p>
+  </header>
+
+  {routeStyle === "games" && game && (
+    <section class="game-overview" aria-labelledby="game-overview-heading">
+      <h2 id="game-overview-heading">Game overview</h2>
+      <p>The ticket section below contains price observations and provider event information for this specific Seahawks game.</p>
+      <dl>
+        <div><dt>Matchup</dt><dd>{matchup}</dd></div>
+        {game.weekLabel && <div><dt>Game</dt><dd>{game.weekLabel}</dd></div>}
+        {hasDate && <div><dt>Date</dt><dd><time datetime={dateValue}>{dateLabel}</time></dd></div>}
+        {kickoffLabel && <div><dt>Local kickoff</dt><dd><time datetime={dateValue}>{kickoffLabel}</time></dd></div>}
+        {game.venue && <div><dt>Venue</dt><dd>{game.venue}</dd></div>}
+        <div><dt>Location status</dt><dd>{game.home ? "Seattle home game" : "Seattle away game"}</dd></div>
+      </dl>
+      <p><a href="/schedule">View the full Seahawks schedule</a></p>
+    </section>
+  )}
+
+  {routeStyle === "tickets" && (
+    <section class="eligible-games" aria-labelledby="eligible-games-heading">
+      <h2 id="eligible-games-heading">Upcoming games in the Ticket Finder</h2>
+      {datedGames.length ? (
+        <ul>
+          {datedGames.map((item) => {
+            const itemDate = item.game?.date ? new Date(item.game.date) : null;
+            const validItemDate = itemDate && Number.isFinite(itemDate.getTime());
+            const itemDateLabel = validItemDate ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" }).format(itemDate) : null;
+            return <li><a href={`/games/${encodeURIComponent(item.id)}/`}>{item.home ? "Seattle Seahawks vs." : "Seattle Seahawks at"} {item.opponentName}</a><span>{item.weekLabel}{itemDateLabel ? `, ${itemDateLabel}` : ", date not confirmed"}</span></li>;
+          })}
+        </ul>
+      ) : (
+        <p>No eligible games are currently available in the Ticket Finder. <a href="/schedule">Check the full Seahawks schedule</a> for dates, opponents, and game status.</p>
+      )}
+    </section>
+  )}
+
+  <aside class="outbound-disclosure" data-outbound-disclosure>
+    <h2>Provider links and disclosure</h2>
+    <p>Disclosure: Seahawks Fan Zone may earn a commission from purchases made through links specifically marked <strong>“Affiliate link”</strong>. This does not affect how prices are ordered. Seahawks Fan Zone does not sell tickets. Read the <a href="/disclosure/">full site disclosure</a>.</p>
+    <p>Price snapshots can change at any time and may not include taxes or fees. Confirm availability and the final checkout total with the ticket provider.</p>
+  </aside>
+
+  <div class="publisher-guide">
+    <section>
+      <h2>Sources and marketplaces covered</h2>
+      <p>Ticketmaster is currently represented through a verified event-summary source. When a valid marketplace price-history snapshot is available, the comparison may also show observed starting prices for {marketplaceNames.slice(0, -1).join(", ")}, and {marketplaceNames.at(-1)}. Marketplace observations are not the same as direct listing feeds, endorsements, or proof that a particular seat is available.</p>
+      <p>An event summary describes a provider event and may include a reported range. A marketplace observation records a starting-price value seen at a particular time. Neither is an individual ticket listing or a guaranteed ticket offer. The absence of a marketplace value does not establish that the provider has no tickets.</p>
+    </section>
+
+    <section>
+      <h2>How prices are compared</h2>
+      <p>Monetary values are validated and stored as integer cents, and currency and timestamps are validated before display. Marketplace cards use the latest valid observation available for each marketplace and are ordered from lowest to highest. Missing values follow available prices, and equal values are treated as ties.</p>
+      <p>Ranking is based only on price data. Affiliate status, link type, provider compensation, and provider display order do not affect rank or lowest observed price status. Ticketmaster-reported event ranges are displayed separately because their price basis may differ and are not used to determine the lowest observed marketplace. Values with incompatible or unknown fee bases are not combined into a misleading all-in comparison.</p>
+    </section>
+
+    <section>
+      <h2>Are fees included?</h2>
+      <p>Not always. A displayed amount may exclude taxes, service charges, delivery fees, or other checkout costs. A price is described as all-in only when its source explicitly identifies it that way. Confirm the final total for the same number of tickets with the provider before purchasing.</p>
+    </section>
+
+    <section>
+      <h2>Data freshness and limitations</h2>
+      <p>Ticket prices change frequently. Dynamic data shows the exact last-checked timestamp for the accepted snapshot in Pacific time. A failed or delayed refresh can make a snapshot stale, and the absence of a price does not prove tickets are unavailable. An event summary is not an individual listing, and starting prices may apply to limited inventory or a different ticket quantity.</p>
+      <p>Verify the section, row, seat, quantity, transfer method, and final total on the provider site. Seahawks Fan Zone cannot guarantee provider availability, accuracy, fulfillment, refunds, or event changes. If dynamic data cannot load, the game details and this guide remain available while the price observation is treated as unavailable.</p>
+    </section>
+
+    <section>
+      <h2>Before buying Seahawks tickets</h2>
+      <ul>
+        <li>Confirm the opponent, date, kickoff time, city, and venue.</li>
+        <li>Compare the final checkout total for the same ticket quantity.</li>
+        <li>Check whether the advertised price is for one ticket or requires buying multiple tickets.</li>
+        <li>Verify the section, row, view, and any obstructed-view notice.</li>
+        <li>Review mobile-transfer timing and the delivery method.</li>
+        <li>Read refund, postponement, cancellation, and rescheduling policies.</li>
+        <li>Confirm accessible-seating details directly with the seller or venue when needed.</li>
+        <li>Complete payment only on the provider’s secure site.</li>
+        <li>Keep the order confirmation and transfer instructions.</li>
+      </ul>
+    </section>
+
+    <nav class="publisher-links" aria-label="Ticket Finder editorial information">
+      <a href="/methodology/">Full methodology</a>
+      <a href="/sources/">Sources</a>
+      <a href="/disclosure/">Disclosure</a>
+    </nav>
+  </div>
+</div>
+
+<style>
+  .ticket-publisher-content{--navy:#002244;--green:#69be28;--ink:#0b1f35;--muted:#536171;--line:#d7dfe6;width:min(1160px,calc(100% - 3rem));margin:1.5rem auto;color:var(--ink)}
+  .publisher-intro{max-width:52rem}.publisher-intro h1{margin:0 0 .8rem;font-size:clamp(2rem,5vw,3.25rem);line-height:1.08}.publisher-intro p,.publisher-guide p,.game-overview p{max-width:72ch;line-height:1.7}
+  .game-overview,.eligible-games,.outbound-disclosure{margin:1.5rem 0;padding:clamp(1rem,3vw,1.5rem);background:#fff;border:1px solid var(--line);border-radius:.8rem}.game-overview{border-top:5px solid var(--green)}
+  h2{margin:0 0 .75rem;color:var(--navy);font-size:clamp(1.35rem,3vw,1.8rem)}
+  dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin:1rem 0;background:var(--line);border:1px solid var(--line)}dl div{min-width:0;padding:.8rem;background:#f7f9fa}dt{color:var(--muted);font-size:.78rem;font-weight:800;text-transform:uppercase}dd{margin:.25rem 0 0;font-weight:800;overflow-wrap:anywhere}
+  .eligible-games ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin:0;padding:0;list-style:none}.eligible-games li{display:flex;flex-direction:column;padding:.85rem;background:#f7f9fa;border-left:4px solid var(--green)}.eligible-games a{font-weight:850}.eligible-games span{margin-top:.25rem;color:var(--muted);font-size:.9rem}
+  .outbound-disclosure{border-left:6px solid var(--green)}.outbound-disclosure p{max-width:78ch;margin:.5rem 0;line-height:1.6}
+  .publisher-guide{margin-top:2rem}.publisher-guide section{padding:1.4rem 0;border-top:1px solid var(--line)}.publisher-guide ul{max-width:74ch;padding-left:1.25rem;line-height:1.65}.publisher-guide li+li{margin-top:.35rem}.publisher-links{display:flex;gap:.75rem 1.25rem;flex-wrap:wrap;padding:1rem 0 2rem;border-top:1px solid var(--line);font-weight:800}
+  a:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+  @media(max-width:650px){.ticket-publisher-content{width:calc(100% - 1.5rem)}dl,.eligible-games ul{grid-template-columns:1fr}}
+  @media(max-width:380px){.ticket-publisher-content{width:calc(100% - 1rem)}.game-overview,.eligible-games,.outbound-disclosure{padding:.85rem}}
+  @media print{.ticket-publisher-content{width:100%;color:#000}.game-overview,.eligible-games,.outbound-disclosure{break-inside:avoid;box-shadow:none}}
+</style>
