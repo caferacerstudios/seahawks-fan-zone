@@ -62,7 +62,7 @@ function sourceDate(game) {
   return game?.startsAt ?? game?.datetime ?? game?.start_time ?? game?.kickoff ?? game?.date ?? null;
 }
 
-function calendarDate(value) {
+export function calendarDate(value) {
   const match = text(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
   const [, year, month, day] = match;
@@ -74,6 +74,14 @@ function pacificCalendarDay(value) {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
   const fields = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
   return `${fields.year}-${fields.month}-${fields.day}`;
+}
+
+/** Format either a Pacific local calendar date or a real kickoff instant without conflating the two. */
+export function formatPacificCalendarDate(value, options = {}) {
+  const localDate = calendarDate(value);
+  const date = localDate ? new Date(`${localDate}T12:00:00Z`) : new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", { ...options, timeZone: PACIFIC }).format(date);
 }
 
 function pacificLocalTimestamp(date, timeValue) {
@@ -303,11 +311,11 @@ export function formatScheduleDate(game) {
 
 export function formatKickoff(game, style = "full") {
   if (!game?.dateConfirmed || !game?.date) return style === "time" ? "Time TBD" : "Date TBD";
-  const value = game.startsAt ?? `${game.date}T12:00:00Z`;
-  const date = new Date(value);
-  const dateText = new Intl.DateTimeFormat("en-US", {
-    timeZone: PACIFIC, weekday: style === "full" ? "long" : "short", month: style === "full" ? "long" : "short", day: "numeric", year: style === "full" ? "numeric" : undefined,
-  }).format(date);
+  const value = game.startsAt ?? game.date;
+  const date = new Date(game.startsAt ?? `${game.date}T12:00:00Z`);
+  const dateText = formatPacificCalendarDate(value, {
+    weekday: style === "full" ? "long" : "short", month: style === "full" ? "long" : "short", day: "numeric", year: style === "full" ? "numeric" : undefined,
+  });
   if (!game.timeConfirmed || !game.startsAt) return style === "time" ? "Time TBD" : `${dateText} · Time TBD`;
   const timeText = `${new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, hour: "numeric", minute: "2-digit" }).format(date)} PT`;
   if (style === "date") return dateText;

@@ -1,7 +1,6 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 import { absoluteUrl, pageMetadata, SITE_NAME } from "../lib/seo";
-import { TICKET_FEATURE } from "../lib/tickets/config";
 
 const {
   title = "Seahawks Fan Zone",
@@ -46,14 +45,15 @@ try {
 } catch {}
 
 const navPages = [
+  { href: "/", label: "Home" },
   { href: "/news", label: "News" },
   { href: "/schedule", label: "Schedule" },
-  { href: "/team", label: "Team Stats" },
-  { href: "/players", label: "Player Stats" },
+  { href: "/players", label: "Roster" },
+  { href: "/tickets", label: "Tickets" },
   { href: "/history", label: "History" },
 ];
 const morePages: Array<{ href: string; label: string; match?: string[] }> = [
-  ...(TICKET_FEATURE.enabled ? [{ href: "/tickets", label: TICKET_FEATURE.mode === "beta" ? "Tickets Beta" : "Tickets" }] : []),
+  { href: "/team", label: "Team Stats" },
   { href: "/standings", label: "Standings" },
   { href: latestRecapHref, label: "Latest Recap", match: ["/games"] },
   { href: "/weekly-recap", label: "Recap Archive" },
@@ -181,9 +181,10 @@ const moreIsActive = morePages.some((page) => page.match?.some((path) => isActiv
           links[(index + (event.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length]?.focus();
         }
       });
-      nav.addEventListener('keydown', (event) => {
+      document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
           if (moreButton?.getAttribute('aria-expanded') === 'true') return closeMore(true);
+          if (button.getAttribute('aria-expanded') !== 'true') return;
           button.setAttribute('aria-expanded', 'false');
           button.setAttribute('aria-label', 'Open primary navigation');
           nav.classList.remove('is-open');

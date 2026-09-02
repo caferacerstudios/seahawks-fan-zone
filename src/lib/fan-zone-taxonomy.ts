@@ -16,7 +16,7 @@ export type TopicSlug = keyof typeof TOPICS;
 
 export const TOPIC_LANDINGS: Partial<Record<TopicSlug, { description: string; links: { href: string; label: string; detail: string }[] }>> = {
   players: { description: "Player profiles, roster context, and season statistics.", links: [
-    { href: "/players", label: "Player profiles and stats", detail: "Browse canonical player pages and season production." },
+    { href: "/players", label: "Roster and player stats", detail: "Browse the current roster, canonical player profiles, and season production." },
     { href: "/team", label: "Team statistical context", detail: "Compare individual production with Seattle's team totals." },
   ] },
   roster: { description: "The current roster, player availability, and team context.", links: [

@@ -7,6 +7,7 @@ Astro site for independent Seattle football coverage. These controls do not impl
 - `npm run dev` starts Astro locally.
 - `npm run build` refreshes NFL data and builds the site; the refresh scripts contact their configured upstream services.
 - `npx astro build` builds from repository data without running the refresh scripts.
+- `npm run refresh-team-roster` refreshes the canonical roster from the official Seahawks roster page. Failed or suspicious responses preserve the checked-in last-known-good roster and print a warning; use `-- --allow-large-change` only after verifying a legitimate cutdown or expansion.
 
 ## Player-profile generation
 

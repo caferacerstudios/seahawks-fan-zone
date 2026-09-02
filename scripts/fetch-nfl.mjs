@@ -292,6 +292,11 @@ async function main() {
     nextGameId,
     currentRoster,
     playerDirectory,
+    // This API request returns player rows, not authoritative team totals.
+    // Keep the team-season slot explicit so consumers never rediscover totals
+    // by traversing or summing player data. Populate only from a future
+    // authoritative, team-scoped endpoint after normalizing its identity fields.
+    teamSeasonStats: null,
     playerSeasonStats: enriched,
   };
 

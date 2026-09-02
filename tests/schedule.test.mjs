@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   formatScheduleDate,
   formatKickoff,
+  formatPacificCalendarDate,
   featuredScheduleEvent,
   nextScheduleEvent,
   normalizeSchedule,
@@ -202,6 +203,19 @@ test("all game surfaces preserve an exact 5:20 PM Pacific kickoff", () => {
   assert.equal(scheduleRow(normalized).kickoff, "5:20 PM PT");
   assert.equal(gameDayView(normalized).kickoff, "5:20 PM PT");
   assert.match(formatScheduleDate(normalized), /5:20 PM PT$/);
+});
+
+test("Pacific calendar formatting distinguishes local dates from kickoff instants across DST", () => {
+  const options = { month: "long", day: "numeric", year: "numeric" };
+  assert.equal(formatPacificCalendarDate("2026-09-09", options), "September 9, 2026");
+  assert.equal(formatPacificCalendarDate("2027-01-03", options), "January 3, 2027");
+  assert.equal(formatPacificCalendarDate("2026-09-10T03:00:00Z", options), "September 9, 2026");
+  assert.equal(formatPacificCalendarDate("2027-01-04T04:00:00Z", options), "January 3, 2027");
+
+  const evening = normalizeSchedule({ season: 2026, games: [game("evening", 1, "2026-09-10T03:00:00Z")] }).games[0];
+  assert.equal(evening.date, "2026-09-09");
+  assert.match(formatKickoff(evening), /^Wednesday, September 9, 2026/);
+  assert.match(scheduleRow(evening).date, /Sep 9/);
 });
 
 test("featured view cleanly omits unavailable broadcast and venue", () => {
