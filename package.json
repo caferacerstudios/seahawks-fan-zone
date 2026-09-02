@@ -22,6 +22,7 @@
     "build:offline": "ASTRO_TELEMETRY_DISABLED=1 astro build",
     "build:production-offline": "node scripts/validate-player-profiles.mjs --production && npm run build:offline && node scripts/validate-player-profiles.mjs --production --dist",
     "test:player-profiles": "node --test tests/player-profiles-static.test.mjs",
+    "test:player-profile-generator": "node --test tests/player-profile-generator.test.mjs",
 
     "preview": "astro preview",
     "astro": "astro",

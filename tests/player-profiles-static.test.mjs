@@ -24,5 +24,7 @@ test("offline rendering embeds generated profiles in final static HTML", { timeo
     assert.match(html, /SFZ PLAYER BIO ACCEPTANCE SENTINEL/);
     assert.ok(!html.includes(fallback));
   }
+  assert.match(aliasHtml, /season overview/i);
+  assert.doesNotMatch(aliasHtml, /Gameplay recap/);
   assert.ok(missingHtml.includes(fallback));
 });

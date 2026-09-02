@@ -1,6 +1,13 @@
 export const ROSTER_STATUSES = ["Active", "Reserve/Injured", "PUP", "Practice Squad", "Waived", "Historical"];
+const HISTORICAL_STATUSES = new Set(["released", "waived", "retired", "historical", "former"]);
 
 const id = (player) => String(player?.id ?? player?.playerId ?? "").trim();
+
+export function isCurrentRosterPlayer(player) {
+  if (!player || !id(player)) return false;
+  const status = String(player.status || "").trim().toLowerCase();
+  return status.length > 0 && !HISTORICAL_STATUSES.has(status);
+}
 
 export function currentRosterPlayers(store) {
   const rows = Array.isArray(store?.players) ? store.players : [];

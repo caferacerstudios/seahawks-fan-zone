@@ -8,6 +8,28 @@ Astro site for independent Seattle football coverage. These controls do not impl
 - `npm run build` refreshes NFL data and builds the site; the refresh scripts contact their configured upstream services.
 - `npx astro build` builds from repository data without running the refresh scripts.
 
+## Player-profile generation
+
+Player profiles use the OpenAI Responses API with strict structured output. The default model is `gpt-5.4-mini`, with low reasoning, low text verbosity, and at most 1,200 output tokens. The generator has a local default budget of $20 per UTC month and $1 per run. Its atomic ledger and 30-minute stale lock live beside the durable artifact under `runtime/player-profiles/`; they account only for this generator and must not be committed.
+
+Profiles are refreshed only when their verified semantic input, model, or prompt version changes. Fetch/build timestamps are excluded. `FORCE=1` remains supported as an alias for `PLAYER_PROFILE_REFRESH_MODE=all`; all refresh modes still enforce budgets and locking.
+
+One-time stale-profile migration:
+
+```sh
+PLAYER_PROFILE_MODEL=gpt-5.4-mini \
+PLAYER_PROFILE_REFRESH_MODE=stale \
+npm run generate-player-profiles
+```
+
+Target one roster slug without refreshing the rest:
+
+```sh
+PLAYER_PROFILE_ID=jaxon-smith-njigba npm run generate-player-profiles
+```
+
+Optional controls are `PLAYER_PROFILE_MONTHLY_BUDGET_USD` (default `20`), `PLAYER_PROFILE_RUN_BUDGET_USD` (default `1`), `PLAYER_PROFILE_MAX_GENERATIONS_PER_RUN` (default `125`), `PLAYER_PROFILE_MAX_OUTPUT_TOKENS` (default `1200`), and `PLAYER_PROFILE_LOCK_STALE_MS` (default `1800000`). An unknown model requires explicit `PLAYER_PROFILE_INPUT_RATE_PER_MILLION_USD` and `PLAYER_PROFILE_OUTPUT_RATE_PER_MILLION_USD`; there is no automatic model fallback.
+
 The homepage story feed treats stories published or materially updated within 14 days as current. Set `HOMEPAGE_STORY_FRESHNESS_DAYS` at build time to change that window; editors pin a current lead with the existing article `featured` field. `HOMEPAGE_FEED_NOW` is an optional ISO date override for deterministic previews of quiet-period fallback behavior.
 
 ## Advertising, analytics, and consent

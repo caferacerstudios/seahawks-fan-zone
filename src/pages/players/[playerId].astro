@@ -550,8 +550,8 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
     </div>
 
     <div class="panel" style="margin-top:.85rem;">
-      <div class="panel-title">Gameplay recap</div>
-      {profile?.recap?.paragraph ? (
+      <div class="panel-title">{playerStatisticsContext.label} season overview</div>
+      {statRow && profile?.recap?.paragraph ? (
         <>
           <p class="body">{profile.recap.paragraph}</p>
           {Array.isArray(profile?.recap?.bullets) && profile.recap.bullets.length > 0 && (
@@ -561,7 +561,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
           )}
         </>
       ) : (
-        <div class="empty">No authored gameplay summary is available for this player.</div>
+        <div class="empty">No verified season overview is available for this player.</div>
       )}
     </div>
 

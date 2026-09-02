@@ -2,12 +2,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readPlayerProfiles } from "../src/lib/player-profiles.mjs";
+import { isCurrentRosterPlayer } from "../src/lib/roster.mjs";
 
 const production = process.argv.includes("--production");
 const checkDist = process.argv.includes("--dist");
 const root = process.cwd();
 const roster = JSON.parse(fs.readFileSync(path.join(root, "src/data/team/roster.json"), "utf8"));
-const currentIds = (roster?.players || []).filter((player) => player?.status === "Active").map((player) => String(player.id));
+const currentIds = (roster?.players || []).filter(isCurrentRosterPlayer).map((player) => String(player.id));
 const { profiles, inputPath, usedFixture } = readPlayerProfiles({ allowFixture: !production });
 const profileIds = Object.keys(profiles).map(String);
 const currentBios = currentIds.filter((id) => String(profiles[id]?.bio || "").trim());

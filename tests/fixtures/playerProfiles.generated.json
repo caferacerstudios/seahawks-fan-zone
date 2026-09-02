@@ -13,7 +13,15 @@
       "playerId": "jaxon-smith-njigba",
       "name": "Jaxon Smith-Njigba",
       "bio": "SFZ PLAYER BIO ACCEPTANCE SENTINEL alias route.",
-      "recap": { "paragraph": "Fixture recap.", "bullets": [] }
+      "recap": { "paragraph": "Fixture recap.", "bullets": [] },
+      "generation": {
+        "model": "gpt-5.4-mini",
+        "promptVersion": "professional-player-profile-v2",
+        "inputHash": "fixture",
+        "providerPlayerId": null,
+        "generatedAt": "2026-08-29T12:00:00Z",
+        "usage": { "inputTokens": 1, "outputTokens": 1, "estimatedCostUsd": 0.00000525 }
+      }
     }
   }
 }
