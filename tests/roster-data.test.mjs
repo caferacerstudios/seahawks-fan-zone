@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { currentRosterPlayers, duplicateCurrentPlayerIds, filterRosterByStatus, rosterCount } from "../src/lib/roster.mjs";
+import { currentRosterPlayers, duplicateCurrentPlayerIds, filterRosterByStatus, practiceSquadPlayers, reserveRosterPlayers, rosterCount } from "../src/lib/roster.mjs";
 import { newestFirst } from "../src/lib/team-updates-core.mjs";
 
 const read = (path) => JSON.parse(fs.readFileSync(new URL(path, import.meta.url), "utf8"));
@@ -9,9 +9,11 @@ const roster = read("../src/data/team/roster.json");
 const transactions = read("../src/data/team/transactions.json");
 
 test("official roster snapshot count excludes reserve and historical records", () => {
-  assert.equal(rosterCount(roster), 91);
-  assert.equal(currentRosterPlayers(roster).length, 91);
-  assert.equal(filterRosterByStatus(roster, "Reserve/Injured").length, 4);
+  assert.equal(rosterCount(roster), 53);
+  assert.equal(currentRosterPlayers(roster).length, 53);
+  assert.equal(practiceSquadPlayers(roster).length, 17);
+  assert.equal(filterRosterByStatus(roster, "Reserve/Injured").length, 9);
+  assert.equal(reserveRosterPlayers(roster).length, 11);
 });
 
 test("current roster has no duplicate player identities", () => {
@@ -20,7 +22,7 @@ test("current roster has no duplicate player identities", () => {
 
 test("status filtering does not treat historical records as current", () => {
   const fixture = { players: [...roster.players, { id: "old", status: "Historical" }] };
-  assert.equal(rosterCount(fixture), 91);
+  assert.equal(rosterCount(fixture), 53);
   assert.equal(filterRosterByStatus(fixture, "Historical").length, 1);
 });
 
