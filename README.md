@@ -12,19 +12,69 @@ Astro site for independent Seattle football coverage. These controls do not impl
 
 Player profiles use the OpenAI Responses API with strict v3 structured output. The default model is `gpt-5.4-mini`, with low reasoning and low text verbosity. Editorial tiers are maintained in `src/data/team/player-profile-tiers.json`; unknown configured tiers safely use `contributor`, while players without overrides default to `contributor` when meaningful professional statistics exist and `developmental` otherwise. The generator has a local default budget of $20 per UTC month and $1 per run. Its atomic ledger and 30-minute stale lock live beside the selected profile artifact and account only for this generator. The `runtime/player-profiles/` default is for local development only and must not be committed; the generator warns because that location is disposable during deployment.
 
-The dev deployment operator must create a host-owned writable directory and bind-mount it into the build container. Configure the dev wrapper/Compose build service with this equivalent mapping and environment (the repository cannot configure the host wrapper itself):
+The dev deployment operator must create a host-owned writable directory and bind-mount it into the build container. Environment variables alone do not make a host path persistent or visible inside an isolated container. The `sfz-dev` wrapper is outside this repository, so an operator must apply the following host-side setup (the stock `node:22-bookworm` user is UID/GID 1000):
+
+```sh
+sudo mkdir -p /var/lib/sfz-player-profiles/dev
+sudo chown 1000:1000 /var/lib/sfz-player-profiles/dev
+sudo chmod 0750 /var/lib/sfz-player-profiles/dev
+```
+
+Add these exact entries to the dev wrapper's `build.env`:
+
+```text
+PLAYER_PROFILES_ARTIFACT=/var/lib/sfz-player-profiles/dev/playerProfiles.json
+PLAYER_CAREER_FACTS_ARTIFACT=/var/lib/sfz-player-profiles/dev/player-career-facts.json
+```
+
+Add this argument to the wrapper's `docker run` for the `node:22-bookworm` build container:
+
+```sh
+--mount type=bind,src=/var/lib/sfz-player-profiles/dev,dst=/var/lib/sfz-player-profiles/dev,rw
+```
+
+Before a credentialed build, verify the mount from the same image and as its normal container user:
+
+```sh
+docker run --rm --user 1000:1000 \
+  --mount type=bind,src=/var/lib/sfz-player-profiles/dev,dst=/var/lib/sfz-player-profiles/dev,rw \
+  node:22-bookworm sh -eu -c 'test -d /var/lib/sfz-player-profiles/dev; test -w /var/lib/sfz-player-profiles/dev; touch /var/lib/sfz-player-profiles/dev/.write-test; rm /var/lib/sfz-player-profiles/dev/.write-test'
+```
+
+If the wrapper uses Compose instead, this is the equivalent mapping and environment:
 
 ```yaml
 services:
   build:
     environment:
-      PLAYER_PROFILES_ARTIFACT: /srv/player-profiles/playerProfiles.json
-      PLAYER_CAREER_FACTS_ARTIFACT: /srv/player-profiles/player-career-facts.json
+      PLAYER_PROFILES_ARTIFACT: /var/lib/sfz-player-profiles/dev/playerProfiles.json
+      PLAYER_CAREER_FACTS_ARTIFACT: /var/lib/sfz-player-profiles/dev/player-career-facts.json
     volumes:
-      - /var/lib/sfz-player-profiles/dev:/srv/player-profiles
+      - /var/lib/sfz-player-profiles/dev:/var/lib/sfz-player-profiles/dev:rw
 ```
 
-The mounted directory consequently contains `playerProfiles.json`, `player-career-facts.json`, `usage-ledger.json`, and `generation.lock`. The container user must be able to write it. A normal dev invocation outside the container may instead point both variables directly beneath `/var/lib/sfz-player-profiles/dev`. Startup prints both resolved paths so deployment logs can confirm the mount before a credentialed build.
+The mounted directory consequently contains `playerProfiles.json`, `player-career-facts.json`, `usage-ledger.json`, and `generation.lock`. Startup prints both resolved paths so deployment logs can confirm the mount before a credentialed build.
+
+To migrate existing runtime files, first validate each JSON file and then copy it without overwriting any persistent artifact already created. Run these commands from the old checkout before it is cleaned:
+
+```sh
+node -e 'JSON.parse(require("node:fs").readFileSync("runtime/player-profiles/playerProfiles.json","utf8"))'
+sudo -u '#1000' cp -n runtime/player-profiles/playerProfiles.json /var/lib/sfz-player-profiles/dev/playerProfiles.json
+node -e 'JSON.parse(require("node:fs").readFileSync("runtime/player-profiles/player-career-facts.json","utf8"))'
+sudo -u '#1000' cp -n runtime/player-profiles/player-career-facts.json /var/lib/sfz-player-profiles/dev/player-career-facts.json
+```
+
+Skip a source file if it does not exist or fails JSON validation. Migrate `usage-ledger.json` the same way if it exists and validates; do not migrate a stale `generation.lock`.
+
+For targeted acceptance, load `build.env` in the environment that can access the mounted directory and run only these players, one at a time:
+
+```sh
+PLAYER_PROFILE_ID=sam-darnold PLAYER_PROFILE_REFRESH_MODE=all npm run generate-player-profiles
+PLAYER_PROFILE_ID=nick-emmanwori PLAYER_PROFILE_REFRESH_MODE=all npm run generate-player-profiles
+PLAYER_PROFILE_ID=brock-lampe PLAYER_PROFILE_REFRESH_MODE=all npm run generate-player-profiles
+```
+
+After acceptance, prove cache persistence with two ordinary deployments using `PLAYER_PROFILE_REFRESH_MODE=stale`. Record `sha256sum /var/lib/sfz-player-profiles/dev/playerProfiles.json` after the first deployment. The second deployment must log `Profiles generated: 0` and `Requests made: 0`, and the checksum must be unchanged. Do not use `PLAYER_PROFILE_REFRESH_MODE=all` for this cache proof.
 
 Profiles are refreshed only when their verified semantic input, model, or prompt version changes. Fetch/build timestamps are excluded. `FORCE=1` remains supported as an alias for `PLAYER_PROFILE_REFRESH_MODE=all`; all refresh modes still enforce budgets and locking.
 

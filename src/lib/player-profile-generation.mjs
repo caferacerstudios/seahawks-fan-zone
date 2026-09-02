@@ -140,9 +140,29 @@ const nullableString={anyOf:[{type:"string"},{type:"null"}]};
 const sourcedText={type:"object",additionalProperties:false,properties:{text:{type:"string"},factIds:{type:"array",items:{type:"string"}}},required:["text","factIds"]};
 export const PROFILE_SCHEMA = {type:"object",additionalProperties:false,properties:{profileTier:{type:"string",enum:PROFILE_TIERS},dek:nullableString,biography:{type:"object",additionalProperties:false,properties:{overview:nullableString,careerContext:nullableString,seahawksContext:nullableString},required:["overview","careerContext","seahawksContext"]},careerHighlights:{type:"array",maxItems:6,items:sourcedText},seasonOverview:{anyOf:[{type:"null"},{type:"object",additionalProperties:false,properties:{paragraph:{type:"string"},bullets:{type:"array",maxItems:3,items:sourcedText}},required:["paragraph","bullets"]}]},usedFactIds:{type:"array",items:{type:"string"}}},required:["profileTier","dek","biography","careerHighlights","seasonOverview","usedFactIds"]};
 const DEPTH={featured:{dek:"20-35 words",overview:"80-120 words",context:"80-130 career and 70-110 Seattle words",highlights:"4-6 distinct bullets",season:"75-110 words"},core:{dek:"15-30 words",overview:"70-110 words",context:"one 70-110 word career or Seattle paragraph",highlights:"3-4 distinct bullets",season:"60-90 words"},contributor:{dek:"null",overview:"60-100 words",context:"optional 40-70 words",highlights:"2-3 bullets",season:"short only if meaningful"},developmental:{dek:"null",overview:"60-100 words maximum",context:"only verified draft, signing, college, or acquisition context",highlights:"0-2 bullets",season:"null without meaningful professional statistics"}};
-export function suppliedFacts(player) { return [...(player.editorialFacts||[]),...(player.careerFacts?.sourceFacts||[]),...(player.seasonStatisticFacts||[]),...(player.careerStatisticFacts||[])]; }
+export function suppliedFacts(player) {
+  const seasonFacts=player.seasonStatisticFacts||[],seasonKeys=new Set(seasonFacts.map((fact)=>`${fact.season}:${fact.scope||"regular"}:${fact.field}`));
+  const careerFacts=(player.careerStatisticFacts||[]).filter((fact)=>fact.type!=="recentSeason"||!seasonKeys.has(`${fact.season}:${fact.scope||"regular"}:${fact.field}`));
+  return [...(player.editorialFacts||[]),...seasonFacts,...careerFacts];
+}
 export function knownFactIds(player) { return new Set(suppliedFacts(player).map((fact)=>fact?.id).filter(Boolean)); }
-export function buildProfilePrompt(player, repairFeedback = null) { const tier=PROFILE_TIERS.includes(player.profileTier)?player.profileTier:"contributor"; return [{role:"system",content:SYSTEM_PROMPT},{role:"user",content:JSON.stringify({profileTierLocked:tier,verifiedPlayerFacts:player,verifiedFacts:suppliedFacts(player),instructions:{tierDepth:DEPTH[tier],editorialSeparation:"Hero owns number, position, height, weight, college, experience, and roster status. Do not repeat those fields. Biography owns career progression; Seattle context owns acquisition and Seattle tenure; highlights own honors and milestones; season overview interprets selected statistics without transcribing cards. A numeric fact should normally appear once.",factTraceability:"Every highlight and season bullet must cite supplied fact IDs. Use only exact fact IDs supplied in verifiedFacts. Never construct, shorten, infer, or transform a fact ID. profileTier must exactly equal profileTierLocked. usedFactIds must contain only supplied fact IDs.",seasonOverview:Object.keys(player.statistics||{}).length||(player.careerFacts?.recentSeasons||[]).length?`Use the latest completed ${player.playerStatsSeason||"stored"} season statistics and supplied deterministic comparisons.`:"Return null because no meaningful verified statistics are available.",prohibitedPhrases:PHRASES,repairFeedback}})}]; }
+const factLabel = (fact) => {
+  const field = String(fact?.field || "fact").replace(/_/g, " ");
+  if (fact?.type === "seasonStat" || fact?.type === "recentSeason") return `${fact.season} ${fact.scope || "regular"} season ${field}`;
+  if (fact?.type === "careerTotal") return `career total ${field}`;
+  if (fact?.type === "careerHigh") return `career high ${field}${fact.season ? ` (${fact.season})` : ""}`;
+  const value = fact?.value || {};
+  return value.honor || value.achievement || value.championship || `${fact?.type || "verified"} fact`;
+};
+export function modelFacingFacts(player) {
+  return suppliedFacts(player).map((fact) => ({
+    id: fact.id,
+    type: fact.type,
+    label: factLabel(fact),
+    value: fact.value,
+  }));
+}
+export function buildProfilePrompt(player, repairFeedback = null) { const tier=PROFILE_TIERS.includes(player.profileTier)?player.profileTier:"contributor",verifiedFacts=modelFacingFacts(player); return [{role:"system",content:SYSTEM_PROMPT},{role:"user",content:JSON.stringify({profileTierLocked:tier,identity:{canonicalRosterId:player.canonicalRosterId,fullName:player.fullName,position:player.position,jerseyNumber:player.jerseyNumber,height:player.height,weight:player.weight,college:player.college,experience:player.experience,rosterStatus:player.rosterStatus},verifiedFacts,instructions:{tierDepth:DEPTH[tier],editorialSeparation:"Hero owns number, position, height, weight, college, experience, and roster status. Do not repeat those fields. Biography owns career progression; Seattle context owns acquisition and Seattle tenure; highlights own honors and milestones; season overview interprets selected statistics without transcribing cards. A numeric fact should normally appear once.",factTraceability:"Every highlight and season bullet must cite supplied fact IDs. factIds are opaque identifiers. Copy them character-for-character from verifiedFacts. Never create an ID from a type, player name, season, field, JSON path, or other value. profileTier must exactly equal profileTierLocked. usedFactIds must contain only supplied fact IDs.",seasonOverview:Object.keys(player.statistics||{}).length||(player.careerFacts?.recentSeasons||[]).length?`Use the latest completed ${player.playerStatsSeason||"stored"} season statistics and supplied deterministic comparisons.`:"Return null because no meaningful verified statistics are available.",prohibitedPhrases:PHRASES,repairFeedback}})}]; }
 export function requestBody(model, player, max = null, repair = null) { const limit=max??TIER_MAX_OUTPUT_TOKENS[player.profileTier]??TIER_MAX_OUTPUT_TOKENS.contributor; return {model,reasoning:{effort:"low"},input:buildProfilePrompt(player,repair),text:{verbosity:"low",format:{type:"json_schema",name:"player_profile",strict:true,schema:PROFILE_SCHEMA}},max_output_tokens:limit}; }
 const wordCount = (v) => String(v||"").trim().split(/\s+/).filter(Boolean).length;
 const normalizedWords = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -164,21 +184,39 @@ export function supportsClaim(player, claim, copy = "") {
       return facts.some((fact) => fact?.type === "captain");
     case "championship":
       return facts.some((fact) => {
-        if (fact?.type !== "championship") return false;
+        if (!["championship","collegeAchievement","teamAchievement"].includes(fact?.type)) return false;
         const named = normalizedWords(copy).match(/super bowl(?: [ivxlcdm]+| \d+)?\b/)?.[0];
-        return !named || factValue(fact, "championship").includes(named);
+        const achievement = [factValue(fact, "championship"),factValue(fact, "achievement"),factValue(fact, "accomplishments")].join(" ");
+        return named ? achievement.includes(named) : /champion|championship|victory/.test(achievement);
       });
     case "honor":
-      return facts.some((fact) => {
-        if (fact?.type !== "honor") return false;
-        const named = normalizedWords(copy).match(/pro bowl|all pro|most valuable player|mvp/)?.[0];
-        if (!named) return true;
-        const honor = factValue(fact, "honor");
-        return honor.includes(named) || (named === "mvp" && honor.includes("most valuable player"));
-      });
+      return supportsNamedAchievement(player, copy);
     default:
       return false;
   }
+}
+export function supportsNamedAchievement(player, copy = "") {
+  const facts=suppliedFacts(player),text=normalizedWords(copy),claimedSeason=text.match(/\b(?:19|20)\d{2}\b/)?.[0],claims=[];
+  if (/\bpro bowl\b/.test(text)) claims.push("pro bowl");
+  if (/\ball pro\b/.test(text)) claims.push("all pro");
+  if (/\b(?:most valuable player|mvp)\b/.test(text)) claims.push("mvp");
+  if (!claims.length) return facts.some((fact)=>{
+    if (!["honor","collegeAchievement","teamAchievement"].includes(fact?.type)) return false;
+    const named=[factValue(fact,"honor"),factValue(fact,"achievement"),factValue(fact,"accomplishments")].join(" ");
+    return named.split(" ").filter((word)=>word.length>3&&!["award","honor","achievement","selection"].includes(word)).some((word)=>text.includes(word));
+  });
+  return claims.every((claim)=>facts.some((fact)=>{
+    if (fact?.type === "honor") {
+      const honor=factValue(fact,"honor");
+      const namedHonor=honor.includes(claim) || (claim === "mvp" && honor.includes("most valuable player"));
+      return namedHonor && (!claimedSeason || fact?.value?.season == null || String(fact.value.season) === claimedSeason);
+    }
+    if (claim !== "mvp" || fact?.type !== "collegeAchievement") return false;
+    const achievement=factValue(fact,"achievement");
+    if (!/\b(?:mvp|most valuable player)\b/.test(achievement)) return false;
+    const eventWords=achievement.split(" ").filter((word)=>word.length>3&&!/[0-9]/.test(word)&&!["victory","offensive","most","valuable","player"].includes(word));
+    return eventWords.some((word)=>text.includes(word));
+  }));
 }
 export function validateGeneratedProfile(output, player) {
   const errors=[], sections=[output?.dek,output?.biography?.overview,output?.biography?.careerContext,output?.biography?.seahawksContext,output?.seasonOverview?.paragraph], bullets=[...(output?.careerHighlights||[]).map(x=>x?.text),...(output?.seasonOverview?.bullets||[]).map(x=>x?.text)], copy=[...sections,...bullets].filter(Boolean).join(" ");
@@ -201,9 +239,10 @@ export function validateGeneratedProfile(output, player) {
     [/\b(?:starter|starting (?:quarterback|[a-z]+))\b/i,"starter"],
     [/\bcaptain\b/i,"captain"],
     [/\b(?:super bowl|championship|champion)\b/i,"championship"],
-    [/\b(?:pro bowl|all pro|most valuable player|\bmvp\b|award|honor)\b/i,"honor"],
+    [/\b(?:pro bowl|all[- ]pro|most valuable player|\bmvp\b|award|honor)\b/i,"honor"],
   ];
-  for(const [pattern,claim] of checks) if(pattern.test(copy)&&!supportsClaim(player,claim,copy)) errors.push(`unsupported claim: ${claim}`);
+  const claimSentences=copy.split(/[.!?]+/).map((sentence)=>sentence.trim()).filter(Boolean);
+  for(const [pattern,claim] of checks) if(claimSentences.some((sentence)=>pattern.test(sentence)&&!supportsClaim(player,claim,sentence))) errors.push(`unsupported claim: ${claim}`);
   return {valid:errors.length===0,errors};
 }
 export function ratesFor(model, env) { const known=DEFAULT_RATES[model], input=env.PLAYER_PROFILE_INPUT_RATE_PER_MILLION_USD??known?.input, output=env.PLAYER_PROFILE_OUTPUT_RATE_PER_MILLION_USD??known?.output; if(input==null||output==null||!Number.isFinite(Number(input))||!Number.isFinite(Number(output))) throw new Error(`Unknown model pricing for ${model}; set PLAYER_PROFILE_INPUT_RATE_PER_MILLION_USD and PLAYER_PROFILE_OUTPUT_RATE_PER_MILLION_USD.`); return {input:Number(input),output:Number(output)}; }
@@ -217,7 +256,17 @@ const responseText=(j)=>j?.output_text||j?.output?.flatMap((x)=>x?.content||[]).
 async function callOpenAI(fetchImpl,key,body,sleep,warn) {
   for(let attempt=1;attempt<=3;attempt++){try{const res=await fetchImpl("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify(body)});if(res.ok){const envelope=await res.json(),d=envelope.usage?.input_tokens_details||{},o=envelope.usage?.output_tokens_details||{},usage={inputTokens:Number(envelope.usage?.input_tokens||0),cachedInputTokens:Number(d.cached_tokens||0),outputTokens:Number(envelope.usage?.output_tokens||0),reasoningTokens:Number(o.reasoning_tokens||0)};const incompleteReason=envelope.incomplete_details?.reason;if(envelope.status==="incomplete"||incompleteReason){const e=new Error(`incomplete response${incompleteReason?`: ${incompleteReason}`:""}`);e.retryableOutput=true;e.outputFailure=incompleteReason==="max_output_tokens"?"max_output_tokens":"incomplete";e.usage=usage;throw e;}if(envelope.status&&envelope.status!=="completed"){const e=new Error(`non-completed response: ${envelope.status}`);e.retryableOutput=true;e.outputFailure="incomplete";e.usage=usage;throw e;}const text=responseText(envelope);if(!text){const refused=envelope?.output?.flatMap((x)=>x?.content||[]).some((x)=>x?.type==="refusal");const e=new Error(refused?"model refusal":"missing structured output");e.retryableOutput=true;e.outputFailure="missing";e.usage=usage;throw e;}try{return{output:JSON.parse(text),usage};}catch{const e=new Error("invalid structured output");e.retryableOutput=true;e.outputFailure="malformed";e.usage=usage;throw e;}}let code="";try{code=(await res.json())?.error?.code||"";}catch{}const terminal=["credit_balance_exhausted","insufficient_quota"].includes(code),retryable=[429,500,502,503,504].includes(res.status)&&!terminal;if(!retryable||attempt===3){const e=new Error(`OpenAI request failed: HTTP ${res.status}${code?` (${code})`:""}`);e.stopRun=terminal||res.status===429;throw e;}const retry=Number(res.headers?.get?.("retry-after")),delay=Number.isFinite(retry)?retry*1000:500*2**(attempt-1);warn(`OpenAI HTTP ${res.status}; retrying after ${delay}ms.`);await sleep(delay);}catch(e){if(e.retryableOutput||e.stopRun||attempt===3||!/fetch|network|socket|ECONN|ETIMEDOUT/i.test(String(e.message)))throw e;await sleep(500*2**(attempt-1));}}
 }
-function repairInstructions(errors=[]) { return errors.map((error)=>error.startsWith("duplicate sentence: ")?`Remove or rewrite this duplicated sentence: ${error.slice("duplicate sentence: ".length)}`:error).join("; "); }
+function repairInstructions(errors=[], player) {
+  const invalidIds=errors.filter((error)=>error.startsWith("unknown fact ID: ")).map((error)=>error.slice("unknown fact ID: ".length));
+  const instructions=errors.filter((error)=>!error.startsWith("unknown fact ID: ")).map((error)=>{
+    if(error.startsWith("duplicate sentence: ")) return `Remove or rewrite this duplicated sentence: ${error.slice("duplicate sentence: ".length)}`;
+    if(error === "prohibited phrase: the supplied data") return "Rewrite the affected sentence naturally. Do not refer to data, supplied facts, sources, prompts, records, inputs, or the generation process.";
+    if(error === "unsupported claim: joined") return "Remove the claim that the player joined Seattle unless an acquisition or team-history fact explicitly supports it. Describe only current roster membership using the supplied facts.";
+    return error;
+  });
+  if(invalidIds.length) instructions.push(`Replace invalid IDs only with exact appropriate members of ALLOWED IDS.\nINVALID IDS:\n${invalidIds.join("\n")}\nALLOWED IDS:\n${[...knownFactIds(player)].join("\n")}`);
+  return instructions.join("; ");
+}
 function acquireLock(file,staleMs,now,warn){fs.mkdirSync(path.dirname(file),{recursive:true});try{const fd=fs.openSync(file,"wx");fs.writeFileSync(fd,JSON.stringify({pid:process.pid,createdAt:now.toISOString()}));fs.closeSync(fd);return true;}catch(e){if(e.code!=="EEXIST")throw e;const lock=readJson(file,{}),age=now-Date.parse(lock.createdAt||0);if(Number.isFinite(age)&&age>staleMs){warn(`Removing abandoned player-profile lock older than ${staleMs}ms.`);fs.unlinkSync(file);return acquireLock(file,staleMs,now,warn);}return false;}}
 
 export async function runPlayerProfileGeneration({rosterStore,nflData,playerDirectory=[],tierStore={},careerStore={},editorialStore={},existingArtifact={profiles:{}},artifactPath,ledgerPath,lockPath,env=process.env,fetchImpl=globalThis.fetch,now=new Date(),warn=console.warn,sleep=(ms)=>new Promise((r)=>setTimeout(r,ms))}) {
@@ -230,7 +279,7 @@ export async function runPlayerProfileGeneration({rosterStore,nflData,playerDire
   try{const players=enrichRoster(rosterStore,nflData,playerDirectory,warn,tierStore,careerStore,editorialStore).filter((p)=>!env.PLAYER_PROFILE_ID||p.canonicalRosterId===env.PLAYER_PROFILE_ID);summary.considered=players.length;const profiles={...(existingArtifact.profiles||{})},ledger=readJson(ledgerPath,{schemaVersion:1,months:{}}),month=now.toISOString().slice(0,7),m=ledger.months[month]||{requests:0,inputTokens:0,cachedInputTokens:0,outputTokens:0,reasoningTokens:0,estimatedCostUsd:0,models:{}};let stop=false;
     for(const player of players){const id=player.canonicalRosterId,old=profiles[id],max=configuredMax??TIER_MAX_OUTPUT_TOKENS[player.profileTier]??DEFAULT_MAX_OUTPUT_TOKENS,hash=semanticInputHash(player,model,promptVersion),validOld=Boolean(String(old?.bio||old?.biography?.overview||"").trim()),stale=!validOld||old?.generation?.model!==model||old?.generation?.promptVersion!==promptVersion||old?.generation?.inputHash!==hash;if(refresh!=="all"&&!stale){summary.current++;continue;}if(stop){summary.preserved+=validOld?1:0;continue;}const worst=(4000*rates.input+max*rates.output)/1e6;if(summary.requests>=maxGen||summary.estimatedRunCostUsd+worst>runBudget||m.estimatedCostUsd+worst>monthlyBudget){warn("Player-profile request or spending limit reached; retaining remaining profiles.");stop=true;summary.preserved+=validOld?1:0;continue;}if(!env.OPENAI_API_KEY){warn(`No OPENAI_API_KEY; preserving ${id}.`);summary.preserved+=validOld?1:0;continue;}let accepted=null,validation=null,lastUsage=null;
       let retryLimit=max;
-      for(let repair=0;repair<2;repair++){const requestWorst=(4000*rates.input+retryLimit*rates.output)/1e6;if(summary.requests>=maxGen||summary.estimatedRunCostUsd+requestWorst>runBudget||m.estimatedCostUsd+requestWorst>monthlyBudget){warn("Player-profile spending limit prevented a repair request.");stop=true;break;}try{const repairMessage=repair?(validation?.outputFailure==="malformed"?"Return compact valid JSON matching the supplied schema. Shorten every field and do not add commentary.":validation?.outputFailure==="max_output_tokens"?"Return a more compact profile. Shorten every field while preserving the exact schema.":repairInstructions(validation?.errors)):null;const result=await callOpenAI(fetchImpl,env.OPENAI_API_KEY,requestBody(model,player,retryLimit,repairMessage),sleep,warn);summary.requests++;lastUsage=result.usage;const cost=estimateCost(result.usage,rates);summary.inputTokens+=result.usage.inputTokens;summary.cachedInputTokens+=result.usage.cachedInputTokens;summary.outputTokens+=result.usage.outputTokens;summary.estimatedRunCostUsd+=cost;m.requests++;m.inputTokens+=result.usage.inputTokens;m.cachedInputTokens+=result.usage.cachedInputTokens;m.outputTokens+=result.usage.outputTokens;m.reasoningTokens+=result.usage.reasoningTokens;m.estimatedCostUsd+=cost;m.models[model]=(m.models[model]||0)+1;m.lastUpdatedAt=now.toISOString();ledger.months[month]=m;atomicWrite(ledgerPath,ledger);validation=validateGeneratedProfile(result.output,player);if(validation.valid){accepted=result.output;break;}warn(`${player.fullName} (${id}) output rejected: ${validation.errors.join("; ")}`);}catch(e){summary.requests++;const usage=e.usage||{inputTokens:0,cachedInputTokens:0,outputTokens:0,reasoningTokens:0},cost=estimateCost(usage,rates);summary.inputTokens+=usage.inputTokens;summary.cachedInputTokens+=usage.cachedInputTokens;summary.outputTokens+=usage.outputTokens;summary.estimatedRunCostUsd+=cost;m.requests++;m.inputTokens+=usage.inputTokens;m.cachedInputTokens+=usage.cachedInputTokens;m.outputTokens+=usage.outputTokens;m.reasoningTokens+=usage.reasoningTokens;m.estimatedCostUsd+=cost;m.models[model]=(m.models[model]||0)+1;m.lastUpdatedAt=now.toISOString();ledger.months[month]=m;atomicWrite(ledgerPath,ledger);warn(`${player.fullName} (${id}) profile request failed: ${e.message}`);if(e.stopRun){stop=true;break;}validation={errors:[e.message],outputFailure:e.outputFailure};if(e.outputFailure==="max_output_tokens"&&!configuredMax)retryLimit=Math.ceil(max*1.2);if(!e.retryableOutput)break;}}
+      for(let repair=0;repair<2;repair++){const requestWorst=(4000*rates.input+retryLimit*rates.output)/1e6;if(summary.requests>=maxGen||summary.estimatedRunCostUsd+requestWorst>runBudget||m.estimatedCostUsd+requestWorst>monthlyBudget){warn("Player-profile spending limit prevented a repair request.");stop=true;break;}try{const repairMessage=repair?(validation?.outputFailure==="malformed"?"Return compact valid JSON matching the supplied schema. Shorten every field and do not add commentary.":validation?.outputFailure==="max_output_tokens"?"Return a more compact profile. Shorten every field while preserving the exact schema.":repairInstructions(validation?.errors,player)):null;const result=await callOpenAI(fetchImpl,env.OPENAI_API_KEY,requestBody(model,player,retryLimit,repairMessage),sleep,warn);summary.requests++;lastUsage=result.usage;const cost=estimateCost(result.usage,rates);summary.inputTokens+=result.usage.inputTokens;summary.cachedInputTokens+=result.usage.cachedInputTokens;summary.outputTokens+=result.usage.outputTokens;summary.estimatedRunCostUsd+=cost;m.requests++;m.inputTokens+=result.usage.inputTokens;m.cachedInputTokens+=result.usage.cachedInputTokens;m.outputTokens+=result.usage.outputTokens;m.reasoningTokens+=result.usage.reasoningTokens;m.estimatedCostUsd+=cost;m.models[model]=(m.models[model]||0)+1;m.lastUpdatedAt=now.toISOString();ledger.months[month]=m;atomicWrite(ledgerPath,ledger);validation=validateGeneratedProfile(result.output,player);if(validation.valid){accepted=result.output;break;}warn(`${player.fullName} (${id}) output rejected: ${validation.errors.join("; ")}`);}catch(e){summary.requests++;const usage=e.usage||{inputTokens:0,cachedInputTokens:0,outputTokens:0,reasoningTokens:0},cost=estimateCost(usage,rates);summary.inputTokens+=usage.inputTokens;summary.cachedInputTokens+=usage.cachedInputTokens;summary.outputTokens+=usage.outputTokens;summary.estimatedRunCostUsd+=cost;m.requests++;m.inputTokens+=usage.inputTokens;m.cachedInputTokens+=usage.cachedInputTokens;m.outputTokens+=usage.outputTokens;m.reasoningTokens+=usage.reasoningTokens;m.estimatedCostUsd+=cost;m.models[model]=(m.models[model]||0)+1;m.lastUpdatedAt=now.toISOString();ledger.months[month]=m;atomicWrite(ledgerPath,ledger);warn(`${player.fullName} (${id}) profile request failed: ${e.message}`);if(e.stopRun){stop=true;break;}validation={errors:[e.message],outputFailure:e.outputFailure};if(e.outputFailure==="max_output_tokens"&&!configuredMax)retryLimit=Math.ceil(max*1.2);if(!e.retryableOutput)break;}}
       if(!accepted){summary.preserved+=validOld?1:0;continue;}profiles[id]={playerId:id,name:player.fullName,position:player.position,...accepted,generation:{model,promptVersion,inputHash:hash,providerPlayerId:player.providerPlayerId,generatedAt:now.toISOString(),usage:{inputTokens:lastUsage.inputTokens,outputTokens:lastUsage.outputTokens,estimatedCostUsd:estimateCost(lastUsage,rates)}}};summary.generated++;atomicWrite(artifactPath,{...existingArtifact,season:nflData.season??existingArtifact.season,updatedAt:now.toISOString(),profiles});}
     summary.monthlyCostUsd=m.estimatedCostUsd;summary.remainingMonthlyBudgetUsd=Math.max(0,monthlyBudget-m.estimatedCostUsd);return summary;
   }finally{for(const [signal,handler] of signalHandlers)process.removeListener(signal,handler);releaseLock();}
