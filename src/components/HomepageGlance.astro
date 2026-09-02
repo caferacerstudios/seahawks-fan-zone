@@ -35,7 +35,7 @@ const date = (value) => value ? new Intl.DateTimeFormat("en-US", { timeZone: "Am
       <span class="label">Team leaders</span>
       <strong class="card-heading">{model.leaders.label}</strong>
       <ul>{model.leaders.items.map((leader) => <li><span>{leader.label}</span><b>{leader.name}</b><strong>{leader.value.toLocaleString()} <small>{leader.unit}</small></strong></li>)}</ul>
-      <span class="card-link">All player stats →</span>
+      <span class="card-link">Roster and historical stats →</span>
     </a>}
 
     {model.rosterPulse && <article class="glance-card roster">

@@ -497,15 +497,15 @@ const canonicalPath = `/players/${encodeURIComponent(String(playerId))}`;
 const pageDescription = `${displayName} ${String(position).toUpperCase()} profile, current roster information, and ${playerStatisticsContext.label} statistics for Seattle.`;
 ---
 
-<SeahawksLayout title={pageTitle} description={pageDescription} canonical={canonicalPath} activePath="/players" pageType="player" season={seasonContext.seasonYear} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Players", href: "/players" }, { name: displayName, href: canonicalPath }]}>
+<SeahawksLayout title={pageTitle} description={pageDescription} canonical={canonicalPath} activePath="/players" pageType="player" season={seasonContext.seasonYear} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }, { name: displayName, href: canonicalPath }]}>
   <div class="profile-contexts">
     <div><span>Current roster</span><strong>{currentRosterData?.season}</strong><small>{currentRosterRecord?.status || "Not listed on current roster"}</small></div>
     <div><span>Performance shown</span><strong>{playerStatisticsContext.label}</strong><small>Historical season totals</small></div>
   </div>
   <SeasonContextView context={{ ...playerStatisticsContext, updatedAt: updatedAtForPage }} options={[playerStatisticsContext]} prefix="Data through" />
-  <TopicChips topics={["Players", "Roster", "Position Groups", ...(injuryMatches.length ? ["Injuries"] : [])]} />
+  <TopicChips topics={["Roster", "Position Groups", ...(injuryMatches.length ? ["Injuries"] : [])]} />
   <div class="meta-line">
-    <span><strong>Back:</strong> <a href="/players">Players</a></span>
+    <span><strong>Back:</strong> <a href="/players">Roster</a></span>
     <span class="dot">•</span>
     <span><strong>Also:</strong> <a href="/schedule">Schedule</a></span>
   </div>
@@ -616,7 +616,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
     {nextPlayer ? <a rel="next" href={`/players/${encodeURIComponent(String(pid(nextPlayer)))}`}><small>Next {position}</small><strong>{playerNameFromAny(nextPlayer)} →</strong></a> : <span></span>}
   </nav>}
   <ContinueFanZone groups={[
-    { title: displayName, links: [{ href: "/players", label: "Full roster and player stats" }, ...(injuryMatches.length ? [{ href: "/topics/injuries", label: "Injury context" }] : [])] },
+    { title: displayName, links: [{ href: "/players", label: "Roster and historical player stats" }, ...(injuryMatches.length ? [{ href: "/topics/injuries", label: "Injury context" }] : [])] },
     { title: `${String(position).toUpperCase()} position group`, links: [{ href: "/topics/position-groups", label: "Explore position groups" }, { href: "/team", label: "Team statistical context" }] },
     { title: "Game week", links: [{ href: "/schedule", label: "Schedule and game centers" }, { href: "/weekly-recap", label: "Editorial recap archive" }] },
   ]} />

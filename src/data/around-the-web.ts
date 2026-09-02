@@ -76,7 +76,7 @@ export const currentEdition: CuratedEdition = {
       whyItMatters:
         "Championships prompt legacy debates, and Seattle’s standard-setters provide the right baseline. The Hall’s team profile is a clean starting point for comparing this era’s leading players with the franchise figures already enshrined in Canton.",
       editor: "SFZ Editorial Desk",
-      relatedStories: [{ title: "Browse the current Seahawks player hub", url: "/players" }],
+      relatedStories: [{ title: "Browse the current Seahawks roster", url: "/players" }],
     },
     {
       title: "The history of the 12s",
