@@ -28,7 +28,8 @@ test("offline rendering embeds generated profiles in final static HTML", { timeo
   assert.match(aliasHtml, /season overview/i);
   assert.doesNotMatch(aliasHtml, /Gameplay recap/);
   assert.ok(missingHtml.includes(fallback));
-  for (const heading of ["Player Overview","Career Context","Seattle Career","Career Highlights","Career at a Glance","Profile Sources","2025 Regular Season Overview"]) assert.ok(darnoldHtml.includes(heading),`missing ${heading}`);
+  for (const heading of ["Biography","Career Highlights","Career at a Glance","Profile Sources","2025 Regular Season Overview"]) assert.ok(darnoldHtml.includes(heading),`missing ${heading}`);
+  assert.ok(darnoldHtml.indexOf("Biography") < darnoldHtml.indexOf("Career Highlights"));
   assert.doesNotMatch(darnoldHtml,/Defense<\/h3>/);
   assert.doesNotMatch(darnoldHtml,/season season/i);
   assert.doesNotMatch(darnoldHtml,/darnold-draft-2018/);

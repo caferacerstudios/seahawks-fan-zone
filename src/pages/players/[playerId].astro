@@ -199,25 +199,31 @@ function getProfileFor(id) {
 }
 
 function normalizeProfile(p) {
-  if (!p || typeof p !== "object") return { biography:{overview:null,careerContext:null,seahawksContext:null}, seasonOverview:null, careerHighlights:[], dek:null, name:null };
+  if (!p || typeof p !== "object") return { bio:null, seasonOverview:null, careerHighlights:[], name:null };
 
+  // Current reader-first schema.
+  if (typeof p.bio === "string" && Array.isArray(p.careerHighlights)) return {
+    name:p?.name ?? p?.full_name ?? null,
+    bio:p.bio,
+    careerHighlights:p.careerHighlights.map((x)=>typeof x === "string"?x:x?.text).filter(Boolean),
+    seasonOverview:typeof p.seasonOverview === "string" ? p.seasonOverview : null,
+  };
+
+  // Previous v3 schema retained for existing last-known-good artifacts.
   if (p?.biography && typeof p.biography === "object") return {
     name:p?.name ?? p?.full_name ?? null,
-    dek:typeof p.dek === "string" ? p.dek : null,
-    biography:{overview:typeof p.biography.overview === "string"?p.biography.overview:null,careerContext:typeof p.biography.careerContext === "string"?p.biography.careerContext:null,seahawksContext:typeof p.biography.seahawksContext === "string"?p.biography.seahawksContext:null},
+    bio:[p.biography.overview,p.biography.careerContext,p.biography.seahawksContext].filter((x)=>typeof x === "string"&&x.trim()).join("\n\n"),
     careerHighlights:Array.isArray(p.careerHighlights)?p.careerHighlights.map((x)=>typeof x === "string"?x:x?.text).filter(Boolean):[],
-    seasonOverview:p.seasonOverview&&typeof p.seasonOverview === "object"?{paragraph:p.seasonOverview.paragraph,bullets:(p.seasonOverview.bullets||[]).map((x)=>typeof x === "string"?x:x?.text).filter(Boolean)}:null,
+    seasonOverview:p.seasonOverview&&typeof p.seasonOverview === "object"?p.seasonOverview.paragraph:null,
   };
 
   // already normalized
   if (typeof p?.bio === "string" && p?.recap && typeof p.recap === "object") {
     return {
       name: p?.name ?? p?.full_name ?? null,
-      biography:{overview:p.bio,careerContext:null,seahawksContext:null},
-      seasonOverview: {
-        paragraph: typeof p.recap?.paragraph === "string" ? p.recap.paragraph : null,
-        bullets: Array.isArray(p.recap?.bullets) ? p.recap.bullets : [],
-      },
+      bio:p.bio,
+      careerHighlights:[],
+      seasonOverview:typeof p.recap?.paragraph === "string" ? p.recap.paragraph : null,
     };
   }
 
@@ -228,19 +234,11 @@ function normalizeProfile(p) {
     p?.gameplay_paragraph ??
     null;
 
-  const bullets =
-    Array.isArray(p?.recap_bullets) ? p.recap_bullets :
-    Array.isArray(p?.bullets) ? p.bullets :
-    Array.isArray(p?.gameplay_bullets) ? p.gameplay_bullets :
-    [];
-
   return {
     name: p?.name ?? p?.full_name ?? null,
-    biography:{overview:typeof p?.bio === "string" ? p.bio : null,careerContext:null,seahawksContext:null},
-    careerHighlights:[],dek:null,
-    seasonOverview: paragraph
-      ? { paragraph: String(paragraph), bullets: bullets.map(String) }
-      : null,
+    bio:typeof p?.bio === "string" ? p.bio : null,
+    careerHighlights:[],
+    seasonOverview:paragraph ? String(paragraph) : null,
   };
 }
 
@@ -542,19 +540,15 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
       </div>
     </div>
 
-    {profile?.dek && <p class="dek">{profile.dek}</p>}
-
     <div class="grid">
-      <div class="panel overview-panel">
-        <div class="panel-title">Player Overview</div>
-        {profile?.biography?.overview ? (
-          <p class="body">{profile.biography.overview}</p>
+      <div class="panel overview-panel biography-panel">
+        <div class="panel-title">Biography</div>
+        {profile?.bio ? (
+          <div class="biography">{profile.bio.split(/\n\s*\n/).filter(Boolean).map((paragraph)=><p class="body">{paragraph}</p>)}</div>
         ) : (
           <div class="empty">No verified biography is available in the current player data.</div>
         )}
       </div>
-      {profile?.biography?.careerContext && <div class="panel"><div class="panel-title">Career Context</div><p class="body">{profile.biography.careerContext}</p></div>}
-      {profile?.biography?.seahawksContext && <div class="panel"><div class="panel-title">Seattle Career</div><p class="body">{profile.biography.seahawksContext}</p></div>}
       {profile?.careerHighlights?.length > 0 && <div class="panel"><div class="panel-title">Career Highlights</div><ul class="bullets">{profile.careerHighlights.map((text)=><li>{text}</li>)}</ul></div>}
       {careerFacts?.careerTimeline?.length > 0 && <div class="panel"><div class="panel-title">Career at a Glance</div><ol class="timeline">{careerFacts.careerTimeline.map((item)=><li><strong>{item.from}{item.to&&item.to!==item.from?`–${item.to}`:item.to===null?"–present":""}</strong><span>{item.team}</span></li>)}</ol></div>}
       <div class="panel">
@@ -576,15 +570,8 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
 
     <div class="panel" style="margin-top:.85rem;">
       <div class="panel-title">{playerStatisticsContext.label} Overview</div>
-      {(statRow || careerFacts?.recentSeasons?.length) && profile?.seasonOverview?.paragraph ? (
-        <>
-          <p class="body">{profile.seasonOverview.paragraph}</p>
-          {Array.isArray(profile?.seasonOverview?.bullets) && profile.seasonOverview.bullets.length > 0 && (
-            <ul class="bullets">
-              {profile.seasonOverview.bullets.map((b) => <li>{b}</li>)}
-            </ul>
-          )}
-        </>
+      {(statRow || careerFacts?.recentSeasons?.length) && profile?.seasonOverview ? (
+        <p class="body">{profile.seasonOverview}</p>
       ) : (
         <div class="empty">No verified season overview is available for this player.</div>
       )}

@@ -14,7 +14,10 @@ const profileIds = Object.keys(profiles).map(String);
 const currentBios = currentIds.filter((id) => String(profiles[id]?.biography?.overview || profiles[id]?.bio || "").trim());
 
 if (production && usedFixture) throw new Error("Production player-profile validation refused the repository fixture.");
-if (production && currentIds.length > 0 && currentBios.length === 0) throw new Error(`Production player profile artifact contains zero biographies for the current roster: ${inputPath}`);
+if (production && currentBios.length !== currentIds.length) {
+  const missing = currentIds.filter((id) => !String(profiles[id]?.biography?.overview || profiles[id]?.bio || "").trim());
+  throw new Error(`Production player profile artifact is missing biographies for ${missing.length} current players: ${missing.join(", ")}`);
+}
 
 let playerPages = 0;
 let biosRendered = 0;
