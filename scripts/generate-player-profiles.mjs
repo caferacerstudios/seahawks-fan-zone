@@ -7,6 +7,10 @@ import { runPlayerProfileGeneration } from "../src/lib/player-profile-generation
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relative) => JSON.parse(fs.readFileSync(path.join(root, relative), "utf8"));
+const readCareer = () => {
+  const runtime = path.join(root, process.env.PLAYER_CAREER_FACTS_ARTIFACT || "runtime/player-profiles/player-career-facts.json");
+  return fs.existsSync(runtime) ? JSON.parse(fs.readFileSync(runtime, "utf8")) : read("src/data/team/player-career-facts.json");
+};
 
 async function main() {
   const nflData = read("src/data/nfl/seahawks.json");
@@ -16,6 +20,9 @@ async function main() {
     rosterStore: read("src/data/team/roster.json"),
     nflData,
     playerDirectory: playersData.playerDirectory || nflData.playerDirectory || [],
+    tierStore: read("src/data/team/player-profile-tiers.json"),
+    careerStore: readCareer(),
+    editorialStore: read("src/data/team/player-profile-editorial-facts.json"),
     existingArtifact: readPlayerProfiles({ allowFixture: true }).data,
     artifactPath,
     ledgerPath: path.join(path.dirname(artifactPath), "usage-ledger.json"),

@@ -10,6 +10,8 @@ import { getSeasonContext, unavailableMessage } from "../../lib/season-context";
 import rosterData from "../../data/nfl/players.json";
 import currentRosterData from "../../data/team/roster.json";
 import seasonData from "../../data/nfl/seahawks.json";
+import careerFactsData from "../../data/team/player-career-facts.json";
+import editorialFactsData from "../../data/team/player-profile-editorial-facts.json";
 import { readPlayerProfiles } from "../../lib/player-profiles.mjs";
 import { formatUpdateDate, injuryStatuses, transactions } from "../../lib/team-updates";
 
@@ -197,14 +199,22 @@ function getProfileFor(id) {
 }
 
 function normalizeProfile(p) {
-  if (!p || typeof p !== "object") return { bio: null, recap: null, name: null };
+  if (!p || typeof p !== "object") return { biography:{overview:null,careerContext:null,seahawksContext:null}, seasonOverview:null, careerHighlights:[], dek:null, name:null };
+
+  if (p?.biography && typeof p.biography === "object") return {
+    name:p?.name ?? p?.full_name ?? null,
+    dek:typeof p.dek === "string" ? p.dek : null,
+    biography:{overview:typeof p.biography.overview === "string"?p.biography.overview:null,careerContext:typeof p.biography.careerContext === "string"?p.biography.careerContext:null,seahawksContext:typeof p.biography.seahawksContext === "string"?p.biography.seahawksContext:null},
+    careerHighlights:Array.isArray(p.careerHighlights)?p.careerHighlights.map((x)=>typeof x === "string"?x:x?.text).filter(Boolean):[],
+    seasonOverview:p.seasonOverview&&typeof p.seasonOverview === "object"?{paragraph:p.seasonOverview.paragraph,bullets:(p.seasonOverview.bullets||[]).map((x)=>typeof x === "string"?x:x?.text).filter(Boolean)}:null,
+  };
 
   // already normalized
   if (typeof p?.bio === "string" && p?.recap && typeof p.recap === "object") {
     return {
       name: p?.name ?? p?.full_name ?? null,
-      bio: p.bio,
-      recap: {
+      biography:{overview:p.bio,careerContext:null,seahawksContext:null},
+      seasonOverview: {
         paragraph: typeof p.recap?.paragraph === "string" ? p.recap.paragraph : null,
         bullets: Array.isArray(p.recap?.bullets) ? p.recap.bullets : [],
       },
@@ -226,8 +236,9 @@ function normalizeProfile(p) {
 
   return {
     name: p?.name ?? p?.full_name ?? null,
-    bio: typeof p?.bio === "string" ? p.bio : null,
-    recap: paragraph
+    biography:{overview:typeof p?.bio === "string" ? p.bio : null,careerContext:null,seahawksContext:null},
+    careerHighlights:[],dek:null,
+    seasonOverview: paragraph
       ? { paragraph: String(paragraph), bullets: bullets.map(String) }
       : null,
   };
@@ -373,7 +384,12 @@ function findHeadshotForName(displayName) {
    Page data
    ======================= */
 const rosterPlayer = findRosterPlayer(dataPlayerId);
-const statRow = bestStatRowForPlayer(dataPlayerId);
+const careerFacts=careerFactsData?.players?.[String(playerId)]||null;
+const recentCareerSeason=careerFacts?.recentSeasons?.[0]||null;
+const liveStatRow = bestStatRowForPlayer(dataPlayerId);
+const statRow = liveStatRow || (recentCareerSeason ? {
+  games_played:recentCareerSeason.games,games_started:recentCareerSeason.starts,completions:recentCareerSeason.completions,passing_attempts:recentCareerSeason.attempts,completion_percentage:recentCareerSeason.completionPercentage,passing_yards:recentCareerSeason.passingYards,yards_per_attempt:recentCareerSeason.yardsPerAttempt,passing_touchdowns:recentCareerSeason.passingTouchdowns,interceptions:recentCareerSeason.interceptions,passer_rating:recentCareerSeason.passerRating,sacks:recentCareerSeason.sacks,rushing_attempts:recentCareerSeason.rushingAttempts,rushing_yards:recentCareerSeason.rushingYards,rushing_touchdowns:recentCareerSeason.rushingTouchdowns
+} : null);
 
 const rawProfile = getProfileFor(dataPlayerId);
 const profile = normalizeProfile(rawProfile);
@@ -434,18 +450,21 @@ const experience =
   statRow?.player?.experience ??
   "—";
 
-const statDefinitions = [
-  ["Passing", [["Games played",["games_played"]],["Passing yards",["passing_yards"]],["Passing TD",["passing_touchdowns"]],["Completions",["completions"]],["Attempts",["passing_attempts","attempts"]]]],
+const allStatDefinitions = [
+  ["Passing", [["Games",["games_played"]],["Starts",["games_started","starts"]],["Completions",["completions"]],["Attempts",["passing_attempts","attempts"]],["Completion %",["completion_percentage"]],["Passing yards",["passing_yards"]],["Yards / attempt",["yards_per_attempt"]],["Passing TD",["passing_touchdowns"]],["Interceptions",["interceptions"]],["Passer rating",["passer_rating"]],["Sacks",["sacks"]]]],
   ["Rushing", [["Carries",["rushing_attempts","carries"]],["Rushing yards",["rushing_yards"]],["Rushing TD",["rushing_touchdowns"]]]],
   ["Receiving", [["Receptions",["receptions"]],["Receiving yards",["receiving_yards"]],["Receiving TD",["receiving_touchdowns"]]]],
   ["Defense", [["Total tackles",["total_tackles","tackles"]],["Sacks",["sacks"]],["Defensive INT",["defensive_interceptions","interceptions"]],["Passes defended",["passes_defended","passes_defensed"]],["Forced fumbles",["forced_fumbles"]]]],
   ["Kicking", [["Field goals made",["field_goals_made"]],["Field goals attempted",["field_goals_attempted"]],["Extra points made",["extra_points_made"]],["Punts",["punts"]],["Punt average",["punt_average","punting_average"]]]],
 ];
+const positionGroups = {QB:["Passing","Rushing"],RB:["Rushing","Receiving"],FB:["Rushing","Receiving"],WR:["Receiving","Rushing"],TE:["Receiving"],K:["Kicking"],P:["Kicking"],OL:[],C:[],G:[],T:[],OT:[]};
+const allowedStatGroups=positionGroups[String(position).toUpperCase()]||["Defense"];
+const statDefinitions=allStatDefinitions.filter(([label])=>allowedStatGroups.includes(label));
 function firstNumber(row, keys) {
   for (const key of keys) if (typeof row?.[key] === "number" && Number.isFinite(row[key])) return row[key];
   return null;
 }
-const statGroups = statDefinitions.map(([label, definitions]) => ({ label, items:definitions.map(([itemLabel,keys]) => ({ label:itemLabel, value:firstNumber(statRow,keys) })).filter((item) => item.value !== null) })).filter((group) => group.items.length);
+const statGroups = statDefinitions.map(([label, definitions]) => ({ label, items:definitions.map(([itemLabel,keys]) => ({ label:itemLabel, value:firstNumber(statRow,keys) })).filter((item) => item.value !== null && item.value !== 0) })).filter((group) => group.items.length);
 
 const rosterForNavigation = getRoster(rosterData)
   .filter((item) => String(item?.position_abbreviation ?? item?.player?.position_abbreviation ?? "").toUpperCase() === String(position).toUpperCase())
@@ -457,7 +476,7 @@ const nextPlayer = navigationIndex >= 0 && navigationIndex < rosterForNavigation
 const updatedAtForPage =
   playerProfilesData?.updatedAt ?? seasonData?.updatedAt ?? null;
 const seasonContext = getSeasonContext(seasonData, "regular season");
-const statisticsSeason = Number(seasonData?.playerStatsSeason ?? seasonContext.sourceSeason ?? seasonContext.seasonYear);
+const statisticsSeason = Number(liveStatRow ? (seasonData?.playerStatsSeason ?? seasonContext.sourceSeason ?? seasonContext.seasonYear) : (recentCareerSeason?.season ?? seasonData?.playerStatsSeason ?? seasonContext.sourceSeason ?? seasonContext.seasonYear));
 const playerStatisticsContext = {
   ...seasonContext,
   seasonYear: statisticsSeason,
@@ -468,6 +487,7 @@ const playerStatisticsContext = {
   hasStatistics: Boolean(statRow),
 };
 const currentRosterRecord = (currentRosterData?.players || []).find((p) => String(p?.id) === String(playerId));
+const profileSources=[...(careerFacts?.sourceFacts||[]),...(editorialFactsData?.facts||[]).filter((fact)=>fact.canonicalPlayerId===String(playerId)).map((fact)=>({title:fact.source?.title,publisher:fact.source?.publisher,url:fact.source?.url}))].filter((source,index,all)=>source?.url&&all.findIndex((x)=>x.url===source.url)===index);
 
 const pageTitle = `${displayName} — Player Profile`;
 
@@ -522,16 +542,21 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
       </div>
     </div>
 
+    {profile?.dek && <p class="dek">{profile.dek}</p>}
+
     <div class="grid">
-      <div class="panel">
-        <div class="panel-title">Bio</div>
-        {profile?.bio ? (
-          <p class="body">{profile.bio}</p>
+      <div class="panel overview-panel">
+        <div class="panel-title">Player Overview</div>
+        {profile?.biography?.overview ? (
+          <p class="body">{profile.biography.overview}</p>
         ) : (
           <div class="empty">No verified biography is available in the current player data.</div>
         )}
       </div>
-
+      {profile?.biography?.careerContext && <div class="panel"><div class="panel-title">Career Context</div><p class="body">{profile.biography.careerContext}</p></div>}
+      {profile?.biography?.seahawksContext && <div class="panel"><div class="panel-title">Seattle Career</div><p class="body">{profile.biography.seahawksContext}</p></div>}
+      {profile?.careerHighlights?.length > 0 && <div class="panel"><div class="panel-title">Career Highlights</div><ul class="bullets">{profile.careerHighlights.map((text)=><li>{text}</li>)}</ul></div>}
+      {careerFacts?.careerTimeline?.length > 0 && <div class="panel"><div class="panel-title">Career at a Glance</div><ol class="timeline">{careerFacts.careerTimeline.map((item)=><li><strong>{item.from}{item.to&&item.to!==item.from?`–${item.to}`:item.to===null?"–present":""}</strong><span>{item.team}</span></li>)}</ol></div>}
       <div class="panel">
         <div class="panel-title">{playerStatisticsContext.label} snapshot</div>
 
@@ -550,13 +575,13 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
     </div>
 
     <div class="panel" style="margin-top:.85rem;">
-      <div class="panel-title">{playerStatisticsContext.label} season overview</div>
-      {statRow && profile?.recap?.paragraph ? (
+      <div class="panel-title">{playerStatisticsContext.label} Overview</div>
+      {(statRow || careerFacts?.recentSeasons?.length) && profile?.seasonOverview?.paragraph ? (
         <>
-          <p class="body">{profile.recap.paragraph}</p>
-          {Array.isArray(profile?.recap?.bullets) && profile.recap.bullets.length > 0 && (
+          <p class="body">{profile.seasonOverview.paragraph}</p>
+          {Array.isArray(profile?.seasonOverview?.bullets) && profile.seasonOverview.bullets.length > 0 && (
             <ul class="bullets">
-              {profile.recap.bullets.map((b) => <li>{b}</li>)}
+              {profile.seasonOverview.bullets.map((b) => <li>{b}</li>)}
             </ul>
           )}
         </>
@@ -564,6 +589,8 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
         <div class="empty">No verified season overview is available for this player.</div>
       )}
     </div>
+
+    {profileSources.length > 0 && <div class="panel" style="margin-top:.85rem;"><div class="panel-title">Profile Sources</div><ul class="sources">{profileSources.map((source)=><li><a href={source.url} rel="noopener noreferrer">{source.title}</a><span>{source.publisher}</span></li>)}</ul></div>}
 
     <div class="panel" style="margin-top:.85rem;">
       <div class="panel-title">Injury &amp; status history</div>
@@ -733,6 +760,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
       background: rgba(0,34,68,0.03);
       padding: .75rem .85rem;
     }
+    .overview-panel{grid-column:1/-1}
 
     .panel-title {
       font-weight: 1000;
@@ -746,6 +774,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
       font-weight: 750;
       color: rgba(0,34,68,.92);
     }
+    .dek{font-size:1.08rem;line-height:1.5;font-weight:850;color:rgba(0,34,68,.88);margin:.2rem 0 .85rem}.timeline,.sources{list-style:none;padding:0;margin:.3rem 0 0;display:grid;gap:.45rem}.timeline li,.sources li{display:flex;gap:.75rem;justify-content:space-between;border-bottom:1px solid rgba(0,34,68,.1);padding:.35rem 0}.timeline span,.sources span{color:rgba(15,23,32,.68);font-weight:750}.sources a{font-weight:850;color:#2f660b}
 
     .empty {
       padding: .7rem .8rem;

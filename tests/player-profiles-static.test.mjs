@@ -19,6 +19,7 @@ test("offline rendering embeds generated profiles in final static HTML", { timeo
   const numericHtml = fs.readFileSync(path.join(root, "dist/players/12345/index.html"), "utf8");
   const aliasHtml = fs.readFileSync(path.join(root, "dist/players/jaxon-smith-njigba/index.html"), "utf8");
   const missingHtml = fs.readFileSync(path.join(root, "dist/players/aj-barner/index.html"), "utf8");
+  const darnoldHtml = fs.readFileSync(path.join(root, "dist/players/sam-darnold/index.html"), "utf8");
 
   for (const html of [numericHtml, aliasHtml]) {
     assert.match(html, /SFZ PLAYER BIO ACCEPTANCE SENTINEL/);
@@ -27,4 +28,8 @@ test("offline rendering embeds generated profiles in final static HTML", { timeo
   assert.match(aliasHtml, /season overview/i);
   assert.doesNotMatch(aliasHtml, /Gameplay recap/);
   assert.ok(missingHtml.includes(fallback));
+  for (const heading of ["Player Overview","Career Context","Seattle Career","Career Highlights","Career at a Glance","Profile Sources","2025 Regular Season Overview"]) assert.ok(darnoldHtml.includes(heading),`missing ${heading}`);
+  assert.doesNotMatch(darnoldHtml,/Defense<\/h3>/);
+  assert.doesNotMatch(darnoldHtml,/season season/i);
+  assert.doesNotMatch(darnoldHtml,/darnold-draft-2018/);
 });

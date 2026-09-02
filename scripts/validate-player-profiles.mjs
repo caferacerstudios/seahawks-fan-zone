@@ -11,7 +11,7 @@ const roster = JSON.parse(fs.readFileSync(path.join(root, "src/data/team/roster.
 const currentIds = (roster?.players || []).filter(isCurrentRosterPlayer).map((player) => String(player.id));
 const { profiles, inputPath, usedFixture } = readPlayerProfiles({ allowFixture: !production });
 const profileIds = Object.keys(profiles).map(String);
-const currentBios = currentIds.filter((id) => String(profiles[id]?.bio || "").trim());
+const currentBios = currentIds.filter((id) => String(profiles[id]?.biography?.overview || profiles[id]?.bio || "").trim());
 
 if (production && usedFixture) throw new Error("Production player-profile validation refused the repository fixture.");
 if (production && currentIds.length > 0 && currentBios.length === 0) throw new Error(`Production player profile artifact contains zero biographies for the current roster: ${inputPath}`);

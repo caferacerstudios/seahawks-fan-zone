@@ -8,6 +8,7 @@
     "fetch-nfl": "node scripts/fetch-nfl.mjs",
     "generate-game-recaps": "node scripts/generate-game-recaps.mjs",
     "generate-player-profiles": "node scripts/generate-player-profiles.mjs",
+    "refresh-player-career-facts": "node scripts/refresh-player-career-facts.mjs",
 
     "prebuild": "node scripts/fetch-nfl.mjs && node scripts/generate-game-recaps.mjs && node scripts/generate-player-profiles.mjs",
     "build": "npm run prebuild && astro build",
