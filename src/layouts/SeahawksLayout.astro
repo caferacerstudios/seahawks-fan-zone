@@ -181,9 +181,10 @@ const moreIsActive = morePages.some((page) => page.match?.some((path) => isActiv
           links[(index + (event.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length]?.focus();
         }
       });
-      nav.addEventListener('keydown', (event) => {
+      document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
           if (moreButton?.getAttribute('aria-expanded') === 'true') return closeMore(true);
+          if (button.getAttribute('aria-expanded') !== 'true') return;
           button.setAttribute('aria-expanded', 'false');
           button.setAttribute('aria-label', 'Open primary navigation');
           nav.classList.remove('is-open');
