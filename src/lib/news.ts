@@ -74,7 +74,7 @@ const articles: NewsArticle[] = [
 
       { type: "heading", heading: "The offense created value between the 20s" },
       { type: "paragraph", html: "Seattle's offense was productive without being equally strong everywhere. It gained 5,973 yards on 1,015 plays, or 5.88 yards per play before rounding, and scored 483 points. The passing game did more of the efficiency work: team net yards per pass attempt were 7.6, second in the NFL, while the running game averaged 4.1 yards per carry, 25th. <a href=\"/players/sam-darnold\">Sam Darnold</a> completed 67.7% of his passes for 4,048 yards, 25 touchdowns and 14 interceptions. Seattle allowed 27 sacks, a 5.3% sack rate. That combination says the line and quarterback generally preserved passing plays, even though giveaways remained a weakness." },
-      { type: "paragraph", html: "The offense converted 39.8% of third downs, 16th, and scored touchdowns on 32 of 59 red-zone trips, 54.2%, 21st. Those are important boundaries on the argument. Seattle did not score because every long possession ended perfectly. It created field position and chunk yardage, then received enough support from defense, returns and Jason Myers to turn an above-average offense into the league's third-highest point total. No reliable first-down play-by-play file exists in this repository, so this analysis does not claim an early-down rate or an explosive-play rate for the whole offense." },
+      { type: "paragraph", html: "The offense converted 39.8% of third downs, 16th, and scored touchdowns on 32 of 59 red-zone trips, 54.2%, 21st. Those are important boundaries on the argument. Seattle did not score because every long possession ended perfectly. It created field position and chunk yardage, then received enough support from defense, returns and Jason Myers to turn an above-average offense into the league's third-highest point total. Reliable play-by-play data was not available for this analysis, so early-down and whole-team explosive-play rates were excluded." },
       { type: "paragraph", html: "The clearest concentration risk was <a href=\"/players/jaxon-smith-njigba\">Jaxon Smith-Njigba</a>. His 1,793 receiving yards represented 44.1% of Seattle's 4,063 gross team passing yards, and his 119 catches were 36.6% of the team's 325 completions. Those are original calculations, not target share. He also generated 27 catches of at least 20 yards, according to his official Seahawks profile. A player capable of carrying that load is a repeatable advantage. Needing him to carry it is a vulnerability if coverage changes or availability does." },
 
       { type: "heading", heading: "The defense won before it needed a takeaway" },
@@ -110,7 +110,7 @@ const articles: NewsArticle[] = [
       ] },
 
       { type: "heading", heading: "Methodology and limitations" },
-      { type: "paragraph", html: "Repository audit: the site's NFL ingestion is designed to retain games, player season stats and standings, with play-by-play requested only when the provider tier permits it. No generated <code>src/data/nfl</code> files or 2025 play-by-play snapshot were present in this checkout, so no early-down, pressure-rate, drive-start or whole-team explosive-play calculation was attempted. Official Seahawks and NFL pages verify records, scores and basic totals. Pro Football Reference supplies transparent team drive totals and published league ranks. Original calculations use unrounded inputs where available: point differential = 483 − 292; yards per play = 5,973 ÷ 1,015; Smith-Njigba receiving-yard share = 1,793 ÷ 4,063; catch share = 119 ÷ 325; close-game record counts final margins of eight or fewer. Kneel-downs, spikes and garbage time were not excluded because the available aggregate totals do not identify them. Regular season is 17 games; postseason is three. The monitoring thresholds are editorial checkpoints, not forecasts or league averages. This historical analysis remains fixed after kickoff; only the four-item monitoring section should be updated with 2026 results." }
+      { type: "paragraph", html: "Reliable 2025 play-by-play data was not available for this analysis, so early-down, pressure-rate, drive-start and whole-team explosive-play statistics were not calculated. Official Seahawks and NFL pages verify records, scores and basic totals. Pro Football Reference supplies transparent team drive totals and published league ranks. Original calculations use unrounded inputs where available: point differential = 483 − 292; yards per play = 5,973 ÷ 1,015; Smith-Njigba receiving-yard share = 1,793 ÷ 4,063; catch share = 119 ÷ 325; close-game record counts final margins of eight or fewer. Kneel-downs, spikes and garbage time were not excluded because the available aggregate totals do not identify them. Regular season is 17 games; postseason is three. The monitoring thresholds are editorial checkpoints, not forecasts or league averages. This historical analysis remains fixed after kickoff; only the four-item monitoring section should be updated with 2026 results." }
     ],
     sources: [
       { label: "Seattle Seahawks: 2025 regular-season team and player statistics", url: "https://www.seahawks.com/team/stats/2025/reg" },
@@ -364,11 +364,21 @@ const articles: NewsArticle[] = [
 ];
 
 const validDate = (value: string) => Number.isFinite(new Date(value).getTime());
+const internalBodyLanguage = /\b(?:repository|checkout|source tree|generated (?:file|files)|artifacts?|runtime|(?:data )?ingestion|developer environment|development environment|provider tier|implementation state|build system|build pipeline)\b|src\/data\//i;
+const bodyText = (block: ArticleBodyBlock) => {
+  if (typeof block === "string") return block;
+  if (block.type === "heading") return block.heading;
+  if (block.type === "paragraph") return block.html;
+  if (block.type === "table") return [block.caption, block.note, ...block.columns, ...block.rows.flatMap((row) => row.cells)].join(" ");
+  if (block.type === "timeline" || block.type === "watchlist") return block.items.map((item) => `${item.label} ${item.html}`).join(" ");
+  return [block.heading, ...block.known, ...block.unknown, block.milestone].join(" ");
+};
 const slugs = new Set<string>();
 for (const article of articles) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(article.slug) || slugs.has(article.slug)) throw new Error(`Invalid or duplicate news slug: ${article.slug}`);
   if (!NEWS_CATEGORIES.includes(article.category) || !validDate(article.publishedAt) || !validDate(article.updatedAt)) throw new Error(`Invalid news metadata: ${article.slug}`);
   if (new Date(article.updatedAt) < new Date(article.publishedAt)) throw new Error(`updatedAt precedes publishedAt: ${article.slug}`);
+  if (article.status === "published" && article.body.some((block) => internalBodyLanguage.test(bodyText(block)))) throw new Error(`Published article contains internal implementation language: ${article.slug}`);
   slugs.add(article.slug);
 }
 
