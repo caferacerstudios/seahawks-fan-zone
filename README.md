@@ -10,7 +10,21 @@ Astro site for independent Seattle football coverage. These controls do not impl
 
 ## Player-profile generation
 
-Player profiles use the OpenAI Responses API with strict v3 structured output. The default model is `gpt-5.4-mini`, with low reasoning and low text verbosity. Editorial tiers are maintained in `src/data/team/player-profile-tiers.json`; unknown configured tiers safely use `contributor`, while players without overrides default to `contributor` when meaningful professional statistics exist and `developmental` otherwise. The generator has a local default budget of $20 per UTC month and $1 per run. Its atomic ledger and 30-minute stale lock live beside the durable artifact under `runtime/player-profiles/`; they account only for this generator and must not be committed.
+Player profiles use the OpenAI Responses API with strict v3 structured output. The default model is `gpt-5.4-mini`, with low reasoning and low text verbosity. Editorial tiers are maintained in `src/data/team/player-profile-tiers.json`; unknown configured tiers safely use `contributor`, while players without overrides default to `contributor` when meaningful professional statistics exist and `developmental` otherwise. The generator has a local default budget of $20 per UTC month and $1 per run. Its atomic ledger and 30-minute stale lock live beside the selected profile artifact and account only for this generator. The `runtime/player-profiles/` default is for local development only and must not be committed; the generator warns because that location is disposable during deployment.
+
+The dev deployment operator must create a host-owned writable directory and bind-mount it into the build container. Configure the dev wrapper/Compose build service with this equivalent mapping and environment (the repository cannot configure the host wrapper itself):
+
+```yaml
+services:
+  build:
+    environment:
+      PLAYER_PROFILES_ARTIFACT: /srv/player-profiles/playerProfiles.json
+      PLAYER_CAREER_FACTS_ARTIFACT: /srv/player-profiles/player-career-facts.json
+    volumes:
+      - /var/lib/sfz-player-profiles/dev:/srv/player-profiles
+```
+
+The mounted directory consequently contains `playerProfiles.json`, `player-career-facts.json`, `usage-ledger.json`, and `generation.lock`. The container user must be able to write it. A normal dev invocation outside the container may instead point both variables directly beneath `/var/lib/sfz-player-profiles/dev`. Startup prints both resolved paths so deployment logs can confirm the mount before a credentialed build.
 
 Profiles are refreshed only when their verified semantic input, model, or prompt version changes. Fetch/build timestamps are excluded. `FORCE=1` remains supported as an alias for `PLAYER_PROFILE_REFRESH_MODE=all`; all refresh modes still enforce budgets and locking.
 
@@ -34,7 +48,7 @@ Refresh career facts separately after the ordinary NFL refresh has supplied exac
 PLAYER_PROFILE_ID=sam-darnold npm run refresh-player-career-facts
 ```
 
-Curated non-statistical facts and their source references are maintained in `src/data/team/player-profile-editorial-facts.json`. Do not paste source prose into that file. Output limits are tier-aware by default: featured 1,700, core 1,300, contributor 900, and developmental 650 tokens. Optional controls are `PLAYER_PROFILE_MONTHLY_BUDGET_USD` (default `20`), `PLAYER_PROFILE_RUN_BUDGET_USD` (default `1`), `PLAYER_PROFILE_MAX_GENERATIONS_PER_RUN` (default `125`), `PLAYER_PROFILE_MAX_OUTPUT_TOKENS` (explicit override), and `PLAYER_PROFILE_LOCK_STALE_MS` (default `1800000`). An unknown model requires explicit `PLAYER_PROFILE_INPUT_RATE_PER_MILLION_USD` and `PLAYER_PROFILE_OUTPUT_RATE_PER_MILLION_USD`; there is no automatic model fallback.
+Curated non-statistical facts and their source references are maintained in `src/data/team/player-profile-editorial-facts.json`. Do not paste source prose into that file. Output limits are tier-aware by default: featured 2,200, core 1,700, contributor 1,250, and developmental 900 tokens. Optional controls are `PLAYER_PROFILE_MONTHLY_BUDGET_USD` (default `20`), `PLAYER_PROFILE_RUN_BUDGET_USD` (default `1`), `PLAYER_PROFILE_MAX_GENERATIONS_PER_RUN` (default `125`), `PLAYER_PROFILE_MAX_OUTPUT_TOKENS` (explicit override), and `PLAYER_PROFILE_LOCK_STALE_MS` (default `1800000`). An unknown model requires explicit `PLAYER_PROFILE_INPUT_RATE_PER_MILLION_USD` and `PLAYER_PROFILE_OUTPUT_RATE_PER_MILLION_USD`; there is no automatic model fallback.
 
 The homepage story feed treats stories published or materially updated within 14 days as current. Set `HOMEPAGE_STORY_FRESHNESS_DAYS` at build time to change that window; editors pin a current lead with the existing article `featured` field. `HOMEPAGE_FEED_NOW` is an optional ISO date override for deterministic previews of quiet-period fallback behavior.
 

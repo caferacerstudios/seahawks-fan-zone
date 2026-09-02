@@ -4,10 +4,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { matchRosterPlayer } from "../src/lib/player-profile-generation.mjs";
 import { atomicWriteJson, mergeCareerPlayer, normalizeCareerSeason } from "../src/lib/player-career-facts.mjs";
+import { isDisposablePlayerProfilePath, playerCareerFactsArtifactPath } from "../src/lib/player-profiles.mjs";
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const read=(file,fallback={})=>{try{return JSON.parse(fs.readFileSync(file,"utf8"));}catch{return fallback;}};
-const outputPath=path.resolve(root,process.env.PLAYER_CAREER_FACTS_ARTIFACT||"runtime/player-profiles/player-career-facts.json");
+const outputPath=playerCareerFactsArtifactPath();
+console.log(`Player career-facts artifact: ${outputPath}`);
+if(isDisposablePlayerProfilePath(outputPath,root))console.warn("WARNING: career facts are inside the disposable Git checkout. Set PLAYER_CAREER_FACTS_ARTIFACT to a writable persistent mount path.");
 const fixture=read(path.join(root,"src/data/team/player-career-facts.json"),{schemaVersion:1,players:{}}), existing=read(outputPath,fixture);
 const roster=read(path.join(root,"src/data/team/roster.json"),{players:[]}), nfl=read(path.join(root,"src/data/nfl/seahawks.json"),{}), directory=read(path.join(root,"src/data/nfl/players.json"),{}).playerDirectory||nfl.playerDirectory||[];
 const key=process.env.BALLDONTLIE_API_KEY; if(!key) throw new Error("Missing BALLDONTLIE_API_KEY; last-known-good career facts were not changed.");

@@ -2,13 +2,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { playerProfilesArtifactPath, readPlayerProfiles } from "../src/lib/player-profiles.mjs";
+import { isDisposablePlayerProfilePath, playerCareerFactsArtifactPath, playerProfilesArtifactPath, readPlayerProfiles } from "../src/lib/player-profiles.mjs";
 import { runPlayerProfileGeneration } from "../src/lib/player-profile-generation.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relative) => JSON.parse(fs.readFileSync(path.join(root, relative), "utf8"));
 const readCareer = () => {
-  const runtime = path.join(root, process.env.PLAYER_CAREER_FACTS_ARTIFACT || "runtime/player-profiles/player-career-facts.json");
+  const runtime = playerCareerFactsArtifactPath();
   return fs.existsSync(runtime) ? JSON.parse(fs.readFileSync(runtime, "utf8")) : read("src/data/team/player-career-facts.json");
 };
 
@@ -16,6 +16,9 @@ async function main() {
   const nflData = read("src/data/nfl/seahawks.json");
   const playersData = read("src/data/nfl/players.json");
   const artifactPath = playerProfilesArtifactPath();
+  console.log(`Player-profile artifact: ${artifactPath}`);
+  console.log(`Player career-facts artifact: ${playerCareerFactsArtifactPath()}`);
+  if (isDisposablePlayerProfilePath(artifactPath, root)) console.warn("WARNING: player-profile artifacts are inside the disposable Git checkout and may be erased by git clean/reset. Set PLAYER_PROFILES_ARTIFACT and PLAYER_CAREER_FACTS_ARTIFACT to writable persistent mount paths.");
   const summary = await runPlayerProfileGeneration({
     rosterStore: read("src/data/team/roster.json"),
     nflData,
