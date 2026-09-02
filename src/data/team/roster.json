@@ -100,7 +100,7 @@
     {"id":"bud-clark","name":"Bud Clark","position":"S","number":9,"status":"Reserve/Injured"},
     {"id":"robbie-ouzts","name":"Robbie Ouzts","position":"FB","number":40,"status":"Reserve/Injured"},
     {"id":"mason-richman","name":"Mason Richman","position":"T/G","number":78,"status":"Reserve/Injured"},
-    {"id":"kellen-diesch","name":"Kellen Diesch","position":"T","number":65,"status":"Waived"},
+    {"id":"kellen-diesch","name":"Kellen Diesch","position":"T","number":65,"status":"Released"},
     {"id":"avery-smith","name":"Avery Smith","position":"CB","number":27,"status":"Active"},
     {"id":"terrion-arnold","name":"Terrion Arnold","position":"CB","number":17,"status":"Commissioner Exempt"}
   ]

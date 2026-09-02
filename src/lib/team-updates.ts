@@ -1,6 +1,6 @@
 import injuriesStore from "../data/team/injuries.json";
 import transactionsStore from "../data/team/transactions.json";
-import { newestFirst } from "./team-updates-core.mjs";
+import { newestFirst, transactionFreshness } from "./team-updates-core.mjs";
 
 export const TRANSACTION_TYPES = [
   "Signed", "Waived", "Released", "Claimed", "Injured Reserve", "PUP",
@@ -66,6 +66,14 @@ export const transactions = newestFirst(
   (transactionsStore.records as unknown[]).filter(isTransactionRecord),
   (row) => row.timestamp,
 );
+
+export const transactionsFreshness = transactionFreshness(transactionsStore);
+export const transactionsMetadata = {
+  asOf: transactionsStore.asOf,
+  sourceUrl: transactionsStore.sourceUrl,
+  sourcePublisher: transactionsStore.sourcePublisher,
+  sourceNote: transactionsStore.sourceNote,
+};
 
 export const injuryStatuses = newestFirst(
   (injuriesStore.records as unknown[]).filter(isInjuryStatusRecord),
