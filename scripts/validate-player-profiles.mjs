@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readPlayerProfiles } from "../src/lib/player-profiles.mjs";
+import { legacyFanVoiceErrors } from "../src/lib/player-profile-generation.mjs";
 import { isCurrentRosterPlayer } from "../src/lib/roster.mjs";
 
 const production = process.argv.includes("--production");
@@ -17,6 +18,10 @@ if (production && usedFixture) throw new Error("Production player-profile valida
 if (production && currentBios.length !== currentIds.length) {
   const missing = currentIds.filter((id) => !String(profiles[id]?.biography?.overview || profiles[id]?.bio || "").trim());
   throw new Error(`Production player profile artifact is missing biographies for ${missing.length} current players: ${missing.join(", ")}`);
+}
+if (production) {
+  const legacy = currentIds.filter((id) => legacyFanVoiceErrors(profiles[id]).length > 0);
+  if (legacy.length) throw new Error(`Production player profile artifact contains legacy fan voice for ${legacy.length} current players: ${legacy.join(", ")}`);
 }
 
 let playerPages = 0;
