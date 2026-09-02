@@ -15,20 +15,19 @@
         "seahawksContext": "Seattle signed Darnold as an unrestricted free agent on March 13, 2025. In his first Seahawks season, he completed a career-best 67.7 percent of his passes and threw for 4,048 yards while the club won the NFC West and a franchise-record 14 regular-season games. His sharpest postseason performance came in the NFC Championship Game, when he passed for 346 yards and three touchdowns without an interception in a 31-27 victory over the Rams. Seattle then defeated New England 29-13 in Super Bowl LX, with Darnold throwing the team's lone offensive touchdown."
       },
       "careerHighlights": [
-        {"text":"Selected to the Pro Bowl after both the 2024 Minnesota season and the 2025 Seattle season.","factIds":["darnold-pro-bowl-2024","darnold-pro-bowl-2025"]},
-        {"text":"Won Super Bowl LX as Seattle's quarterback in his first season with the franchise.","factIds":["darnold-super-bowl-lx"]},
-        {"text":"Helped the 2025 Seahawks claim the NFC's top seed and a franchise-record 14 regular-season wins.","factIds":["darnold-2025-team-achievement"]},
-        {"text":"Threw three touchdown passes without an interception in Seattle's 2025 NFC Championship Game victory.","factIds":["darnold-nfc-title-game-2025"]},
-        {"text":"Set his career high with 4,319 passing yards during his 2024 season in Minnesota.","factIds":["darnold-career-stats-through-2025"]}
+        "Selected to the Pro Bowl after both the 2024 Minnesota season and the 2025 Seattle season.",
+        "Won Super Bowl LX as Seattle's quarterback in his first season with the franchise.",
+        "Helped the 2025 Seahawks claim the NFC's top seed and a franchise-record 14 regular-season wins.",
+        "Threw three touchdown passes without an interception in Seattle's 2025 NFC Championship Game victory.",
+        "Set his career high with 4,319 passing yards during his 2024 season in Minnesota."
       ],
       "seasonOverview": {
         "paragraph": "Darnold's 2025 regular season followed his Minnesota breakthrough with a different statistical shape. His 4,048 passing yards were 271 fewer than his 2024 career high, and his touchdown total declined from 35 to 25, but his completion rate rose from 66.2 to a career-best 67.7 percent. He also averaged 8.5 yards per attempt, the best mark in his stored season history. Those results came across 17 starts for a Seattle team that earned the conference's top playoff seed.",
         "bullets": [
-          {"text":"His 99.1 passer rating marked a second consecutive full season above 99.","factIds":["darnold-career-stats-through-2025"]},
-          {"text":"He completed 323 of 477 attempts during the regular season.","factIds":["darnold-career-stats-through-2025"]}
+          "His 99.1 passer rating marked a second consecutive full season above 99.",
+          "He completed 323 of 477 attempts during the regular season."
         ]
       },
-      "usedFactIds": ["darnold-draft-2018","darnold-team-history","darnold-seattle-signing-2025","darnold-current-role-2026","darnold-pro-bowl-2024","darnold-pro-bowl-2025","darnold-super-bowl-lx","darnold-2025-team-achievement","darnold-nfc-title-game-2025","darnold-career-stats-through-2025"],
       "generation": {"model":"fixture","promptVersion":"professional-player-profile-v3-tiered","inputHash":"representative-offline-fixture","providerPlayerId":null,"generatedAt":"2026-09-02T00:00:00Z","usage":{"inputTokens":0,"outputTokens":0,"estimatedCostUsd":0}}
     },
     "12345": {
