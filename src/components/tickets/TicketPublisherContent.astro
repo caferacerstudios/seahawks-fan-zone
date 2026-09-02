@@ -1,5 +1,6 @@
 ---
 import { MARKETPLACE_IDS } from "../../lib/tickets/provider-quotes.mjs";
+import { formatKickoff, formatPacificCalendarDate } from "../../lib/schedule.mjs";
 
 const { routeStyle = "tickets", game = null, eligibleGames = [], section = "intro" } = Astro.props;
 const marketplaceLabels = Object.freeze({
@@ -9,15 +10,10 @@ const marketplaceLabels = Object.freeze({
   seatgeek: "SeatGeek",
 });
 const marketplaceNames = MARKETPLACE_IDS.map((id) => marketplaceLabels[id]).filter(Boolean);
-const dateValue = game?.game?.date ? String(game.game.date) : null;
-const parsedDate = dateValue ? new Date(dateValue) : null;
-const hasDate = parsedDate && Number.isFinite(parsedDate.getTime());
-const dateLabel = hasDate ? new Intl.DateTimeFormat("en-US", {
-  weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles",
-}).format(parsedDate) : null;
-const kickoffLabel = hasDate && /T\d{2}:\d{2}/.test(dateValue) ? new Intl.DateTimeFormat("en-US", {
-  hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles", timeZoneName: "short",
-}).format(parsedDate) : null;
+const dateValue = game?.game?.startsAt ?? game?.game?.date ?? null;
+const dateLabel = dateValue ? formatPacificCalendarDate(dateValue, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : null;
+const hasDate = Boolean(dateLabel);
+const kickoffLabel = game?.game?.timeConfirmed && game.game.startsAt ? formatKickoff(game.game, "time") : null;
 const matchup = game ? `${game.home ? "Seattle Seahawks vs." : "Seattle Seahawks at"} ${game.opponentName}` : null;
 const datedGames = eligibleGames.filter((item) => item && !item.completed);
 ---
@@ -52,9 +48,8 @@ const datedGames = eligibleGames.filter((item) => item && !item.completed);
       {datedGames.length ? (
         <ul>
           {datedGames.map((item) => {
-            const itemDate = item.game?.date ? new Date(item.game.date) : null;
-            const validItemDate = itemDate && Number.isFinite(itemDate.getTime());
-            const itemDateLabel = validItemDate ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" }).format(itemDate) : null;
+            const itemDateValue = item.game?.startsAt ?? item.game?.date ?? null;
+            const itemDateLabel = itemDateValue ? formatPacificCalendarDate(itemDateValue, { month: "short", day: "numeric", year: "numeric" }) : null;
             return <li><a href={`/games/${encodeURIComponent(item.id)}/`}>{item.home ? "Seattle Seahawks vs." : "Seattle Seahawks at"} {item.opponentName}</a><span>{item.weekLabel}{itemDateLabel ? `, ${itemDateLabel}` : ", date not confirmed"}</span></li>;
           })}
         </ul>

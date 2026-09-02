@@ -28,12 +28,12 @@ export function scheduleGames(archive) {
 export function coverageGame(row, season = 2026) {
   const opponent = { abbreviation: TEAM_ABBR.get(row.opponent) ?? "", full_name: row.opponent };
   const seattle = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
-  return {
-    id: String(row.gameId), season, week: null, phase: "regular", date: row.localDate ? `${row.localDate}T12:00:00Z` : null,
+  return normalizeGame({
+    id: String(row.gameId), season, week: null, phase: "regular", date: row.localDate,
     status: "Scheduled", home_team: row.homeAway === "home" ? seattle : opponent,
     visitor_team: row.homeAway === "home" ? opponent : seattle, venue: row.homeAway === "home" ? "Lumen Field" : null,
     repositoryFallback: true,
-  };
+  }, season);
 }
 
 export function gameCollection(archive, coverage = []) {

@@ -26,6 +26,12 @@ test("both URLs resolve game 1392216 through the same shared page model", () => 
   assert.match(ticketRoute, /GameDayPage/);
 });
 
+test("ticket UI prefers canonical schedule dates and uses the shared Pacific formatter", () => {
+  assert.match(component, /canonical\?\.startsAt\?\?canonical\?\.date\?\?row\.localDate/);
+  assert.match(component, /g\.game\?\.startsAt\?\?g\.game\?\.date\?\?event\?\.localDate/);
+  assert.match(component, /formatPacificCalendarDate/);
+});
+
 test("provider quotes remain price sorted with unavailable providers last", () => {
   const quotes = currentProviderQuotes([{ observedAt: "2026-09-01T22:15:00Z", ticketmasterCents: 12000, stubhubCents: null, vividseatsCents: 9500, seatgeekCents: 11000 }]);
   assert.deepEqual(quotes.map(({ provider }) => provider), ["vividseats", "seatgeek", "ticketmaster", "stubhub"]);
