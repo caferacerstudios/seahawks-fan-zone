@@ -8,6 +8,7 @@
     "fetch-nfl": "node scripts/fetch-nfl.mjs",
     "generate-game-recaps": "node scripts/generate-game-recaps.mjs",
     "generate-player-profiles": "node scripts/generate-player-profiles.mjs",
+    "refresh-player-career-facts": "node scripts/refresh-player-career-facts.mjs",
 
     "prebuild": "node scripts/fetch-nfl.mjs && node scripts/generate-game-recaps.mjs && node scripts/generate-player-profiles.mjs",
     "build": "npm run prebuild && astro build",
@@ -22,6 +23,7 @@
     "build:offline": "ASTRO_TELEMETRY_DISABLED=1 astro build",
     "build:production-offline": "node scripts/validate-player-profiles.mjs --production && npm run build:offline && node scripts/validate-player-profiles.mjs --production --dist",
     "test:player-profiles": "node --test tests/player-profiles-static.test.mjs",
+    "test:player-profile-generator": "node --test tests/player-profile-generator.test.mjs",
 
     "preview": "astro preview",
     "astro": "astro",

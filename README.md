@@ -8,6 +8,98 @@ Astro site for independent Seattle football coverage. These controls do not impl
 - `npm run build` refreshes NFL data and builds the site; the refresh scripts contact their configured upstream services.
 - `npx astro build` builds from repository data without running the refresh scripts.
 
+## Player-profile generation
+
+Player profiles use the OpenAI Responses API with strict v3 structured output. The default model is `gpt-5.4-mini`, with low reasoning and low text verbosity. Editorial tiers are maintained in `src/data/team/player-profile-tiers.json`; unknown configured tiers safely use `contributor`, while players without overrides default to `contributor` when meaningful professional statistics exist and `developmental` otherwise. The generator has a local default budget of $20 per UTC month and $1 per run. Its atomic ledger and 30-minute stale lock live beside the selected profile artifact and account only for this generator. The `runtime/player-profiles/` default is for local development only and must not be committed; the generator warns because that location is disposable during deployment.
+
+The dev deployment operator must create a host-owned writable directory and bind-mount it into the build container. Environment variables alone do not make a host path persistent or visible inside an isolated container. The `sfz-dev` wrapper is outside this repository, so an operator must apply the following host-side setup (the stock `node:22-bookworm` user is UID/GID 1000):
+
+```sh
+sudo mkdir -p /var/lib/sfz-player-profiles/dev
+sudo chown 1000:1000 /var/lib/sfz-player-profiles/dev
+sudo chmod 0750 /var/lib/sfz-player-profiles/dev
+```
+
+Add these exact entries to the dev wrapper's `build.env`:
+
+```text
+PLAYER_PROFILES_ARTIFACT=/var/lib/sfz-player-profiles/dev/playerProfiles.json
+PLAYER_CAREER_FACTS_ARTIFACT=/var/lib/sfz-player-profiles/dev/player-career-facts.json
+```
+
+Add this argument to the wrapper's `docker run` for the `node:22-bookworm` build container:
+
+```sh
+--mount type=bind,src=/var/lib/sfz-player-profiles/dev,dst=/var/lib/sfz-player-profiles/dev,rw
+```
+
+Before a credentialed build, verify the mount from the same image and as its normal container user:
+
+```sh
+docker run --rm --user 1000:1000 \
+  --mount type=bind,src=/var/lib/sfz-player-profiles/dev,dst=/var/lib/sfz-player-profiles/dev,rw \
+  node:22-bookworm sh -eu -c 'test -d /var/lib/sfz-player-profiles/dev; test -w /var/lib/sfz-player-profiles/dev; touch /var/lib/sfz-player-profiles/dev/.write-test; rm /var/lib/sfz-player-profiles/dev/.write-test'
+```
+
+If the wrapper uses Compose instead, this is the equivalent mapping and environment:
+
+```yaml
+services:
+  build:
+    environment:
+      PLAYER_PROFILES_ARTIFACT: /var/lib/sfz-player-profiles/dev/playerProfiles.json
+      PLAYER_CAREER_FACTS_ARTIFACT: /var/lib/sfz-player-profiles/dev/player-career-facts.json
+    volumes:
+      - /var/lib/sfz-player-profiles/dev:/var/lib/sfz-player-profiles/dev:rw
+```
+
+The mounted directory consequently contains `playerProfiles.json`, `player-career-facts.json`, `usage-ledger.json`, and `generation.lock`. Startup prints both resolved paths so deployment logs can confirm the mount before a credentialed build.
+
+To migrate existing runtime files, first validate each JSON file and then copy it without overwriting any persistent artifact already created. Run these commands from the old checkout before it is cleaned:
+
+```sh
+node -e 'JSON.parse(require("node:fs").readFileSync("runtime/player-profiles/playerProfiles.json","utf8"))'
+sudo -u '#1000' cp -n runtime/player-profiles/playerProfiles.json /var/lib/sfz-player-profiles/dev/playerProfiles.json
+node -e 'JSON.parse(require("node:fs").readFileSync("runtime/player-profiles/player-career-facts.json","utf8"))'
+sudo -u '#1000' cp -n runtime/player-profiles/player-career-facts.json /var/lib/sfz-player-profiles/dev/player-career-facts.json
+```
+
+Skip a source file if it does not exist or fails JSON validation. Migrate `usage-ledger.json` the same way if it exists and validates; do not migrate a stale `generation.lock`.
+
+For targeted acceptance, load `build.env` in the environment that can access the mounted directory and run only these players, one at a time:
+
+```sh
+PLAYER_PROFILE_ID=sam-darnold PLAYER_PROFILE_REFRESH_MODE=all npm run generate-player-profiles
+PLAYER_PROFILE_ID=nick-emmanwori PLAYER_PROFILE_REFRESH_MODE=all npm run generate-player-profiles
+PLAYER_PROFILE_ID=brock-lampe PLAYER_PROFILE_REFRESH_MODE=all npm run generate-player-profiles
+```
+
+After acceptance, prove cache persistence with two ordinary deployments using `PLAYER_PROFILE_REFRESH_MODE=stale`. Record `sha256sum /var/lib/sfz-player-profiles/dev/playerProfiles.json` after the first deployment. The second deployment must log `Profiles generated: 0` and `Requests made: 0`, and the checksum must be unchanged. Do not use `PLAYER_PROFILE_REFRESH_MODE=all` for this cache proof.
+
+Profiles are refreshed only when their verified semantic input, model, or prompt version changes. Fetch/build timestamps are excluded. `FORCE=1` remains supported as an alias for `PLAYER_PROFILE_REFRESH_MODE=all`; all refresh modes still enforce budgets and locking.
+
+One-time stale-profile migration:
+
+```sh
+PLAYER_PROFILE_MODEL=gpt-5.4-mini \
+PLAYER_PROFILE_REFRESH_MODE=stale \
+npm run generate-player-profiles
+```
+
+Target one roster slug without refreshing the rest:
+
+```sh
+PLAYER_PROFILE_ID=jaxon-smith-njigba npm run generate-player-profiles
+```
+
+Refresh career facts separately after the ordinary NFL refresh has supplied exact provider matches. The command batches players and seasons, preserves the runtime last-known-good artifact on failure, and is intentionally absent from `prebuild`:
+
+```sh
+PLAYER_PROFILE_ID=sam-darnold npm run refresh-player-career-facts
+```
+
+Curated non-statistical facts and their source references are maintained in `src/data/team/player-profile-editorial-facts.json`. Do not paste source prose into that file. Output limits are tier-aware by default: featured 2,200, core 1,700, contributor 1,250, and developmental 900 tokens. Optional controls are `PLAYER_PROFILE_MONTHLY_BUDGET_USD` (default `20`), `PLAYER_PROFILE_RUN_BUDGET_USD` (default `1`), `PLAYER_PROFILE_MAX_GENERATIONS_PER_RUN` (default `125`), `PLAYER_PROFILE_MAX_OUTPUT_TOKENS` (explicit override), and `PLAYER_PROFILE_LOCK_STALE_MS` (default `1800000`). An unknown model requires explicit `PLAYER_PROFILE_INPUT_RATE_PER_MILLION_USD` and `PLAYER_PROFILE_OUTPUT_RATE_PER_MILLION_USD`; there is no automatic model fallback.
+
 The homepage story feed treats stories published or materially updated within 14 days as current. Set `HOMEPAGE_STORY_FRESHNESS_DAYS` at build time to change that window; editors pin a current lead with the existing article `featured` field. `HOMEPAGE_FEED_NOW` is an optional ISO date override for deterministic previews of quiet-period fallback behavior.
 
 ## Advertising, analytics, and consent

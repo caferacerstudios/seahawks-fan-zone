@@ -21,6 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeSchedule } from "../src/lib/schedule.mjs";
 import { buildPhasedStandings } from "../src/lib/standings.mjs";
+import { isCurrentRosterPlayer } from "../src/lib/roster.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -190,9 +191,22 @@ async function main() {
   // This endpoint is a player directory, not an authoritative current roster.
   // Keep it only for enriching statistical records.
   const players = await pagedGet("/players", { "team_ids[]": [team.id] });
-  const playersById = new Map(players.map((p) => [p.id, p]));
+  const playersById = new Map(players.map((p) => [String(p.id), p]));
   const rosterStore = JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", "src", "data", "team", "roster.json"), "utf8"));
-  const currentRoster = (rosterStore.players || []).filter((player) => player.status === "Active");
+  const currentRoster = (rosterStore.players || []).filter(isCurrentRosterPlayer);
+  const playerDirectory = players.map((player) => ({
+    id: player.id,
+    first_name: player.first_name ?? null,
+    last_name: player.last_name ?? null,
+    full_name: player.full_name ?? null,
+    position_abbreviation: player.position_abbreviation ?? null,
+    position: player.position ?? null,
+    jersey_number: player.jersey_number ?? player.jersey ?? null,
+    height: player.height ?? null,
+    weight: player.weight ?? null,
+    college: player.college ?? null,
+    experience: player.experience ?? player.years_pro ?? null,
+  }));
 
   // 4) Fetch season stats for this team + season.
   // Before regular-season stats exist for an upcoming season,
@@ -244,7 +258,7 @@ async function main() {
       row.player_id ?? row.player?.id ?? row.playerId ?? null;
 
     const player = playerId
-      ? playersById.get(playerId)
+      ? playersById.get(String(playerId))
       : (row.player || null);
 
     return {
@@ -277,6 +291,7 @@ async function main() {
     gamesPostseason,
     nextGameId,
     currentRoster,
+    playerDirectory,
     playerSeasonStats: enriched,
   };
 
@@ -305,6 +320,7 @@ async function main() {
     updatedAt,
     team: outCombined.team,
     currentRoster,
+    playerDirectory,
     playerSeasonStats: enriched,
   });
   console.log(`wrote ${path.relative(process.cwd(), playersPath)}`);

@@ -3,18 +3,23 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { providerOutboundLink, safeProviderUrl } from "../src/lib/tickets/outbound-links.mjs";
 import { ticketClickEvent } from "../src/lib/tickets/analytics.mjs";
+import { currentProviderQuotes } from "../src/lib/tickets/provider-quotes.mjs";
 
-const ticketsPage = await readFile(new URL("../src/pages/tickets.astro", import.meta.url), "utf8");
+const ticketRoute = await readFile(new URL("../src/pages/tickets.astro", import.meta.url), "utf8");
+const gameDayPage = await readFile(new URL("../src/components/GameDayPage.astro", import.meta.url), "utf8");
+const publisherContent = await readFile(new URL("../src/components/tickets/TicketPublisherContent.astro", import.meta.url), "utf8");
+const ticketsPage = `${ticketRoute}\n${gameDayPage}\n${publisherContent}`;
 const runtimeView = await readFile(new URL("../src/lib/tickets/runtime-view.mjs", import.meta.url), "utf8");
 const sitemap = await readFile(new URL("../src/pages/sitemap.xml.ts", import.meta.url), "utf8");
 const fetchNfl = await readFile(new URL("../scripts/fetch-nfl.mjs", import.meta.url), "utf8");
 const syncDockerfile = await readFile(new URL("../deployment/ticket-sync/Dockerfile", import.meta.url), "utf8");
 
-test("ticket page has exactly one neutral price disclosure and no relationship claims", () => {
+test("publisher content has one durable neutral price disclosure and an accurate conditional affiliate disclosure", () => {
   const disclosure = "Price snapshots can change at any time and may not include taxes or fees. Confirm availability and the final checkout total with the ticket provider.";
   assert.equal((ticketsPage.match(new RegExp(disclosure.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length, 1);
-  assert.equal((ticketsPage.match(/class="disclosure"/g) || []).length, 1);
-  assert.doesNotMatch(ticketsPage, /may earn a commission\.|affiliate|sponsor(?:ed|ship)?|compensat(?:e|ed|ion)|partner(?:ship)?|referral payment/i);
+  assert.equal((publisherContent.match(new RegExp(disclosure.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length, 1);
+  assert.match(publisherContent, /may earn a commission from purchases made through links specifically marked <strong>“Affiliate link”<\/strong>/);
+  assert.match(publisherContent, /This does not affect how prices are ordered/);
 });
 
 test("current provider cards are non-affiliate links without fabricated tracking", () => {
@@ -28,7 +33,8 @@ test("current provider cards are non-affiliate links without fabricated tracking
 });
 
 test("robots and sitemap use the shared, separately gated feature state", () => {
-  assert.match(ticketsPage, /robots: TICKET_FEATURE\.robots/);
+  assert.match(gameDayPage, /robots:TICKET_FEATURE\.robots/);
+  assert.match(gameDayPage, /TICKET_FEATURE\.canonical \? canonicalPath : undefined/);
   assert.match(sitemap, /path === "\/tickets".*TICKET_FEATURE\.includeInSitemap/);
 });
 
@@ -59,6 +65,20 @@ test("affiliate provider links carry sponsored, nofollow, and noopener", () => {
   assert.deepEqual(new Set(link.rel.split(" ")), new Set(["sponsored", "nofollow", "noopener"]));
 });
 
+test("affiliate state cannot alter marketplace price, rank, lowest status, or ordering", () => {
+  const history = [{ observedAt: "2026-09-01T22:15:00Z", ticketmasterCents: 12000, stubhubCents: null, vividseatsCents: 9500, seatgeekCents: 11000 }];
+  const before = currentProviderQuotes(history);
+  providerOutboundLink("fictional-market-a", "https://fictional-market-a.example.invalid/listing", "https://fictional-market-a.example.invalid/go?campaign=public");
+  const after = currentProviderQuotes(history);
+  assert.deepEqual(after, before);
+  assert.deepEqual(after.map(({ provider, priceCents, rank, isLowest }) => ({ provider, priceCents, rank, isLowest })), [
+    { provider: "vividseats", priceCents: 9500, rank: 1, isLowest: true },
+    { provider: "seatgeek", priceCents: 11000, rank: 2, isLowest: false },
+    { provider: "ticketmaster", priceCents: 12000, rank: 3, isLowest: false },
+    { provider: "stubhub", priceCents: null, rank: 4, isLowest: false },
+  ]);
+});
+
 test("ticket click analytics are consent gated and limited to approved fields", () => {
   const input = { selectedGame: "game-1", provider: "market", sourceKind: "resale-marketplace", linkPlacement: "result", sortMode: "lowest_total", quantity: 4, seller: "do-not-record", email: "person@example.com" };
   assert.equal(ticketClickEvent({ ready: false, analytics: true }, input), null);
@@ -78,12 +98,12 @@ test("runtime page renders the neutral ticket price explorer", () => {
 });
 
 test("public presentation is source-neutral", () => {
-  const publicPresentation = ticketsPage
-    .replace(/import \{EVENTSPY_COVERAGE,eventSpyCoverageForGame\}[^\n]+/g, "")
-    .replace(/import \{validateEventSpyMirror,MIRROR_MARKETS\}[^\n]+/g, "")
+  const publicPresentation = gameDayPage
+    .replace(/^import .*eventspy.*$/gim, "")
     .replace(/EVENTSPY_COVERAGE|eventSpyCoverageForGame|validateEventSpyMirror|eventspy-mirror/g, "");
   assert.doesNotMatch(publicPresentation, /eventspy/i);
-  assert.doesNotMatch(ticketsPage, /Track prices on EventSpy|authorized EventSpy page|EventSpy ticket tracking|EventSpy snapshot/i);
+  assert.doesNotMatch(publisherContent, /eventspy/i);
+  assert.doesNotMatch(gameDayPage, /Track prices on EventSpy|authorized EventSpy page|EventSpy ticket tracking|EventSpy snapshot/i);
   assert.doesNotMatch(ticketsPage, /StubHub connected|Data type|>Coverage</);
 });
 
@@ -103,8 +123,9 @@ test("mirror controls are labelled and accessible", () => {
   assert.match(ticketsPage, /data-market-selector/);
   assert.doesNotMatch(ticketsPage, /Show Filters|data-show-filters|market-filters|data-filter/);
   assert.match(ticketsPage, /aria-label="Marketplace line colors"/);
-  assert.match(ticketsPage, /aria-live="polite"/);
-  assert.match(ticketsPage, /aria-live="polite" aria-busy="true"/);
+  assert.doesNotMatch(gameDayPage, /id="ticket-price-explorer"[^>]*aria-live/);
+  assert.match(gameDayPage, /aria-busy="true"/);
+  assert.match(gameDayPage, /finally\{clearTimeout\(timer\);root\.setAttribute\("aria-busy","false"\)\}/);
   assert.match(ticketsPage, /@media print/);
 });
 

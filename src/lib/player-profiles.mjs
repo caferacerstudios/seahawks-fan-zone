@@ -8,6 +8,16 @@ export function playerProfilesArtifactPath(env = process.env) {
   return path.resolve(projectRoot, env.PLAYER_PROFILES_ARTIFACT || "runtime/player-profiles/playerProfiles.json");
 }
 
+export function playerCareerFactsArtifactPath(env = process.env) {
+  if (env.PLAYER_CAREER_FACTS_ARTIFACT) return path.resolve(projectRoot, env.PLAYER_CAREER_FACTS_ARTIFACT);
+  return path.join(path.dirname(playerProfilesArtifactPath(env)), "player-career-facts.json");
+}
+
+export function isDisposablePlayerProfilePath(artifactPath, root = projectRoot) {
+  const relative = path.relative(path.resolve(root), path.resolve(artifactPath));
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
+}
+
 export function readPlayerProfiles({ env = process.env, allowFixture = true } = {}) {
   const artifactPath = playerProfilesArtifactPath(env);
   const inputPath = fs.existsSync(artifactPath) ? artifactPath : allowFixture ? fixturePath : artifactPath;

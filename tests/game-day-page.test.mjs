@@ -41,3 +41,18 @@ test("shared page omits diagnostic football placeholders and retains intentional
   assert.match(component, /Ticket tracking is not available for this game yet/);
   assert.match(component, /Historical ticket-market information for this completed game/);
 });
+
+test("ticket history defaults to a real seven-day data window", () => {
+  assert.match(component, /function renderChart\(v,days=7,/);
+  assert.match(component, /Date\.parse\(p\.observedAt\)>=end-days\*864e5/);
+  assert.match(component, /\[7,14,30\]\.includes\(requestedRange\)\?requestedRange:7/);
+  assert.match(component, /renderChart\(v,days,selected\)/);
+});
+
+test("game page orders the complete ticket explorer before supporting content", () => {
+  const intro = component.indexOf('section="intro"');
+  const explorer = component.indexOf('id="ticket-price-explorer"');
+  const supporting = component.indexOf('section="supporting"');
+  const gameSupport = component.indexOf('class="server-game-support"');
+  assert.ok(intro >= 0 && intro < explorer && explorer < supporting && supporting < gameSupport);
+});

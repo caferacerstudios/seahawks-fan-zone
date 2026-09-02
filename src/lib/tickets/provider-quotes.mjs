@@ -1,4 +1,5 @@
 import {MIRROR_MARKETS} from "./eventspy-mirror-schema.mjs";
+export const MARKETPLACE_IDS=MIRROR_MARKETS;
 
 export function currentProviderQuotes(history) {
   const quotes=MIRROR_MARKETS.map((provider,canonicalIndex)=>{
