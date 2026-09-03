@@ -22,7 +22,7 @@ const datedGames = eligibleGames.filter((item) => item && !item.completed);
   {section === "intro" && (
   <>
   <header class="publisher-intro">
-    <h1>{routeStyle === "tickets" ? "Seattle Seahawks Ticket Finder" : matchup ?? "Seattle Seahawks game tickets"}</h1>
+    <h1>{routeStyle === "tickets" ? "Seattle Seahawks Ticket Finder" : game ? `${matchup} — ${game.weekLabel}${dateLabel ? `, ${dateLabel}` : ""}` : "Seattle Seahawks game tickets"}</h1>
     <p>Use the Ticket Finder to compare recent Seattle Seahawks ticket price snapshots before visiting a provider. Seahawks Fan Zone does not sell tickets, hold ticket inventory, or guarantee that a displayed price is still available. The tool organizes validated event summaries and marketplace observations so fans can see what was reported, when it was checked, and what limitations apply.</p>
   </header>
 

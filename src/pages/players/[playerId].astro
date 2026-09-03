@@ -14,6 +14,7 @@ import careerFactsData from "../../data/team/player-career-facts.json";
 import editorialFactsData from "../../data/team/player-profile-editorial-facts.json";
 import { readPlayerProfiles } from "../../lib/player-profiles.mjs";
 import { formatUpdateDate, injuryStatuses, transactions } from "../../lib/team-updates";
+import { pageRobots, playerIndexability, preferredPlayerId } from "../../lib/indexability.mjs";
 
 /* =======================
    getStaticPaths (SELF-CONTAINED)
@@ -402,6 +403,7 @@ const displayName =
     : (playerNameFromAny(statRow?.player) !== "Unknown"
         ? playerNameFromAny(statRow?.player)
         : (profile?.name || fallbackName || "Player"));
+const canonicalPlayerId = preferredPlayerId(playerId, displayName);
 
 const position =
   (rosterPlayer?.position_abbreviation ||
@@ -484,7 +486,7 @@ const playerStatisticsContext = {
   hasData: Boolean(statRow),
   hasStatistics: Boolean(statRow),
 };
-const currentRosterRecord = (currentRosterData?.players || []).find((p) => String(p?.id) === String(playerId));
+const currentRosterRecord = (currentRosterData?.players || []).find((p) => String(p?.id) === String(canonicalPlayerId) || String(p?.id) === String(playerId));
 const profileSources=[...(careerFacts?.sourceFacts||[]),...(editorialFactsData?.facts||[]).filter((fact)=>fact.canonicalPlayerId===String(playerId)).map((fact)=>({title:fact.source?.title,publisher:fact.source?.publisher,url:fact.source?.url}))].filter((source,index,all)=>source?.url&&all.findIndex((x)=>x.url===source.url)===index);
 
 const pageTitle = `${displayName} — Player Profile`;
@@ -493,11 +495,19 @@ const pageTitle = `${displayName} — Player Profile`;
 const abbr = teamAbbrFromAny(rosterPlayer, statRow);
 const fallbackImg = teamLogoUrl(abbr);
 const headshotImg = findHeadshotForName(displayName);
-const canonicalPath = `/players/${encodeURIComponent(String(playerId))}`;
+const canonicalPath = `/players/${encodeURIComponent(String(canonicalPlayerId))}`;
 const pageDescription = `${displayName} ${String(position).toUpperCase()} profile, current roster information, and ${playerStatisticsContext.label} statistics for Seattle.`;
+const playerDecision = playerIndexability({
+  routeId: playerId, canonicalId: canonicalPlayerId, identity: displayName,
+  biography: profile?.bio, rosterStatus: currentRosterRecord?.status,
+  historicallyLabeled: Boolean(statRow || careerFacts?.recentSeasons?.length),
+  usefulSections: [profile?.careerHighlights?.length, profile?.seasonOverview, careerFacts?.careerTimeline?.length, statGroups.length, injuryMatches.length, rosterMoves.length],
+  generatorError: rawProfile?.error ?? rawProfile?.generation?.error,
+});
+const robots = pageRobots(playerDecision);
 ---
 
-<SeahawksLayout title={pageTitle} description={pageDescription} canonical={canonicalPath} activePath="/players" pageType="player" season={seasonContext.seasonYear} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }, { name: displayName, href: canonicalPath }]}>
+<SeahawksLayout title={pageTitle} description={pageDescription} seo={{title:`${pageTitle} | Seahawks Fan Zone`,description:pageDescription,canonicalPath,robots}} activePath="/players" pageType="player" season={seasonContext.seasonYear} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }, { name: displayName, href: canonicalPath }]}>
   <div class="profile-contexts">
     <div><span>Current roster</span><strong>{currentRosterData?.season}</strong><small>{currentRosterRecord?.status || "Not listed on current roster"}</small></div>
     <div><span>Performance shown</span><strong>{playerStatisticsContext.label}</strong><small>Historical season totals</small></div>
