@@ -85,6 +85,8 @@ mv -- "${second_env}" "${env_file}"
 npm ci --ignore-scripts --no-audit --no-fund
 npm run build:production-offline
 docker compose config -q
+# Force recreation so a changed read-only nginx/default.conf bind mount is
+# loaded by the running web container; updating the checkout alone is not enough.
 docker compose up -d --force-recreate web
 docker exec seahawksfanzone-web nginx -t
 
@@ -101,11 +103,10 @@ node -e '
   if (!Array.isArray(data.history) || data.history.length < 1) throw new Error("history must contain at least one point");
 ' "${json_response}"
 
-tickets_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:4322/tickets/?game=${TEST_GAME_ID}")"
-if [[ "${tickets_status}" != "200" ]]; then
-  echo "Error: ticket page returned HTTP ${tickets_status}, expected 200." >&2
-  exit 1
-fi
+# Exercise the production Nginx configuration locally while retaining each
+# logical request's public scheme and Host headers. This covers canonical 200s,
+# aliases, slash normalization, query preservation, and redirect-loop limits.
+node scripts/check-redirect-chains.mjs http://127.0.0.1:4322
 
 systemctl is-enabled --quiet sfz-eventspy-season.timer
 systemctl is-active --quiet sfz-eventspy-season.timer
