@@ -1,0 +1,78 @@
+import { formatKickoff, formatPacificCalendarDate } from "./schedule.mjs";
+
+const TEAM_NAME = "Seattle Seahawks";
+const PACIFIC = "America/Los_Angeles";
+const text = (value) => String(value ?? "").trim();
+const publicHttpsUrl = (value) => {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || /^(?:localhost|127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(url.hostname)) return null;
+    return url.href;
+  } catch { return null; }
+};
+
+export function gameMatchup(game) {
+  if (!game) return "Seattle Seahawks game";
+  return game.home ? `${game.opponentName} at ${TEAM_NAME}` : `${TEAM_NAME} at ${game.opponentName}`;
+}
+
+export function gamePageMetadata(game, ticketObservation = null) {
+  if (!game) return {
+    title: "Seattle Seahawks Game Guide | Seahawks Fan Zone",
+    h1: "Seattle Seahawks Game Guide",
+    description: "Seattle Seahawks game information, schedule context, and ticket guidance.",
+    summary: "Review the available Seattle Seahawks game details and schedule context.",
+  };
+  const matchup = gameMatchup(game);
+  const season = Number(game.game?.season) || new Date(game.game?.startsAt ?? game.game?.date ?? Date.now()).getFullYear();
+  const dateValue = game.game?.startsAt ?? game.game?.date ?? null;
+  const date = dateValue ? formatPacificCalendarDate(dateValue, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : null;
+  const kickoff = game.game?.timeConfirmed && game.game?.startsAt ? formatKickoff(game.game, "time") : ticketObservation?.event?.localTimeLabel ?? null;
+  const timing = date ? ` on ${date}${kickoff ? ` at ${kickoff}` : ""}` : "";
+  const venue = game.venue ?? ticketObservation?.event?.venue;
+  const place = venue ? ` at ${venue}` : "";
+  const status = game.completed && game.seaScore != null && game.opponentScore != null
+    ? `Seattle ${game.seaScore}, ${game.opponentName} ${game.opponentScore}`
+    : text(game.game?.state ?? game.game?.status) || "Scheduled";
+  return {
+    matchup, season,
+    title: `${matchup}: ${game.weekLabel} Guide (${season}) | Seahawks Fan Zone`,
+    h1: `${matchup}: ${game.weekLabel} Game Guide (${season})`,
+    description: `${matchup} ${game.weekLabel} guide for the ${season} season${timing}${place}. See game status, viewing details, ticket observations, and matchup context.`,
+    summary: `${matchup} is Seattle's ${game.home ? "home" : "away"} game for ${game.weekLabel} of the ${season} season${timing}${place}. Current status: ${status}. This page keeps the confirmed game facts, ticket context, and any maintained preview or recap together at the same URL.`,
+  };
+}
+
+export function sportsEventData(game, metadata, url, ticketObservation = null) {
+  if (!game?.game?.startsAt) return null;
+  const homeTeam = game.home ? TEAM_NAME : game.opponentName;
+  const awayTeam = game.home ? game.opponentName : TEAM_NAME;
+  const statuses = {
+    completed: "https://schema.org/EventCompleted",
+    in_progress: "https://schema.org/EventInProgress",
+    postponed: "https://schema.org/EventPostponed",
+    canceled: "https://schema.org/EventCancelled",
+    upcoming: "https://schema.org/EventScheduled",
+    tbd: "https://schema.org/EventScheduled",
+  };
+  const locationName = game.venue ?? ticketObservation?.event?.venue;
+  const locationText = game.editorial?.location ?? ticketObservation?.event?.location;
+  const offerUrl = publicHttpsUrl(ticketObservation?.providerLinks?.[ticketObservation?.summary?.currentLowestMarketplace]);
+  const price = ticketObservation?.summary?.currentLowestCents;
+  return {
+    "@context": "https://schema.org", "@type": "SportsEvent",
+    name: metadata.matchup,
+    startDate: game.game.startsAt,
+    eventStatus: statuses[game.game.state] ?? "https://schema.org/EventScheduled",
+    homeTeam: { "@type": "SportsTeam", name: homeTeam },
+    awayTeam: { "@type": "SportsTeam", name: awayTeam },
+    location: locationName ? { "@type": "Place", name: locationName, ...(locationText ? { address: locationText } : {}) } : undefined,
+    url,
+    offers: Number.isSafeInteger(price) && price > 0 && offerUrl ? { "@type": "Offer", price: (price / 100).toFixed(2), priceCurrency: "USD", url: offerUrl } : undefined,
+  };
+}
+
+export function formatPacificTimestamp(value) {
+  if (!value || !Number.isFinite(Date.parse(value))) return null;
+  return new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(value));
+}

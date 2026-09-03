@@ -2,7 +2,7 @@
 import { MARKETPLACE_IDS } from "../../lib/tickets/provider-quotes.mjs";
 import { formatKickoff, formatPacificCalendarDate } from "../../lib/schedule.mjs";
 
-const { routeStyle = "tickets", game = null, eligibleGames = [], section = "intro" } = Astro.props;
+const { routeStyle = "tickets", game = null, pageMetadata = null, observation = null, eligibleGames = [], section = "intro" } = Astro.props;
 const marketplaceLabels = Object.freeze({
   ticketmaster: "Ticketmaster",
   stubhub: "StubHub",
@@ -13,8 +13,11 @@ const marketplaceNames = MARKETPLACE_IDS.map((id) => marketplaceLabels[id]).filt
 const dateValue = game?.game?.startsAt ?? game?.game?.date ?? null;
 const dateLabel = dateValue ? formatPacificCalendarDate(dateValue, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : null;
 const hasDate = Boolean(dateLabel);
-const kickoffLabel = game?.game?.timeConfirmed && game.game.startsAt ? formatKickoff(game.game, "time") : null;
-const matchup = game ? `${game.home ? "Seattle Seahawks vs." : "Seattle Seahawks at"} ${game.opponentName}` : null;
+const kickoffLabel = game?.game?.timeConfirmed && game.game.startsAt ? formatKickoff(game.game, "time") : observation?.event?.localTimeLabel ?? null;
+const venueLabel = game?.venue ?? observation?.event?.venue ?? null;
+const locationLabel = game?.editorial?.location ?? observation?.event?.location ?? null;
+const matchup = pageMetadata?.matchup ?? (game ? `${game.home ? `${game.opponentName} at Seattle Seahawks` : `Seattle Seahawks at ${game.opponentName}`}` : null);
+const statusLabel = game?.completed ? "Final" : game?.game?.state === "in_progress" ? "In progress" : game?.game?.state === "postponed" ? "Postponed" : game?.game?.state === "tbd" ? "Details not confirmed" : "Scheduled";
 const datedGames = eligibleGames.filter((item) => item && !item.completed);
 ---
 
@@ -22,21 +25,24 @@ const datedGames = eligibleGames.filter((item) => item && !item.completed);
   {section === "intro" && (
   <>
   <header class="publisher-intro">
-    <h1>{routeStyle === "tickets" ? "Seattle Seahawks Ticket Finder" : game ? `${matchup} — ${game.weekLabel}${dateLabel ? `, ${dateLabel}` : ""}` : "Seattle Seahawks game tickets"}</h1>
-    <p>Use the Ticket Finder to compare recent Seattle Seahawks ticket price snapshots before visiting a provider. Seahawks Fan Zone does not sell tickets, hold ticket inventory, or guarantee that a displayed price is still available. The tool organizes validated event summaries and marketplace observations so fans can see what was reported, when it was checked, and what limitations apply.</p>
+    <h1>{routeStyle === "tickets" ? "Seattle Seahawks Ticket Finder" : pageMetadata?.h1 ?? "Seattle Seahawks game guide"}</h1>
+    <p>{routeStyle === "games" && pageMetadata ? pageMetadata.summary : "Use the Ticket Finder to compare recent Seattle Seahawks ticket price snapshots before visiting a provider. Seahawks Fan Zone does not sell tickets, hold ticket inventory, or guarantee that a displayed price is still available. The tool organizes validated event summaries and marketplace observations so fans can see what was reported, when it was checked, and what limitations apply."}</p>
   </header>
 
   {routeStyle === "games" && game && (
     <section class="game-overview" aria-labelledby="game-overview-heading">
-      <h2 id="game-overview-heading">Game overview</h2>
-      <p>The ticket section below contains price observations and provider event information for this specific Seahawks game.</p>
+      <h2 id="game-overview-heading">Game facts</h2>
+      <p>Confirmed details for {matchup}. NFL scheduling details can change; this page omits unverified broadcast and game-day information.</p>
       <dl>
         <div><dt>Matchup</dt><dd>{matchup}</dd></div>
-        {game.weekLabel && <div><dt>Game</dt><dd>{game.weekLabel}</dd></div>}
+        <div><dt>Season and week</dt><dd>{game.game?.season} · {game.weekLabel}</dd></div>
         {hasDate && <div><dt>Date</dt><dd><time datetime={dateValue}>{dateLabel}</time></dd></div>}
-        {kickoffLabel && <div><dt>Local kickoff</dt><dd><time datetime={dateValue}>{kickoffLabel}</time></dd></div>}
-        {game.venue && <div><dt>Venue</dt><dd>{game.venue}</dd></div>}
-        <div><dt>Location status</dt><dd>{game.home ? "Seattle home game" : "Seattle away game"}</dd></div>
+        {kickoffLabel && <div><dt>Pacific kickoff</dt><dd><time datetime={dateValue}>{kickoffLabel}</time></dd></div>}
+        {venueLabel && <div><dt>Venue</dt><dd>{venueLabel}</dd></div>}
+        {locationLabel && <div><dt>Location</dt><dd>{locationLabel}</dd></div>}
+        <div><dt>Home/away</dt><dd>{game.home ? "Seattle home game" : "Seattle away game"}</dd></div>
+        <div><dt>Game status</dt><dd>{statusLabel}</dd></div>
+        {game.completed && game.seaScore != null && game.opponentScore != null && <div><dt>Final score</dt><dd>Seattle {game.seaScore}, {game.opponentName} {game.opponentScore}</dd></div>}
       </dl>
       <p><a href="/schedule">View the full Seahawks schedule</a></p>
     </section>
@@ -50,7 +56,7 @@ const datedGames = eligibleGames.filter((item) => item && !item.completed);
           {datedGames.map((item) => {
             const itemDateValue = item.game?.startsAt ?? item.game?.date ?? null;
             const itemDateLabel = itemDateValue ? formatPacificCalendarDate(itemDateValue, { month: "short", day: "numeric", year: "numeric" }) : null;
-            return <li><a href={`/games/${encodeURIComponent(item.id)}/`}>{item.home ? "Seattle Seahawks vs." : "Seattle Seahawks at"} {item.opponentName}</a><span>{item.weekLabel}{itemDateLabel ? `, ${itemDateLabel}` : ", date not confirmed"}</span></li>;
+            return <li><a href={`/games/${encodeURIComponent(item.id)}/`}>{item.home ? `${item.opponentName} at Seattle Seahawks` : `Seattle Seahawks at ${item.opponentName}`}</a><span>{item.weekLabel}{itemDateLabel ? `, ${itemDateLabel}` : ", date not confirmed"}</span></li>;
           })}
         </ul>
       ) : (

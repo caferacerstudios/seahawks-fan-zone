@@ -38,12 +38,12 @@ test("provider quotes remain price sorted with unavailable providers last", () =
   assert.equal(quotes[0].isLowest, true);
 });
 
-test("shared page omits diagnostic football placeholders and retains intentional future features", () => {
+test("shared page omits diagnostic and future-content placeholders", () => {
   for (const text of ["NFC West context unavailable", "Recent form unavailable", "Opponent leaders unavailable", "Official links not posted", "Record unavailable"]) {
     assert.doesNotMatch(component, new RegExp(text));
   }
-  assert.match(component, /Where to Watch/);
-  assert.match(component, /Game Day Guide/);
+  assert.doesNotMatch(component, /coming soon/i);
+  assert.match(component, /Where to watch and listen/);
   assert.match(component, /Ticket tracking is not available for this game yet/);
   assert.match(component, /Historical ticket-market information for this completed game/);
 });

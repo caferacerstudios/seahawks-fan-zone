@@ -22,6 +22,17 @@ test("ticket models preserve the shared game ID and ticket navigation", () => {
   assert.equal(models["1392216"].previousId, null);
   assert.equal(models["1392216"].nextId, "1392244");
   assert.equal(models["1392244"].previousId, "1392216");
+  assert.equal(models["1392216"].weekLabel, "Week 1");
+  assert.equal(models["1392244"].weekLabel, "Week 2");
+});
+
+test("game pages expose chronological previous and next routes", () => {
+  const first = gameDayPageModel(schedule, "1392216", EVENTSPY_COVERAGE);
+  const away = gameDayPageModel(schedule, "1392244", EVENTSPY_COVERAGE);
+  assert.equal(first.previousId, null);
+  assert.ok(first.nextId);
+  assert.ok(away.previousId);
+  assert.equal(away.nextId, "1392256");
 });
 
 test("missing optional football data stays nullable and invalid IDs fail cleanly", () => {
