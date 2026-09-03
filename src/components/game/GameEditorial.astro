@@ -33,15 +33,6 @@ const hasContent = (value) => typeof value === "string" ? Boolean(value.trim()) 
     </section>
   )}
 
-  {editorial.gameDay?.text && editorial.gameDay?.source?.url && editorial.gameDay?.source?.label && (
-    <section class="detail-panel editorial-panel">
-      <h2>Game-day guide</h2>
-      <p>{editorial.gameDay.text}</p>
-      {editorial.gameDay.items?.length ? <ul>{editorial.gameDay.items.map((item) => <li>{item}</li>)}</ul> : null}
-      <p class="module-source"><a href={editorial.gameDay.source.url}>{editorial.gameDay.source.label}</a></p>
-    </section>
-  )}
-
   <nav class="context-links" aria-label={`${matchup} related coverage`}>
     <h2>Related Seahawks coverage</h2>
     <a href="/schedule">Full schedule</a>

@@ -1,5 +1,5 @@
 ---
-import GameDayPage from "../../components/GameDayPage.astro";
+import GameGuidePage from "../../components/GameGuidePage.astro";
 import { gameCollection } from "../../lib/game-details.mjs";
 import { EVENTSPY_COVERAGE } from "../../lib/tickets/eventspy-coverage.mjs";
 import scheduleData from "../../data/nfl/seahawks.json";
@@ -12,4 +12,4 @@ export function getStaticPaths() {
 
 const { gameId } = Astro.params;
 ---
-<GameDayPage {gameId} routeStyle="games" />
+<GameGuidePage {gameId} />

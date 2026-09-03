@@ -21,7 +21,7 @@ const h1Count = (html) => (html.match(/<h1\b/gi) || []).length;
 const ticketsHtml = await readFile(new URL("tickets/index.html", dist), "utf8");
 const gameDirectories = (await readdir(new URL("games/", dist), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 assert.ok(gameDirectories.length, "offline build should generate at least one game page");
-const gameId = gameDirectories[0];
+const gameId = gameDirectories.includes("1392216") ? "1392216" : gameDirectories[0];
 const gameHtml = await readFile(new URL(`games/${gameId}/index.html`, dist), "utf8");
 
 test("generic Tickets HTML is substantial and useful without scripts", () => {
@@ -39,23 +39,23 @@ test("generic Tickets HTML is substantial and useful without scripts", () => {
 
 test("a generated game page exposes factual game HTML and the permanent guide", () => {
   const visible = stripNonVisible(gameHtml);
-  const publisher = publisherText(gameHtml);
-  assert.match(visible, /Seattle Seahawks (?:vs\.|at) /);
-  assert.match(visible, /Game facts/);
-  assert.match(visible, /Matchup/);
+  assert.match(visible, /Seattle Seahawks/);
+  for (const text of ["Game facts", "Matchup", "Where to Watch", "Viewing information coming soon", "Game Day Guide", "Game Day Guide coming soon"]) assert.match(visible, new RegExp(text));
   assert.ok(/<time\b[^>]*datetime=/i.test(gameHtml) || /<dt>Venue<\/dt>/i.test(gameHtml), "game page should contain a semantic date or venue when supplied");
-  for (const heading of ["Are fees included?", "Data freshness and limitations", "Before buying Seahawks tickets", "Provider links and disclosure"]) assert.match(visible, new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.ok(publisher.replace(/\s/g, "").length >= 1200);
   assert.equal(h1Count(gameHtml), 1);
   assert.doesNotMatch(gameHtml, /eventspy/i);
   assert.doesNotMatch(gameHtml, /["']@type["']\s*:\s*["']Offer["']/i);
-  assert.doesNotMatch(visible, /Frequently Asked Questions/i);
   const overview = gameHtml.indexOf('class="game-overview"');
-  const explorer = gameHtml.indexOf('id="ticket-price-explorer"');
-  const supporting = gameHtml.indexOf('id="ticket-information-heading"');
+  const guides = gameHtml.indexOf('class="game-guide-cards"');
   const related = gameHtml.indexOf("Related Seahawks coverage");
-  assert.ok(overview >= 0 && overview < explorer && explorer < supporting && supporting < related, "game sections should follow facts, ticket experience, guide, then related coverage");
-  assert.match(gameHtml, /<details>\s*<summary><h3>Provider links and disclosure<\/h3><\/summary>/i);
-  assert.doesNotMatch(gameHtml, /<details\s+open/i);
-  assert.doesNotMatch(visible, /coming soon/i);
+  assert.ok(overview >= 0 && overview < guides && guides < related, "game sections should follow facts, guide cards, then related coverage");
+  for (const text of ["Current Ticket Observation", "Choose a Seahawks game", "Compare Ticket Providers", "Lowest Ticket Price History", "Supporting ticket information"]) assert.doesNotMatch(visible, new RegExp(text));
+  assert.doesNotMatch(gameHtml, /id="ticket-price-explorer"/i);
+});
+
+test("the built tickets page retains the complete Ticket Finder", () => {
+  const visible = stripNonVisible(ticketsHtml);
+  for (const text of ["Seattle Seahawks Ticket Finder", "Supporting ticket information"]) assert.match(visible, new RegExp(text));
+  for (const text of ["Choose a Seahawks game", "Compare Ticket Providers", "Lowest Ticket Price History"]) assert.match(ticketsHtml, new RegExp(text));
+  assert.match(ticketsHtml, /id="ticket-price-explorer"/i);
 });
