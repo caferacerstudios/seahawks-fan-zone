@@ -23,6 +23,15 @@ export function reserveRosterPlayers(store) {
   return rows.filter((player) => ["Reserve/Injured", "PUP", "Commissioner Exempt"].includes(player.status));
 }
 
+export function currentRosterDirectoryPlayers(store) {
+  const rows = Array.isArray(store?.players) ? store.players : [];
+  return rows.filter(isCurrentRosterPlayer);
+}
+
+export function currentRosterDirectoryCount(store) {
+  return new Set(currentRosterDirectoryPlayers(store).map(id).filter(Boolean)).size;
+}
+
 export function rosterCount(store) {
   return new Set(currentRosterPlayers(store).map(id).filter(Boolean)).size;
 }

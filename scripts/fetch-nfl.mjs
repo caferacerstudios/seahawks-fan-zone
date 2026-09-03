@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeSchedule } from "../src/lib/schedule.mjs";
+import { reconcileOfficialSchedule } from "../src/lib/schedule-guide.mjs";
 import { buildPhasedStandings } from "../src/lib/standings.mjs";
 import { isCurrentRosterPlayer } from "../src/lib/roster.mjs";
 
@@ -181,10 +182,13 @@ async function main() {
   });
   const leagueGames = fetchedLeagueGames.filter((g) => Number(g.season) === Number(SEASON));
   const gamesFiltered = leagueGames.filter((g) => [g.home_team?.id, g.visitor_team?.id].includes(team.id));
+  const watchGuidePath = path.resolve(__dirname, "..", "src", "data", "nfl", `watch-guide-${SEASON}.json`);
+  const watchGuide = fs.existsSync(watchGuidePath) ? JSON.parse(fs.readFileSync(watchGuidePath, "utf8")) : null;
+  const reconciledGames = reconcileOfficialSchedule(gamesFiltered, watchGuide);
 
   // Normalize once at the ingestion boundary. In particular, `postseason:
   // false` does not mean regular season: the API also uses it for preseason.
-  const normalizedSchedule = normalizeSchedule({ season: SEASON, sourceSeason: SEASON, games: gamesFiltered }, SEASON);
+  const normalizedSchedule = normalizeSchedule({ season: SEASON, sourceSeason: SEASON, games: reconciledGames }, SEASON);
   const { games, gamesPreseason, gamesRegular, gamesPostseason, nextGameId } = normalizedSchedule;
 
   // 3) Fetch team player list (names/positions)
@@ -270,7 +274,8 @@ async function main() {
     };
   });
   const updatedAt = new Date().toISOString();
-  const phasedStandings = buildPhasedStandings({ season: SEASON, updatedAt, games: leagueGames, teams });
+  const otherLeagueGames = leagueGames.filter((g) => ![g.home_team?.id, g.visitor_team?.id].includes(team.id));
+  const phasedStandings = buildPhasedStandings({ season: SEASON, updatedAt, games: [...otherLeagueGames, ...reconciledGames], teams });
 
   const currentSeasonPayload = {
     fixture: false,

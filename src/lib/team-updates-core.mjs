@@ -8,6 +8,38 @@ const EXPECTED_ROSTER_STATUS = new Map([
   ["Waived", "Waived"], ["Released", "Released"],
 ]);
 const ROSTER_STATUS_VALUES = new Set(["Active", "Practice Squad", "Reserve/Injured", "PUP", "Commissioner Exempt", "Released", "Waived", "Historical"]);
+const INJURY_ROSTER_STATUSES = new Set(["Reserve/Injured", "PUP"]);
+
+export function currentInjuryStatuses(injuries, transactions, rosterStore) {
+  const current = new Map((rosterStore?.players || [])
+    .filter((player) => INJURY_ROSTER_STATUSES.has(player.status))
+    .map((player) => [String(player.id), player]));
+  const result = [];
+  const covered = new Set();
+
+  for (const row of newestFirst(injuries || [], (entry) => entry.date)) {
+    const player = current.get(String(row.playerId));
+    if (!player || row.status !== player.status) continue;
+    const identity = `${row.playerId}:${row.status}`;
+    if (covered.has(identity)) continue;
+    covered.add(identity);
+    result.push(row);
+  }
+
+  for (const row of newestFirst(transactions || [], (entry) => entry.timestamp)) {
+    const player = current.get(String(row.playerId));
+    if (!player || row.newStatus !== player.status) continue;
+    const identity = `${row.playerId}:${row.newStatus}`;
+    if (covered.has(identity)) continue;
+    covered.add(identity);
+    result.push({
+      date: row.timestamp, playerId: row.playerId, playerName: row.playerName ?? player.name,
+      status: row.newStatus, description: row.description, sourcePublisher: row.sourcePublisher,
+      sourceUrl: row.sourceUrl, updateStatus: row.updateStatus,
+    });
+  }
+  return newestFirst(result, (entry) => entry.date);
+}
 
 export function transactionFreshness(store, now = new Date()) {
   const checkedAt = now instanceof Date ? now : new Date(now);
