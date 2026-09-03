@@ -52,7 +52,7 @@ export function buildPlayerRouteRegistry(records = []) {
   return { routes, aliases };
 }
 
-export function gameIndexability({ game, id, opponentName, canonicalPath } = {}) {
+export function gameIndexability({ game, id, opponentName, canonicalPath, hasRecap = false, hasGuide = false, hasViewingInformation = false } = {}) {
   const gameId = text(String(id ?? game?.id ?? game?.game_id ?? ""));
   const status = text(game?.status ?? game?.state);
   const home = teamAbbr(game?.home_team);
@@ -66,7 +66,24 @@ export function gameIndexability({ game, id, opponentName, canonicalPath } = {})
   if (!date || !Number.isFinite(Date.parse(date))) reasons.push("unresolved game date");
   if (NON_INDEXABLE_STATUS.test(status)) reasons.push("non-indexable game status");
   if (canonicalPath !== `/games/${encodeURIComponent(gameId)}`) reasons.push("non-canonical route");
+  const completed = /final|finished|complete/i.test(status) || game?.state === "completed";
+  if (completed && !hasRecap) reasons.push("completed game lacks an authored recap");
+  if (!completed && (!hasGuide || !hasViewingInformation)) reasons.push("future game lacks a completed guide or viewing information");
   return { indexable: reasons.length === 0, reasons };
+}
+
+export function hasMeaningfulGameGuide(guide) {
+  const summary = text(guide?.summary);
+  const sections = ["alerts","transportation","parking","timeline","tailgates","watchParties","stadiumTips"]
+    .flatMap((key) => Array.isArray(guide?.[key]) ? guide[key] : []);
+  const sectionText = sections.map((section) => [section?.text,section?.details,section?.recommendation].map(text).join(" ")).join(" ");
+  return summary.length >= 80 && sectionText.length >= 160;
+}
+
+export function hasMeaningfulViewingInformation(entry) {
+  if (!entry || entry?.status === "tbd") return false;
+  if (entry?.status === "completed") return Boolean(text(entry.originalBroadcast) || entry?.replay?.length);
+  return !/tbd/i.test(text(entry.kickoffLabel)) && Boolean(entry?.localTv?.length || entry?.streams?.length || (text(entry?.national) && !/tbd/i.test(entry.national)));
 }
 
 export function playerIndexability({ routeId, canonicalId, identity, profileIdentity, biography, rosterStatus, historicallyLabeled = false, usefulSections = [], generatorError = null, title, h1, canonicalPath, materialUpdatedAt, roleContext = false, statisticsLabelValid = true, verifiedResolved = true } = {}) {

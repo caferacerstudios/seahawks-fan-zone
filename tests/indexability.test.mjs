@@ -1,11 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildPlayerRouteRegistry, PLAYER_QUALITY_STATES, playerIndexability, preferredPlayerId, gameIndexability } from "../src/lib/indexability.mjs";
+import { buildPlayerRouteRegistry, PLAYER_QUALITY_STATES, playerIndexability, preferredPlayerId, gameIndexability, hasMeaningfulGameGuide, hasMeaningfulViewingInformation } from "../src/lib/indexability.mjs";
 
 test("scheduled Seahawks games do not require recaps to be indexable", () => {
   const game = { id: "week-1", status: "Scheduled", date: "2026-09-13T20:25:00Z", home_team: { abbreviation: "SEA" }, visitor_team: { abbreviation: "SF" } };
-  assert.equal(gameIndexability({ game, id: game.id, opponentName: "San Francisco 49ers", canonicalPath: "/games/week-1" }).indexable, true);
+  const complete = { game, id:game.id, opponentName:"San Francisco 49ers", canonicalPath:"/games/week-1", hasGuide:true, hasViewingInformation:true };
+  assert.equal(gameIndexability(complete).indexable, true);
   assert.equal(gameIndexability({ game: { ...game, status: "Cancelled" }, id: game.id, opponentName: "San Francisco 49ers", canonicalPath: "/games/week-1" }).indexable, false);
+});
+
+test("future games require publisher guidance and concrete viewing information", () => {
+  const game={id:"week-18",status:"TBD",state:"tbd",date:"2027-01-09",home_team:{abbreviation:"LAR"},visitor_team:{abbreviation:"SEA"}};
+  const base={game,id:game.id,opponentName:"Los Angeles Rams",canonicalPath:"/games/week-18"};
+  assert.equal(gameIndexability({...base,hasGuide:true,hasViewingInformation:false}).indexable,false);
+  assert.equal(hasMeaningfulGameGuide({summary:"A detailed matchup guide with verified travel and stadium context for Seattle supporters attending this game.",alerts:[{text:"This section contains maintained, player-independent game-day advice with enough specific transportation, entry, venue, and timing context to help a supporter plan safely."}]}),true);
+  assert.equal(hasMeaningfulViewingInformation({status:"tbd",kickoffLabel:"Time TBD",national:"TBD"}),false);
+  assert.equal(hasMeaningfulViewingInformation({kickoffLabel:"1:25 p.m. PST",national:"FOX, regional coverage"}),true);
 });
 
 test("player gate requires identity, biography, status, useful data, and the preferred alias", () => {

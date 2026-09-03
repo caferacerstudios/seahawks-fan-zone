@@ -44,7 +44,7 @@ const seo = {
 };
 ---
 
-<SeahawksLayout {seo} pageTitle={pageTitle} pageTagline={`Verified ${currentSeason} record and scoring totals, with unavailable statistics identified clearly until regular-season data exists.`} activePath="/team" pageType="team" season={statisticsContext.seasonYear}>
+<SeahawksLayout {seo} pageTitle={pageTitle} pageTagline={`Verified ${currentSeason} record and scoring totals, with unavailable statistics identified clearly until regular-season data exists.`} activePath="/team" pageType="team" season={statisticsContext.seasonYear} monetizationEligible={hasMeaningfulStatistics}>
   <div>
     <SeasonContextView context={statisticsContext} options={[statisticsContext]} prefix="Data through" />
   </div>

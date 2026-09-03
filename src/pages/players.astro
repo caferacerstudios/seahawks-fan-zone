@@ -41,7 +41,12 @@ const definitions = [
   ["returns","Returns",["kick_return_yards","punt_return_yards","return_yards"],[["Games played",["games_played"]],["Kick returns",["kick_returns"]],["Kick-return yards",["kick_return_yards"]],["Punt returns",["punt_returns"]],["Punt-return yards",["punt_return_yards"]],["Return TD",["return_touchdowns","kick_return_touchdowns","punt_return_touchdowns"]]]],
 ];
 const categories = definitions.map(([id,label,primary,cols]) => ({ id,label,primary,cols:cols.filter(([,keys]) => uniqueStats.some((r) => value(r,keys) !== null)), rows:uniqueStats.filter((r) => value(r,primary) !== null).sort((a,b)=>(value(b,primary)??0)-(value(a,primary)??0)) })).filter((c) => c.rows.length && c.cols.length);
-const leaders = categories.filter((c) => ["passing","rushing","receiving","defense"].includes(c.id)).map((c) => ({ label:c.id === "defense" ? "Sack leader" : `${c.label} leader`, row:c.rows[0], stat:value(c.rows[0],c.primary), metric:c.id === "defense" ? "SACKS / TACKLES" : "YARDS" }));
+const leaders = categories.filter((c) => ["passing","rushing","receiving","defense"].includes(c.id)).map((c) => {
+  if (c.id !== "defense") return { label:`${c.label} leader`, row:c.rows[0], stat:value(c.rows[0],c.primary), metric:"YARDS" };
+  const sackRow = uniqueStats.filter((row) => value(row,["sacks"]) !== null).sort((a,b)=>(value(b,["sacks"])??0)-(value(a,["sacks"])??0))[0];
+  const tackleRow = uniqueStats.filter((row) => value(row,["total_tackles","tackles"]) !== null).sort((a,b)=>(value(b,["total_tackles","tackles"])??0)-(value(a,["total_tackles","tackles"])??0))[0];
+  return sackRow ? { label:"Sack leader", row:sackRow, stat:value(sackRow,["sacks"]), metric:"SACKS" } : { label:"Tackle leader", row:tackleRow, stat:value(tackleRow,["total_tackles","tackles"]), metric:"TACKLES" };
+}).filter((leader) => leader.row && leader.stat !== null);
 const rosterDate = new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",year:"numeric",timeZone:"America/Los_Angeles"}).format(new Date(rosterStore.asOf));
 ---
 <SeahawksLayout title="Seattle Seahawks Roster | Seahawks Fan Zone" description={`Explore the current ${rosterStore.season} Seattle Seahawks roster, including active, practice-squad, and reserve players, plus clearly labeled historical player statistics from the ${statsContext.label.toLowerCase()}.`} pageTitle="Seattle Seahawks Roster" pageTagline="Current roster identity and historical player statistics, separated by purpose and season." activePath="/players" pageType="players" season={rosterStore.season} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }]}>

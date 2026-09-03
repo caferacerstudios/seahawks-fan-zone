@@ -38,6 +38,11 @@ test("robots and sitemap use the shared, separately gated feature state", () => 
   assert.match(sitemap, /path === "\/tickets".*TICKET_FEATURE\.includeInSitemap/);
 });
 
+test("an incomplete ticket finder permits link discovery while staying noindex", async () => {
+  const { ticketFeatureState }=await import("../src/lib/tickets/feature-state.mjs");
+  assert.equal(ticketFeatureState("preview","disabled").robots,"noindex, follow");
+});
+
 test("real schedule generation marks fixture provenance false", () => {
   assert.match(fetchNfl, /fixture: false/);
 });

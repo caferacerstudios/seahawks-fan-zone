@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { buildHomepageGlance } from "../src/lib/homepage-glance.mjs";
+import { currentRosterPlayers, rosterCount } from "../src/lib/roster.mjs";
+
+const roster=JSON.parse(await readFile(new URL("../src/data/team/roster.json",import.meta.url),"utf8"));
 
 const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const SF = { abbreviation: "SF", full_name: "San Francisco 49ers" };
@@ -80,4 +84,9 @@ test("roster pulse distinguishes unavailable injury data from sourced entries", 
   const sourced = buildHomepageGlance({ nfl, transactions: [{ timestamp: "2026-07-01", transactionType: "Signed", playerName: "A Player" }], injuries: [{}, {}], now: new Date("2026-08-01T12:00:00-07:00") });
   assert.equal(sourced.rosterPulse.injuryCount, 2);
   assert.equal(sourced.rosterPulse.latestTransaction.action, "Signed");
+});
+
+test("homepage current-player total uses the same active-roster definition as the roster page", () => {
+  const model=buildHomepageGlance({nfl:payload([game("opener","regular","2026-09-13T17:00:00-07:00")],{currentRoster:currentRosterPlayers(roster)}),now:new Date("2026-08-01T12:00:00-07:00")});
+  assert.equal(model.rosterPulse.count,rosterCount(roster));
 });

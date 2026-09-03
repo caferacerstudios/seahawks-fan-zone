@@ -5,9 +5,12 @@ import UpNext from "../components/UpNext.astro";
 import { getAvailableSeasonContexts, getSeasonContext } from "../lib/season-context";
 import { scheduleFreshness, selectFeaturedGame, selectScheduleSeason } from "../lib/schedule.mjs";
 import { normalizeScheduleFilters, scheduleGameMatches } from "../lib/schedule-display.mjs";
+import { reconcileOfficialSchedule } from "../lib/schedule-guide.mjs";
 import rawScheduleData from "../data/nfl/seahawks.json";
+import watchGuide from "../data/nfl/watch-guide-2026.json";
 
-const scheduleRoot: any = rawScheduleData;
+const rawGames = Array.isArray(rawScheduleData?.games) ? rawScheduleData.games : [...(rawScheduleData?.gamesPreseason ?? []),...(rawScheduleData?.gamesRegular ?? []),...(rawScheduleData?.gamesPostseason ?? [])];
+const scheduleRoot: any = { ...rawScheduleData, games:reconcileOfficialSchedule(rawGames, watchGuide) };
 const requestedSeason = Astro.url.searchParams.get("season") ?? scheduleRoot?.season;
 const scheduleData = selectScheduleSeason(scheduleRoot, requestedSeason);
 const context = getSeasonContext(scheduleData, "regular season");

@@ -42,9 +42,10 @@ const archiveGroups = [...groups.entries()].map(([label, rows]) => {
   linkedArchiveSeasons.add(season);
   return { label, rows, anchor };
 });
+const seo = { title:"Seattle Seahawks Game Recaps | Seahawks Fan Zone", description:"Read original Seattle Seahawks game recaps with final scores, turning points, and season context.", canonicalPath:"/weekly-recap", robots:entries.length ? "index, follow" : "noindex, follow" };
 ---
 
-<SeahawksLayout title="Seattle Seahawks game recaps" description="Authored Seahawks game recaps, results, key context, and the season archive." pageTitle="Game Recaps" pageTagline="The final score, the authored story, and the factual context from each completed game." activePath="/weekly-recap" canonical="/weekly-recap" monetizationEligible={entries.length > 0}>
+<SeahawksLayout {seo} pageTitle="Game Recaps" pageTagline="The final score, the authored story, and the factual context from each completed game." activePath="/weekly-recap" monetizationEligible={entries.length > 0}>
   {currentEntries.length === 0 && <SeasonState
     title={`${currentSeason} recaps begin after completed games`}
     explanation={`No ${currentSeason} completed game currently has an authored recap. Scheduled games are intentionally omitted; available prior-season coverage remains below.`}
