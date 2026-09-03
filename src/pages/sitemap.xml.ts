@@ -17,6 +17,8 @@ const playerId = (player: any) => player?.id ?? player?.player_id ?? player?.pla
 const playerName = (player: any) => player?.name ?? player?.full_name ?? player?.player?.full_name ?? `${player?.first_name ?? player?.player?.first_name ?? ""} ${player?.last_name ?? player?.player?.last_name ?? ""}`.trim();
 const profileFor = (root: any, id: string) => root?.profiles?.[id] ?? root?.byId?.[id] ?? (Array.isArray(root?.data) ? root.data.find((item: any) => String(playerId(item)) === id) : root?.data?.[id]) ?? root?.[id] ?? null;
 const profileBio = (profile: any) => typeof profile?.bio === "string" ? profile.bio : profile?.biography && typeof profile.biography === "object" ? [profile.biography.overview, profile.biography.careerContext, profile.biography.seahawksContext].filter(Boolean).join("\n\n") : "";
+const positionFor = (player: any) => String(player?.position_abbreviation ?? player?.position ?? player?.player?.position_abbreviation ?? player?.player?.position ?? "").toUpperCase();
+const hasRenderableStats = (player: any, hasStats: boolean) => hasStats && !["OL", "C", "G", "T", "OT"].includes(positionFor(player));
 
 export const GET: APIRoute = async () => {
   let nfl: any = null, recaps: any = null, profiles: any = null, players: any = null, standings: any = null, currentRoster: any = null, careerFacts: any = null;
@@ -57,11 +59,12 @@ export const GET: APIRoute = async () => {
     const currentRecord = current.find((item: any) => route.dataIds.includes(String(item.id)));
     const facts = route.dataIds.map((id: string) => careerFacts?.players?.[id]).find(Boolean);
     const hasStats = stats.some((item: any) => route.dataIds.includes(String(playerId(item))));
-    const usefulSections = [profile?.careerHighlights?.length, profile?.seasonOverview, profile?.recap?.paragraph, facts?.careerTimeline?.length, facts?.recentSeasons?.length, hasStats];
+    const rendersStats = hasRenderableStats(record, hasStats);
+    const usefulSections = [profile?.careerHighlights?.length, profile?.seasonOverview, profile?.recap?.paragraph, facts?.careerTimeline?.length, facts?.recentSeasons?.length, rendersStats];
     const materialUpdatedAt = latestMaterialDate([profile?.materialUpdatedAt, profile?.generation?.generatedAt, (facts?.sourceFacts ?? []).map((fact: any)=>fact.reviewedAt)]);
     const title = `${identity} Seattle Seahawks Profile`;
     const canonicalPath = `/players/${encodeURIComponent(canonicalId)}`;
-    const decision = playerIndexability({ routeId, canonicalId, identity, profileIdentity:profile?.name, biography: profileBio(profile), rosterStatus: currentRecord?.status, historicallyLabeled: Boolean(facts?.recentSeasons?.length || hasStats), usefulSections, generatorError: profile?.error ?? profile?.generation?.error, title, h1:title, canonicalPath, materialUpdatedAt, roleContext:Boolean(profile?.careerHighlights?.length || profile?.seasonOverview || facts?.careerTimeline?.length || hasStats), statisticsLabelValid:true, verifiedResolved:Boolean(record || profile) });
+    const decision = playerIndexability({ routeId, canonicalId, identity, profileIdentity:profile?.name, biography: profileBio(profile), rosterStatus: currentRecord?.status, historicallyLabeled: Boolean(facts?.recentSeasons?.length || hasStats), usefulSections, generatorError: profile?.error ?? profile?.generation?.error, title, h1:title, canonicalPath, materialUpdatedAt, roleContext:Boolean(profile?.careerHighlights?.length || profile?.seasonOverview || facts?.careerTimeline?.length || rendersStats), statisticsLabelValid:true, verifiedResolved:Boolean(record || profile) });
     const factDates = [...(facts?.sourceFacts ?? []).map((fact: any) => fact.reviewedAt), ...(facts?.recentSeasons ?? []).map((season: any) => season.updatedAt)];
     return { canonicalId, decision, lastmod: latestMaterialDate([materialUpdatedAt, factDates]) };
   }).filter((entry) => entry.decision.indexable);
