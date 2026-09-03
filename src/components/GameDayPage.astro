@@ -2,6 +2,7 @@
 import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import TicketPublisherContent from "./tickets/TicketPublisherContent.astro";
 import GameEditorial from "./game/GameEditorial.astro";
+import GameDayGuide from "./game/GameDayGuide.astro";
 import {TICKET_FEATURE} from "../lib/tickets/config";
 import {gameDayPageModel,ticketGameModels} from "../lib/game-details.mjs";
 import {gamePageMetadata,sportsEventData} from "../lib/game-page.mjs";
@@ -10,6 +11,7 @@ import scheduleData from "../data/nfl/seahawks.json";
 import gameRecaps from "../data/nfl/gameRecaps.json";
 import gameEditorial from "../data/nfl/gameEditorial.json";
 import watchGuide from "../data/nfl/watch-guide-2026.json";
+import gameDayGuides from "../data/nfl/game-day-guides.json";
 import {getWatchGuideEntry,isHttpUrl} from "../lib/watch-guide.mjs";
 import {gameIndexability,pageRobots} from "../lib/indexability.mjs";
 const { gameId = null, routeStyle = "tickets" } = Astro.props;
@@ -32,6 +34,7 @@ const navigationLabel = (game) => {
 };
 const gameModels=JSON.stringify(ticketModels).replaceAll("<","\\u003c");
 const watchEntry = selectedGame ? getWatchGuideEntry(selectedGame.game, watchGuide) : null;
+const gameDayGuide = gameDayGuides?.games?.[requestedGameId] ?? null;
 const isBye = selectedGame?.game?.state === "bye";
 const completedPreseason = selectedGame?.completed && selectedGame?.game?.phase === "preseason";
 const watchHeading = completedPreseason ? "Broadcast and Replay" : selectedGame?.completed ? "Broadcast Information" : "Where to Watch";
@@ -71,7 +74,7 @@ const updatedLabel = watchGuide.updatedAt ? new Intl.DateTimeFormat("en-US", { m
           {updatedLabel && <p class="watch-updated">Last updated <time datetime={watchGuide.updatedAt}>{updatedLabel}</time></p>}
         </> : <p>Viewing information coming soon.</p>}
       </section>
-      {!selectedGame.completed && <section class="detail-panel game-day-guide"><h2>Game Day Guide</h2>{selectedGame.editorial?.gameDay?.text ? <><p>{selectedGame.editorial.gameDay.text}</p>{selectedGame.editorial.gameDay.items?.length ? <ul>{selectedGame.editorial.gameDay.items.map((item) => <li>{item}</li>)}</ul> : null}{selectedGame.editorial.gameDay.source?.url && selectedGame.editorial.gameDay.source?.label ? <p class="module-source"><a href={selectedGame.editorial.gameDay.source.url}>{selectedGame.editorial.gameDay.source.label}</a></p> : null}</> : <p>Game Day Guide coming soon.</p>}</section>}
+      {!selectedGame.completed && <GameDayGuide guide={gameDayGuide} />}
   </div>
 )}
 <section id="ticket-price-explorer" aria-label="Interactive Ticket Finder" data-initial-game-id={requestedGameId} data-route-style={routeStyle} aria-busy="true"><div class="loading" role="status"><h2>Interactive price observations</h2><p>Ticket price data is loading. If it is unavailable, use the game information and ticket-buying guide on this page.</p></div></section>

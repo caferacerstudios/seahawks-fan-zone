@@ -7,6 +7,9 @@ import { currentProviderQuotes } from "../src/lib/tickets/provider-quotes.mjs";
 
 const schedule = JSON.parse(await readFile(new URL("../src/data/nfl/seahawks.json", import.meta.url), "utf8"));
 const component = await readFile(new URL("../src/components/GameDayPage.astro", import.meta.url), "utf8");
+const guideComponent = await readFile(new URL("../src/components/game/GameDayGuide.astro", import.meta.url), "utf8");
+const sourceLinkComponent = await readFile(new URL("../src/components/game/GuideSourceLink.astro", import.meta.url), "utf8");
+const gameDayGuides = JSON.parse(await readFile(new URL("../src/data/nfl/game-day-guides.json", import.meta.url), "utf8"));
 const gameRoute = await readFile(new URL("../src/pages/games/[gameId].astro", import.meta.url), "utf8");
 const ticketRoute = await readFile(new URL("../src/pages/tickets.astro", import.meta.url), "utf8");
 
@@ -49,6 +52,27 @@ test("shared page omits diagnostic placeholders and restores stable upcoming-gam
   assert.match(component, /Game Day Guide coming soon\./);
   assert.match(component, /Ticket tracking is not available for this game yet/);
   assert.match(component, /Historical ticket-market information for this completed game/);
+});
+
+test("structured Game Day Guides are selected by the requested game ID", () => {
+  assert.match(component, /game-day-guides\.json/);
+  assert.match(component, /gameDayGuides\?\.games\?\.\[requestedGameId\] \?\? null/);
+  assert.match(component, /<GameDayGuide guide=\{gameDayGuide\}/);
+  assert.equal(gameDayGuides.schemaVersion, 1);
+  assert.equal(gameDayGuides.games["1392216"].gameId, "1392216");
+  assert.equal(gameDayGuides.games["1392244"], undefined);
+  assert.doesNotMatch(guideComponent, /1392216|New England Patriots/);
+  assert.match(guideComponent, /Game Day Guide coming soon\./);
+});
+
+test("Game Day Guide safely renders contextual external links and optional content", () => {
+  assert.match(sourceLinkComponent, /parsed\.protocol === "http:" \|\| parsed\.protocol === "https:"/);
+  assert.match(sourceLinkComponent, /target="_blank" rel="noopener noreferrer"/);
+  assert.match(guideComponent, /specials\.length > 0/);
+  assert.match(guideComponent, /weather &&/);
+  assert.match(guideComponent, /typeof item\.price === "number"/);
+  assert.match(guideComponent, /item\.official === true/);
+  assert.doesNotMatch(guideComponent, /guide\?\.sources/);
 });
 
 test("ticket history defaults to a real seven-day data window", () => {
