@@ -1,0 +1,65 @@
+---
+import SeahawksLayout from "../layouts/SeahawksLayout.astro";
+import TicketPublisherContent from "./tickets/TicketPublisherContent.astro";
+import GameEditorial from "./game/GameEditorial.astro";
+import { gameDayPageModel } from "../lib/game-details.mjs";
+import { gamePageMetadata, sportsEventData } from "../lib/game-page.mjs";
+import { EVENTSPY_COVERAGE } from "../lib/tickets/eventspy-coverage.mjs";
+import scheduleData from "../data/nfl/seahawks.json";
+import gameRecaps from "../data/nfl/gameRecaps.json";
+import gameEditorial from "../data/nfl/gameEditorial.json";
+import { gameIndexability, pageRobots } from "../lib/indexability.mjs";
+
+const { gameId } = Astro.props;
+const requestedGameId = String(gameId ?? "");
+const game = gameDayPageModel(scheduleData, requestedGameId, EVENTSPY_COVERAGE, { editorial: gameEditorial, recaps: gameRecaps });
+const canonicalPath = `/games/${encodeURIComponent(requestedGameId)}`;
+const metadata = gamePageMetadata(game);
+const decision = gameIndexability({ game: game?.game, id: requestedGameId, opponentName: game?.opponentName, canonicalPath });
+const structuredData = game ? sportsEventData(game, metadata, new URL(canonicalPath, Astro.site ?? Astro.url).toString()) : null;
+const navigationLabel = (item) => {
+  const opponent = item?.opponent?.full_name ?? item?.opponent?.fullName ?? item?.opponent?.name ?? item?.opponent?.abbreviation ?? "opponent";
+  return item?.isHome ? `${opponent} at Seattle` : `Seattle at ${opponent}`;
+};
+---
+
+<SeahawksLayout title={metadata.title} description={metadata.description} seo={{ title: metadata.title, description: metadata.description, canonicalPath, robots: pageRobots(decision) }} structuredData={structuredData} activePath="" pageType="game_center" monetizationEligible={false} showPageHeader={false} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Schedule", href: "/schedule" }, { name: metadata.h1, href: canonicalPath }]}>
+  <TicketPublisherContent routeStyle="games" game={game} pageMetadata={metadata} section="intro" />
+  {game && (
+    <section class="server-game-support" aria-label="Game information and navigation">
+      {!game.completed && <div class="game-guide-cards">
+        <section class="detail-panel viewing-panel">
+          <h2>Where to Watch</h2>
+          {game.game?.network && <p><strong>TV:</strong> {game.game.network}</p>}
+          {game.game?.radio && <p><strong>Radio:</strong> {game.game.radio}</p>}
+          {game.game?.watchUrl && <p><a href={game.game.watchUrl}>Verified viewing information</a></p>}
+          {!game.game?.network && !game.game?.radio && !game.game?.watchUrl && <p>Viewing information coming soon.</p>}
+        </section>
+        <section class="detail-panel game-day-guide">
+          <h2>Game Day Guide</h2>
+          {game.editorial?.gameDay?.text ? <>
+            <p>{game.editorial.gameDay.text}</p>
+            {game.editorial.gameDay.items?.length ? <ul>{game.editorial.gameDay.items.map((item) => <li>{item}</li>)}</ul> : null}
+            {game.editorial.gameDay.source?.url && game.editorial.gameDay.source?.label && <p class="module-source"><a href={game.editorial.gameDay.source.url}>{game.editorial.gameDay.source.label}</a></p>}
+          </> : <p>Game Day Guide coming soon.</p>}
+        </section>
+      </div>}
+      <GameEditorial game={game} matchup={metadata.matchup} />
+      <nav class="game-nav" aria-label="Game navigation">
+        {game.previousId ? <a href={`/games/${encodeURIComponent(game.previousId)}/`}>← Previous: {navigationLabel(game.previous)}</a> : <span>First tracked game</span>}
+        <a class="schedule" href="/schedule">Full schedule</a>
+        {game.nextId ? <a class="next" href={`/games/${encodeURIComponent(game.nextId)}/`}>Next: {navigationLabel(game.next)} →</a> : <span class="next">Last tracked game</span>}
+      </nav>
+    </section>
+  )}
+</SeahawksLayout>
+
+<style is:global>
+  .server-game-support{--navy:#002244;--green:#69be28;--ink:#0b1f35;--muted:#536171;--line:#d7dfe6;--soft:#f7f9fa;width:min(1160px,calc(100% - 3rem));margin:1.25rem auto 3.5rem;color:var(--ink)}
+  .game-guide-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin:1.25rem 0}
+  .detail-panel{min-width:0;padding:1.1rem;background:#fff;border:1px solid var(--line);border-radius:.7rem}
+  .detail-panel h2{margin:0 0 .8rem;padding-left:.6rem;border-left:4px solid var(--green);font-size:1.1rem;color:var(--navy)}
+  .game-guide-cards .detail-panel{margin:0}.game-guide-cards p,.game-guide-cards li{line-height:1.65}.game-guide-cards ul{padding-left:1.25rem}
+  .game-nav{display:grid;grid-template-columns:1fr auto 1fr;gap:.6rem;margin:1rem 0}.game-nav a,.game-nav span{padding:.75rem;background:#fff;border:1px solid var(--line);text-decoration:none;font-weight:850}.game-nav .next{text-align:right}
+  @media(max-width:650px){.server-game-support{width:calc(100% - 1.5rem)}.game-guide-cards{grid-template-columns:1fr}.game-nav{grid-template-columns:1fr 1fr}.game-nav .schedule{grid-column:1/-1;grid-row:2;text-align:center}}
+</style>

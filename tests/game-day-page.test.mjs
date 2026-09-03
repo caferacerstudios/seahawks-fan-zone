@@ -7,6 +7,7 @@ import { currentProviderQuotes } from "../src/lib/tickets/provider-quotes.mjs";
 
 const schedule = JSON.parse(await readFile(new URL("../src/data/nfl/seahawks.json", import.meta.url), "utf8"));
 const component = await readFile(new URL("../src/components/GameDayPage.astro", import.meta.url), "utf8");
+const gameGuide = await readFile(new URL("../src/components/GameGuidePage.astro", import.meta.url), "utf8");
 const gameRoute = await readFile(new URL("../src/pages/games/[gameId].astro", import.meta.url), "utf8");
 const ticketRoute = await readFile(new URL("../src/pages/tickets.astro", import.meta.url), "utf8");
 
@@ -22,7 +23,7 @@ test("both URLs resolve game 1392216 through the same shared page model", () => 
     assert.match(model.seahawksLogo, /SEA\.png/);
     assert.match(model.opponentLogo, /NE\.png/);
   }
-  assert.match(gameRoute, /GameDayPage/);
+  assert.match(gameRoute, /GameGuidePage/);
   assert.match(ticketRoute, /GameDayPage/);
 });
 
@@ -38,12 +39,14 @@ test("provider quotes remain price sorted with unavailable providers last", () =
   assert.equal(quotes[0].isLowest, true);
 });
 
-test("shared page omits diagnostic and future-content placeholders", () => {
+test("shared page omits diagnostic placeholders and restores stable upcoming-game guides", () => {
   for (const text of ["NFC West context unavailable", "Recent form unavailable", "Opponent leaders unavailable", "Official links not posted", "Record unavailable"]) {
     assert.doesNotMatch(component, new RegExp(text));
   }
-  assert.doesNotMatch(component, /coming soon/i);
-  assert.match(component, /Where to watch and listen/);
+  assert.match(gameGuide, /Where to Watch/);
+  assert.match(gameGuide, /Viewing information coming soon\./);
+  assert.match(gameGuide, /Game Day Guide/);
+  assert.match(gameGuide, /Game Day Guide coming soon\./);
   assert.match(component, /Ticket tracking is not available for this game yet/);
   assert.match(component, /Historical ticket-market information for this completed game/);
 });
@@ -55,10 +58,16 @@ test("ticket history defaults to a real seven-day data window", () => {
   assert.match(component, /renderChart\(v,days,selected\)/);
 });
 
-test("game page orders the complete ticket explorer before supporting content", () => {
+test("ticket explorer and supporting content are limited to the tickets route", () => {
   const intro = component.indexOf('section="intro"');
   const explorer = component.indexOf('id="ticket-price-explorer"');
   const supporting = component.indexOf('section="supporting"');
   const gameSupport = component.indexOf('class="server-game-support"');
   assert.ok(intro >= 0 && intro < explorer && explorer < supporting && supporting < gameSupport);
+  assert.match(component, /routeStyle === "tickets" && <section id="ticket-price-explorer"/);
+  assert.match(component, /routeStyle === "tickets" && <TicketPublisherContent[^>]+section="supporting"/);
+  assert.doesNotMatch(component, /ServerTicketSummary/);
+  assert.doesNotMatch(component, /serverTicketObservation/);
+  assert.doesNotMatch(gameGuide, /ticket-price-explorer/);
+  assert.doesNotMatch(gameGuide, /ServerTicketSummary/);
 });
