@@ -2,7 +2,7 @@
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import { TRANSACTION_TYPES, formatUpdateDate, playerPath, transactions, transactionsFreshness, transactionsMetadata } from "../../lib/team-updates";
 ---
-<SeahawksLayout title="Seahawks Transactions" pageTitle="Seahawks Transactions" pageTagline="A sourced, chronological record of roster and contract moves. Newest updates appear first." activePath="/team/transactions" monetizationEligible={false}>
+<SeahawksLayout pageTitle="Seattle Seahawks Transactions" pageTagline="A sourced, chronological record of signings, releases, waivers, trades, reserve-list changes and contracts. Newest updates appear first." activePath="/team/transactions" monetizationEligible={false} breadcrumbs={[{name:"Home",href:"/"},{name:"Roster",href:"/players"},{name:"Transactions",href:"/team/transactions"}]}>
   <nav class="utility-nav" aria-label="Team updates"><a aria-current="page" href="/team/transactions">Transactions</a><a href="/team/injuries">Injuries &amp; status</a></nav>
   <aside class:list={["freshness", { stale: transactionsFreshness.stale }]} aria-label="Transaction data freshness">
     <strong>{transactionsFreshness.stale ? "Last verified snapshot" : "Current verified snapshot"}</strong>

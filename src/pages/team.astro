@@ -36,9 +36,15 @@ const statisticsContext = {
   hasStatistics: hasMeaningfulStatistics,
 };
 const pageTitle = `Seattle Seahawks Team Statistics`;
+const seo = {
+  title: `${currentSeason} Seattle Seahawks Team Statistics`,
+  description: `Review verified ${currentSeason} Seattle Seahawks record and scoring totals as regular-season games are completed, with unavailable statistics clearly identified.`,
+  canonicalPath: "/team",
+  robots: hasMeaningfulStatistics ? "index, follow" : "noindex, follow",
+};
 ---
 
-<SeahawksLayout title={`${statisticsContext.label} Seattle Seahawks Team Statistics`} description={`Verified Seattle Seahawks team totals for the ${statisticsContext.label.toLowerCase()}, with current-season availability clearly identified.`} pageTitle={pageTitle} pageTagline={`Verified scoring totals, with unavailable offense data identified clearly.`} activePath="/team" pageType="team" season={statisticsContext.seasonYear}>
+<SeahawksLayout {seo} pageTitle={pageTitle} pageTagline={`Verified ${currentSeason} record and scoring totals, with unavailable statistics identified clearly until regular-season data exists.`} activePath="/team" pageType="team" season={statisticsContext.seasonYear}>
   <div>
     <SeasonContextView context={statisticsContext} options={[statisticsContext]} prefix="Data through" />
   </div>

@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDisposablePlayerProfilePath, playerCareerFactsArtifactPath, playerProfilesArtifactPath, readPlayerProfiles } from "../src/lib/player-profiles.mjs";
 import { runPlayerProfileGeneration } from "../src/lib/player-profile-generation.mjs";
+import { validatePlayerProfiles } from "./validate-player-profiles.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relative) => JSON.parse(fs.readFileSync(path.join(root, relative), "utf8"));
@@ -42,6 +43,7 @@ async function main() {
   console.log(`Estimated run cost: $${summary.estimatedRunCostUsd.toFixed(4)}`);
   console.log(`Estimated profile-generator monthly cost: $${summary.monthlyCostUsd.toFixed(4)}`);
   console.log(`Remaining configured monthly budget: $${summary.remainingMonthlyBudgetUsd.toFixed(4)}`);
+  validatePlayerProfiles({ production:false, writeReport:true });
 }
 
 main().catch((error) => { console.error(error?.message || String(error)); process.exitCode = 1; });

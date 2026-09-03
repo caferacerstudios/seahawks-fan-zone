@@ -14,13 +14,16 @@ import careerFactsData from "../../data/team/player-career-facts.json";
 import editorialFactsData from "../../data/team/player-profile-editorial-facts.json";
 import { readPlayerProfiles } from "../../lib/player-profiles.mjs";
 import { formatUpdateDate, injuryStatuses, transactions } from "../../lib/team-updates";
+import { buildPlayerRouteRegistry, latestMaterialDate, pageRobots, playerIndexability, preferredPlayerId } from "../../lib/indexability.mjs";
+import { publishedArticles } from "../../lib/news";
+import gameRecapsData from "../../data/nfl/gameRecaps.json";
 
 /* =======================
    getStaticPaths (SELF-CONTAINED)
    ======================= */
 export function getStaticPaths() {
   const playerProfilesData = readPlayerProfiles().data;
-function getRosterLocal(playersData) {
+  function getRosterLocal(playersData) {
     if (Array.isArray(playersData?.playerSeasonStats)) return playersData.playerSeasonStats;
     if (Array.isArray(playersData?.data)) return playersData.data;
     if (Array.isArray(playersData?.players)) return playersData.players;
@@ -44,65 +47,21 @@ function getRosterLocal(playersData) {
   }
 
   const roster = getRosterLocal(rosterData);
-  const seen = new Set();
-  const out = [];
-
-  for (const player of (currentRosterData?.players || [])) {
-    const key = String(player?.id || "");
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push({ params: { playerId: key } });
-  }
-
-  for (const p of roster) {
-    const id = pidLocal(p);
-    if (id === null || id === undefined) continue;
-    const key = String(id);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ params: { playerId: key } });
-  }
-
   const statRows = Array.isArray(seasonData?.playerSeasonStats) ? seasonData.playerSeasonStats : [];
-  for (const r of statRows) {
-    const id = r?.player?.id ?? r?.player_id ?? null;
-    if (id === null || id === undefined) continue;
-    const key = String(id);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ params: { playerId: key } });
-  }
-
-  for (const id of Object.keys(playerProfilesData?.profiles || {})) {
-    const key = String(id);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push({ params: { playerId: key } });
-  }
-
-  const aliases = new Map([
-    ["jaxon-smith-njigba", "Jaxon Smith-Njigba"],
-    ["derick-hall", "Derick Hall"],
-    ["devon-witherspoon", "Devon Witherspoon"],
-    ["leonard-williams", "Leonard Williams"],
-  ]);
-  for (const [alias, wantedName] of aliases) {
-    if (seen.has(alias)) continue;
-    const match = (currentRosterData?.players || []).find((player) => playerNameLocal(player).toLowerCase() === wantedName.toLowerCase())
-      ?? roster.find((player) => playerNameLocal(player).toLowerCase() === wantedName.toLowerCase())
-      ?? statRows.find((row) => playerNameLocal(row).toLowerCase() === wantedName.toLowerCase());
-    const resolvedPlayerId = match ? String(pidLocal(match)) : null;
-    out.push({ params: { playerId: alias }, props: { resolvedPlayerId, fallbackName: wantedName } });
-  }
-  return out;
+  const profileRecords = Object.entries(playerProfilesData?.profiles || {}).map(([id, profile]) => ({ id, name:profile?.name ?? profile?.full_name }));
+  const registry = buildPlayerRouteRegistry([...(currentRosterData?.players || []), ...roster, ...statRows, ...profileRecords]);
+  return [...registry.routes.entries()].map(([routeId, route]) => route.alias
+    ? { params:{ playerId:routeId }, redirect:`/players/${encodeURIComponent(route.canonicalId)}` }
+    : { params:{ playerId:routeId }, props:{ resolvedPlayerIds:route.dataIds, fallbackName:route.name } });
 }
 
 /* =======================
    Helpers (page render)
    ======================= */
 const { playerId } = Astro.params;
-const { resolvedPlayerId = null, fallbackName = null } = Astro.props;
-const dataPlayerId = String(resolvedPlayerId ?? playerId);
+const { resolvedPlayerIds = [], fallbackName = null } = Astro.props;
+const dataPlayerIds = [...new Set([String(playerId), ...resolvedPlayerIds.map(String)])];
+const dataPlayerId = dataPlayerIds.find((id) => (currentRosterData?.players || []).some((player) => String(player.id) === id)) ?? dataPlayerIds[0];
 const playerProfilesData = readPlayerProfiles().data;
 
 function getRoster(playersData) {
@@ -381,19 +340,19 @@ function findHeadshotForName(displayName) {
 /* =======================
    Page data
    ======================= */
-const rosterPlayer = findRosterPlayer(dataPlayerId);
-const careerFacts=careerFactsData?.players?.[String(playerId)]||null;
+const rosterPlayer = dataPlayerIds.map(findRosterPlayer).find(Boolean) || null;
+const careerFacts=dataPlayerIds.map((id)=>careerFactsData?.players?.[id]).find(Boolean)||null;
 const recentCareerSeason=careerFacts?.recentSeasons?.[0]||null;
-const liveStatRow = bestStatRowForPlayer(dataPlayerId);
+const liveStatRow = dataPlayerIds.map(bestStatRowForPlayer).find(Boolean) || null;
 const statRow = liveStatRow || (recentCareerSeason ? {
   games_played:recentCareerSeason.games,games_started:recentCareerSeason.starts,completions:recentCareerSeason.completions,passing_attempts:recentCareerSeason.attempts,completion_percentage:recentCareerSeason.completionPercentage,passing_yards:recentCareerSeason.passingYards,yards_per_attempt:recentCareerSeason.yardsPerAttempt,passing_touchdowns:recentCareerSeason.passingTouchdowns,interceptions:recentCareerSeason.interceptions,passer_rating:recentCareerSeason.passerRating,sacks:recentCareerSeason.sacks,rushing_attempts:recentCareerSeason.rushingAttempts,rushing_yards:recentCareerSeason.rushingYards,rushing_touchdowns:recentCareerSeason.rushingTouchdowns
 } : null);
 
-const rawProfile = getProfileFor(dataPlayerId);
+const rawProfile = dataPlayerIds.map(getProfileFor).find(Boolean) || null;
 const profile = normalizeProfile(rawProfile);
 
-const injuryMatches = injuryStatuses.filter((row) => String(row.playerId) === String(playerId));
-const rosterMoves = transactions.filter((row) => String(row.playerId) === String(playerId));
+const injuryMatches = injuryStatuses.filter((row) => dataPlayerIds.includes(String(row.playerId)));
+const rosterMoves = transactions.filter((row) => dataPlayerIds.includes(String(row.playerId)));
 
 // display fields (safe across shapes)
 const displayName =
@@ -402,6 +361,7 @@ const displayName =
     : (playerNameFromAny(statRow?.player) !== "Unknown"
         ? playerNameFromAny(statRow?.player)
         : (profile?.name || fallbackName || "Player"));
+const canonicalPlayerId = preferredPlayerId(playerId, displayName);
 
 const position =
   (rosterPlayer?.position_abbreviation ||
@@ -471,8 +431,12 @@ const navigationIndex = rosterForNavigation.findIndex((item) => String(pid(item)
 const previousPlayer = navigationIndex > 0 ? rosterForNavigation[navigationIndex - 1] : null;
 const nextPlayer = navigationIndex >= 0 && navigationIndex < rosterForNavigation.length - 1 ? rosterForNavigation[navigationIndex + 1] : null;
 
-const updatedAtForPage =
-  playerProfilesData?.updatedAt ?? seasonData?.updatedAt ?? null;
+const materialUpdatedAt = latestMaterialDate([
+  rawProfile?.materialUpdatedAt, rawProfile?.generation?.generatedAt,
+  (careerFacts?.sourceFacts || []).map((fact)=>fact.reviewedAt),
+  injuryMatches.map((row)=>row.date), rosterMoves.map((row)=>row.timestamp),
+]);
+const updatedAtForPage = materialUpdatedAt ?? null;
 const seasonContext = getSeasonContext(seasonData, "regular season");
 const statisticsSeason = Number(liveStatRow ? (seasonData?.playerStatsSeason ?? seasonContext.sourceSeason ?? seasonContext.seasonYear) : (recentCareerSeason?.season ?? seasonData?.playerStatsSeason ?? seasonContext.sourceSeason ?? seasonContext.seasonYear));
 const playerStatisticsContext = {
@@ -484,20 +448,36 @@ const playerStatisticsContext = {
   hasData: Boolean(statRow),
   hasStatistics: Boolean(statRow),
 };
-const currentRosterRecord = (currentRosterData?.players || []).find((p) => String(p?.id) === String(playerId));
+const currentRosterRecord = (currentRosterData?.players || []).find((p) => String(p?.id) === String(canonicalPlayerId) || String(p?.id) === String(playerId));
 const profileSources=[...(careerFacts?.sourceFacts||[]),...(editorialFactsData?.facts||[]).filter((fact)=>fact.canonicalPlayerId===String(playerId)).map((fact)=>({title:fact.source?.title,publisher:fact.source?.publisher,url:fact.source?.url}))].filter((source,index,all)=>source?.url&&all.findIndex((x)=>x.url===source.url)===index);
 
-const pageTitle = `${displayName} — Player Profile`;
+const pageTitle = `${displayName} Seattle Seahawks Profile`;
+const pageH1 = `${displayName} Seattle Seahawks Profile`;
 
 // image URLs
 const abbr = teamAbbrFromAny(rosterPlayer, statRow);
 const fallbackImg = teamLogoUrl(abbr);
 const headshotImg = findHeadshotForName(displayName);
-const canonicalPath = `/players/${encodeURIComponent(String(playerId))}`;
+const canonicalPath = `/players/${encodeURIComponent(String(canonicalPlayerId))}`;
 const pageDescription = `${displayName} ${String(position).toUpperCase()} profile, current roster information, and ${playerStatisticsContext.label} statistics for Seattle.`;
+const playerDecision = playerIndexability({
+  routeId: playerId, canonicalId: canonicalPlayerId, identity: displayName,
+  profileIdentity:profile?.name,
+  biography: profile?.bio, rosterStatus: currentRosterRecord?.status,
+  historicallyLabeled: Boolean(statRow || careerFacts?.recentSeasons?.length),
+  usefulSections: [profile?.careerHighlights?.length, profile?.seasonOverview, careerFacts?.careerTimeline?.length, statGroups.length, injuryMatches.length, rosterMoves.length],
+  generatorError: rawProfile?.error ?? rawProfile?.generation?.error,
+  title:pageTitle, h1:pageH1, canonicalPath, materialUpdatedAt,
+  roleContext:Boolean(profile?.careerHighlights?.length || profile?.seasonOverview || careerFacts?.careerTimeline?.length || statGroups.length),
+  statisticsLabelValid:Boolean(!statRow || Number.isFinite(statisticsSeason)), verifiedResolved:Boolean(rosterPlayer || statRow || rawProfile),
+});
+const robots = pageRobots(playerDecision);
+const relatedArticles = publishedArticles.filter((article)=>JSON.stringify(article).toLowerCase().includes(displayName.toLowerCase())).slice(0,4);
+const relatedGames = Object.entries(gameRecapsData?.recaps || {}).filter(([,recap])=>JSON.stringify(recap).toLowerCase().includes(displayName.toLowerCase())).slice(0,4);
+const personStructuredData = playerDecision.indexable ? { "@context":"https://schema.org", "@type":"Person", name:displayName, jobTitle:String(position).toUpperCase(), affiliation:{ "@type":"SportsTeam", name:"Seattle Seahawks" }, url:new URL(canonicalPath, Astro.site ?? Astro.url).toString() } : undefined;
 ---
 
-<SeahawksLayout title={pageTitle} description={pageDescription} canonical={canonicalPath} activePath="/players" pageType="player" season={seasonContext.seasonYear} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }, { name: displayName, href: canonicalPath }]}>
+<SeahawksLayout title={pageTitle} pageTitle={pageH1} description={pageDescription} seo={{title:`${pageTitle} | Seahawks Fan Zone`,description:pageDescription,canonicalPath,robots}} structuredData={personStructuredData} activePath="/players" pageType="player" season={seasonContext.seasonYear} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }, { name: displayName, href: canonicalPath }]}>
   <div class="profile-contexts">
     <div><span>Current roster</span><strong>{currentRosterData?.season}</strong><small>{currentRosterRecord?.status || "Not listed on current roster"}</small></div>
     <div><span>Performance shown</span><strong>{playerStatisticsContext.label}</strong><small>Historical season totals</small></div>
@@ -616,7 +596,7 @@ const pageDescription = `${displayName} ${String(position).toUpperCase()} profil
     {nextPlayer ? <a rel="next" href={`/players/${encodeURIComponent(String(pid(nextPlayer)))}`}><small>Next {position}</small><strong>{playerNameFromAny(nextPlayer)} →</strong></a> : <span></span>}
   </nav>}
   <ContinueFanZone groups={[
-    { title: displayName, links: [{ href: "/players", label: "Roster and historical player stats" }, ...(injuryMatches.length ? [{ href: "/topics/injuries", label: "Injury context" }] : [])] },
+    { title: displayName, links: [{ href: "/players", label: "Roster and historical player stats" }, ...relatedArticles.map((article)=>({href:`/news/${article.slug}`,label:article.headline})), ...relatedGames.map(([id])=>({href:`/games/${id}`,label:`Game discussion featuring ${displayName}`})), ...(rosterMoves.length ? [{href:"/team/transactions",label:"Transactions"}] : []), ...(injuryMatches.length ? [{ href: "/team/injuries", label: "Injury status" }] : [])] },
     { title: `${String(position).toUpperCase()} position group`, links: [{ href: "/topics/position-groups", label: "Explore position groups" }, { href: "/team", label: "Team statistical context" }] },
     { title: "Game week", links: [{ href: "/schedule", label: "Schedule and game centers" }, { href: "/weekly-recap", label: "Editorial recap archive" }] },
   ]} />

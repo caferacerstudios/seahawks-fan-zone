@@ -12,7 +12,9 @@ const slug = Astro.params.topic as TopicSlug;
 const landing = TOPIC_LANDINGS[slug];
 const topic = TOPICS[slug];
 const links = landing?.links ?? [];
-const substantive = Boolean(topic && links.length >= 2);
+// These routes currently summarize navigation destinations instead of aggregating
+// distinct editorial coverage, so they remain available but are not indexable.
+const substantive = false;
 const seo = {
   title: `${topic?.name ?? "Topic"} | Seahawks Fan Zone`,
   description: landing?.description ?? "Seahawks Fan Zone topic index.",
@@ -22,9 +24,9 @@ const seo = {
 ---
 
 <SeahawksLayout seo={seo} pageTitle={topic?.name ?? "Topic"} pageTagline={landing?.description} monetizationEligible={false} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Topics", href: "/topics/players" }, { name: topic?.name ?? "Topic", href: `/topics/${slug}` }]}>
-  {substantive ? <div class="topic-resources">
+  {links.length ? <div class="topic-resources">
     {links.map((link) => <article><h2><a href={link.href}>{link.label}</a></h2><p>{link.detail}</p></article>)}
-  </div> : <p>This topic does not yet have enough substantive editorial coverage for a landing page.</p>}
+  </div> : <p>Use the primary site navigation to find current Seahawks coverage and reference pages.</p>}
   <style>
     .topic-resources{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem}.topic-resources article{padding:1rem;border:var(--border-crisp);border-left:5px solid var(--action-green);background:#fff}.topic-resources h2{margin:0 0 .4rem;font-size:1rem}.topic-resources p{margin:0;color:var(--slate-700)}
   </style>

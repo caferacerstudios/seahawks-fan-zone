@@ -25,21 +25,24 @@ export function scheduleGames(archive) {
     .filter((game) => game?.state !== "bye" && game?.bye !== true);
 }
 
-export function coverageGame(row, season = 2026) {
+export function coverageGame(row, season = 2026, week = null) {
   const opponent = { abbreviation: TEAM_ABBR.get(row.opponent) ?? "", full_name: row.opponent };
   const seattle = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
   return normalizeGame({
-    id: String(row.gameId), season, week: null, phase: "regular", date: row.localDate,
+    id: String(row.gameId), season, week, phase: "regular", date: row.localDate,
     status: "Scheduled", home_team: row.homeAway === "home" ? seattle : opponent,
     visitor_team: row.homeAway === "home" ? opponent : seattle, venue: row.homeAway === "home" ? "Lumen Field" : null,
-    repositoryFallback: true,
   }, season);
 }
 
 export function gameCollection(archive, coverage = []) {
   const scheduled = scheduleGames(archive);
   const known = new Set(scheduled.map((game, index) => gameId(game, index)));
-  return [...scheduled, ...coverage.filter((row) => !known.has(String(row.gameId))).map((row) => coverageGame(row))];
+  return [...scheduled, ...coverage.filter((row) => !known.has(String(row.gameId))).map((row) => {
+    const coverageIndex = coverage.indexOf(row);
+    const inferredWeek = coverageIndex < 10 ? coverageIndex + 1 : coverageIndex + 2;
+    return coverageGame(row, Number(archive?.season) || 2026, inferredWeek);
+  })];
 }
 
 export function gameDetails(archive, requestedId, { coverage = [] } = {}) {
@@ -65,7 +68,9 @@ export function gameDetails(archive, requestedId, { coverage = [] } = {}) {
     opponentName: opponent?.full_name ?? opponent?.fullName ?? opponent?.name ?? teamAbbr(opponent),
     venue: venueName(game), seaScore, opponentScore,
     outcome: completed && seaScore != null && opponentScore != null ? (seaScore === opponentScore ? "T" : seaScore > opponentScore ? "W" : "L") : null,
-    weekLabel: game?.postseason ? "Playoffs" : Number.isFinite(Number(game?.week)) && game?.week != null ? `Week ${game.week}` : "2026 season",
+    weekLabel: game?.phase === "postseason" || game?.postseason
+      ? ({ 1: "Wild Card Round", 2: "Divisional Round", 3: "Conference Championship", 4: "Super Bowl" })[Number(game?.week)] ?? "Postseason"
+      : Number.isFinite(Number(game?.week)) && game?.week != null ? `Week ${game.week}` : `${game?.season ?? 2026} season`,
   };
 }
 
@@ -85,13 +90,17 @@ export function ticketGameModels(archive, coverage = [], recaps = null) {
   }));
 }
 
-export function gameDayPageModel(archive, requestedId, coverage = []) {
+export function gameDayPageModel(archive, requestedId, coverage = [], { editorial = null, recaps = null } = {}) {
   const details = gameDetails(archive, requestedId, { coverage });
   if (!details) return null;
   return {
     ...details,
     seahawksLogo: nflTeamLogoUrl("SEA"),
     opponentLogo: nflTeamLogoUrl(details.opponentAbbr),
+    previousId: details.previous ? gameId(details.previous) : null,
+    nextId: details.next ? gameId(details.next) : null,
     ticketSnapshot: coverage.find((row) => String(row.gameId) === details.id) ?? null,
+    editorial: editorial?.games?.[details.id] ?? null,
+    recap: recaps?.recaps?.[details.id] ?? null,
   };
 }

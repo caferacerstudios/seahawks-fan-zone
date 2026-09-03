@@ -41,7 +41,7 @@ test("a generated game page exposes factual game HTML and the permanent guide", 
   const visible = stripNonVisible(gameHtml);
   const publisher = publisherText(gameHtml);
   assert.match(visible, /Seattle Seahawks (?:vs\.|at) /);
-  assert.match(visible, /Game overview/);
+  assert.match(visible, /Game facts/);
   assert.match(visible, /Matchup/);
   assert.ok(/<time\b[^>]*datetime=/i.test(gameHtml) || /<dt>Venue<\/dt>/i.test(gameHtml), "game page should contain a semantic date or venue when supplied");
   for (const heading of ["Are fees included?", "Data freshness and limitations", "Before buying Seahawks tickets", "Provider links and disclosure"]) assert.match(visible, new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -53,8 +53,9 @@ test("a generated game page exposes factual game HTML and the permanent guide", 
   const overview = gameHtml.indexOf('class="game-overview"');
   const explorer = gameHtml.indexOf('id="ticket-price-explorer"');
   const supporting = gameHtml.indexOf('id="ticket-information-heading"');
-  const watch = gameHtml.indexOf("Where to Watch");
-  assert.ok(overview >= 0 && overview < explorer && explorer < supporting && supporting < watch, "game sections should follow overview, ticket experience, FAQ, then viewing information");
+  const related = gameHtml.indexOf("Related Seahawks coverage");
+  assert.ok(overview >= 0 && overview < explorer && explorer < supporting && supporting < related, "game sections should follow facts, ticket experience, guide, then related coverage");
   assert.match(gameHtml, /<details>\s*<summary><h3>Provider links and disclosure<\/h3><\/summary>/i);
   assert.doesNotMatch(gameHtml, /<details\s+open/i);
+  assert.doesNotMatch(visible, /coming soon/i);
 });
