@@ -3,91 +3,1289 @@
   "games": {
     "1392216": {
       "gameId": "1392216",
-      "lastUpdated": "2026-09-02T21:47:00-07:00",
-      "game": { "opponent": "New England Patriots", "date": "2026-09-09", "homeAway": "home", "venue": "Lumen Field" },
-      "summary": "This is an unusually busy Seattle stadium-district game day. The Mariners host the Rangers at T-Mobile Park at 1:10 p.m. before the Seahawks' 5:20 p.m. season opener, and the Seahawks have confirmed that the Lumen Field North Lot and Mariners Garage will not be available for Seahawks parking. Public transit is the strongest option. The official Ticketmaster Tailgate opens at 2:00 p.m., while a sold-out Luke Bryan kickoff concert begins in the North Lot at 2:30 p.m. Fans inside Lumen Field will see the Super Bowl LX championship banner celebration, with Mike McCready performing the national anthem and Soundgarden featuring Taylor Momsen and McCready performing at halftime. Outside the stadium, several genuinely game-specific watch parties are confirmed around the Puget Sound region, including Ballard, West Seattle, Woodinville, Issaquah and Tacoma.",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "New England Patriots",
+        "date": "2026-09-09",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "Seattle opens the 2026 regular season at Lumen Field in a Wednesday-night Super Bowl LX rematch. This is a major-event day downtown: the Seahawks will raise their Super Bowl LX championship banner, the official Ticketmaster Tailgate opens at 2:00 p.m., all stadium gates open at 3:30 p.m., and the Mariners have a 1:10 p.m. game that removes the Mariners Garage and Lumen Field North Lot from Seahawks parking availability. Link light rail is the strongest transit option; Sound Transit does not currently list special Seahawks Sounder event service for this game.",
       "alerts": [
-        { "title": "Mariners game will create a major stadium-district overlap", "text": "The Mariners play the Texas Rangers at T-Mobile Park at 1:10 p.m., only a few hours before the Seahawks' 5:20 p.m. kickoff. The Seahawks specifically warn fans to allow extra travel time.", "severity": "warning", "sourceUrl": "https://www.seahawks.com/game-day/" },
-        { "title": "North Lot and Mariners Garage unavailable for Seahawks parking", "text": "Because of the 1:10 p.m. Mariners game, the Lumen Field North Lot and Mariners Garage are unavailable for Seahawks parking. Existing parking pass holders have been sent relocation information by email.", "severity": "critical", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" },
-        { "title": "Do not assume a special Sounder game train is running", "text": "The Seahawks' general transportation page says Sounder game trains operate for most games, but as of September 2 Sound Transit's official September event-service calendar does not list special Sounder service for the September 9 Seahawks game. Do not build your trip around a special game train unless Sound Transit publishes game-specific service.", "severity": "warning", "sourceUrl": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service" },
-        { "title": "Luke Bryan kickoff concert is sold out", "text": "USAA's Salute 250 Kickoff Concert in the Lumen Field North Lot is sold out. A concert ticket and an active Seahawks-Patriots game ticket are required. Gate 3 opens at 1:30 p.m., the concert starts at 2:30 p.m. and is scheduled to end at 3:45 p.m.", "severity": "info", "sourceUrl": "https://www.seahawks.com/game-day/countdown-to-kickoff/kickoff-concert/mobile-view" }
+        {
+          "title": "Mariners game removes major Seahawks parking inventory",
+          "text": "The Seahawks transportation advisory says the Mariners play at 1:10 p.m. and that the Lumen Field North Lot and Mariners Garage are unavailable for Seahawks parking. Existing parking pass holders were sent relocation details by email. Fans driving should reserve another garage before game day or use transit.",
+          "severity": "critical",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "title": "Super Bowl LX banner celebration",
+          "text": "The Seahawks list NFL Kickoff and the Super Bowl LX Banner Celebration as the Week 1 gameday theme.",
+          "severity": "info",
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        },
+        {
+          "title": "No special Sounder game train currently listed",
+          "text": "Sound Transit's current Seahawks event-service calendar lists special Sounder service for selected later home games but does not list September 9. Do not plan on a special postgame Sounder train unless Sound Transit adds service.",
+          "severity": "warning",
+          "sourceUrl": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        }
       ],
       "transportation": [
-        { "name": "Link light rail", "recommendation": "Best all-around option for most fans because parking supply is unusually constrained.", "details": "Link provides direct access to the stadium district. Lumen Field identifies Stadium and International District/Chinatown as nearby stations. Line 1 connects the stadium area with communities north and south of Seattle, while expanded Link service also provides Eastside connections. Expect heavier-than-normal afternoon crowds because the Mariners game ends in the same stadium district before Seahawks pregame activities peak.", "sourceUrl": "https://www.lumenfield.com/plan-your-visit/parking-transportation" },
-        { "name": "King County Metro", "recommendation": "Good option from Seattle neighborhoods and for connecting into the stadium district without parking.", "details": "More than 15 daily Metro routes stop within three blocks of Lumen Field. There is no dedicated Seahawks express gameday bus service, so use the regular weekday network and check the Metro Trip Planner before leaving. Downtown and SODO buses can be crowded around both the Mariners and Seahawks events.", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" },
-        { "name": "Sound Transit Express buses", "recommendation": "Useful alternative for fans coming from Pierce, King and Snohomish counties, especially if a special Sounder train is not published.", "details": "The Seahawks transportation guide lists ST Express connections from areas including Everett, Tacoma, Federal Way, Bellevue, Redmond, Bothell, Issaquah and Woodinville, with downtown stops within walking distance of Lumen Field. Verify the September 9 weekday timetable for your route before traveling.", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" },
-        { "name": "Sounder commuter rail", "recommendation": "Use only a regularly scheduled weekday train that fits your trip unless Sound Transit later publishes a game-specific schedule.", "details": "As of September 2, Sound Transit's official event-service calendar does not list a September 9 Seahawks special-event train. This is important because the Seahawks' generic transportation page says game trains operate for 'most' games rather than confirming this particular Wednesday night game.", "sourceUrl": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service" },
-        { "name": "Washington State Ferries", "recommendation": "A practical car-free option for Bainbridge Island and Bremerton fans.", "details": "Seattle-Bainbridge and Seattle-Bremerton ferries arrive at Colman Dock, within walking distance of Lumen Field. Because this is a Wednesday night game, verify the current WSF sailing schedule before committing to a return sailing after the game.", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" },
-        { "name": "Bellair Sports Shuttle", "recommendation": "Worth considering for fans coming from Bellingham, Burlington or Marysville who want to avoid Seattle driving and parking.", "details": "Bellair is selling a game-specific round-trip Seahawks shuttle for September 9 at $49 per person. Scheduled departures are 12:30 p.m. from Bellingham, 1:15 p.m. from Burlington and 2:00 p.m. from Marysville, with a listed Lumen Field arrival of 3:20 p.m.", "sourceUrl": "https://airporter.com/sportsshuttle/" }
+        {
+          "name": "Link light rail",
+          "recommendation": "Recommended for most fans traveling from north Seattle, Lynnwood, downtown, the airport corridor or south King County.",
+          "details": "Sound Transit's 1 Line serves both Stadium and International District/Chinatown stations near Lumen Field. Because this is a Wednesday rush-hour game and nearby parking is constrained by the Mariners game, allow extra time and expect crowded trains.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "King County Metro",
+          "recommendation": "Useful for Seattle-area trips, but check the weekday schedule and leave extra time.",
+          "details": "More than 15 regular Metro routes stop within three blocks of Lumen Field. The former dedicated Seahawks park-and-ride game bus service is no longer offered.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Washington State Ferries",
+          "recommendation": "Reasonable option for Bainbridge and Bremerton travelers when paired with the walk from Colman Dock.",
+          "details": "Seattle-Bainbridge and Seattle-Bremerton ferries arrive at Colman Dock, within walking distance of Lumen Field. Check the sailing schedule before leaving because the game ends in the evening.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Sounder",
+          "recommendation": "Do not rely on a special game train for this Wednesday opener.",
+          "details": "Sound Transit currently lists special Seahawks Sounder service for selected later games, not September 9. Fans coming from Tacoma, Lakewood, Everett or other Sounder communities should verify regular weekday schedules and their postgame return option before choosing Sounder.",
+          "sourceUrl": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        }
       ],
       "parking": [
-        { "name": "Lumen Field North Lot", "details": "Unavailable for this game because of the 1:10 p.m. Mariners game. Do not arrive expecting to purchase or use standard Seahawks parking here.", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" },
-        { "name": "Mariners Garage", "details": "Unavailable for Seahawks parking because the Mariners host Texas at 1:10 p.m. Parking pass holders affected by the conflict have been sent relocation instructions by email.", "sourceUrl": "https://www.seahawks.com/game-day/" },
-        { "name": "Lumen Field Garage", "details": "The Seahawks state that on-site North Lot and Lumen Field Garage parking is presold on a season basis and is not available for single-game purchase; only pass holders are permitted on game day. StubHub parking passes are not accepted at the Lumen Field Garage.", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" },
-        { "name": "Area parking via SpotHero", "details": "The Seahawks direct single-game drivers to SpotHero for nearby gameday parking. With two major stadium events overlapping on September 9, reserve before heading downtown rather than relying on drive-up availability.", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" },
-        { "name": "Tailgating on Lumen Field property", "details": "Private tailgating is not permitted on Lumen Field property. Fans wanting a structured pregame should use the official Ticketmaster Tailgate or a verified off-property event.", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" }
+        {
+          "name": "Lumen Field North Lot",
+          "details": "Unavailable for Seahawks parking for this game because of the 1:10 p.m. Mariners game. The lot is also normally presold rather than offered as day-of single-game parking.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Mariners Garage",
+          "details": "Unavailable for Seahawks parking because the Mariners play at 1:10 p.m. Parking-pass holders affected by the conflict were sent relocation information.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Off-site reserved parking",
+          "details": "The Seahawks direct single-game drivers to reserve nearby parking in advance. Do not expect to buy a space in the Lumen Field North Lot or Lumen Field Garage on game day.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
       ],
       "timeline": [
-        { "time": "1:10 p.m.", "event": "Mariners vs. Rangers begins", "details": "T-Mobile Park will already be active next door, creating an unusual afternoon traffic and parking overlap." },
-        { "time": "1:30 p.m.", "event": "Luke Bryan concert Gate 3 opens", "details": "For fans who already hold tickets to the sold-out USAA Salute 250 Kickoff Concert." },
-        { "time": "2:00 p.m.", "event": "Ticketmaster Tailgate opens", "details": "Official Seahawks pregame inside the Lumen Field Event Center with food, activities, music, merchandise and the Super Bowl LX trophy display." },
-        { "time": "2:30 p.m.", "event": "Luke Bryan kickoff concert begins", "details": "Sold-out concert in the Lumen Field North Lot. A separate concert ticket plus an active game ticket are required." },
-        { "time": "2:30 p.m.", "event": "Suites and Delta Sky360 Club open", "details": "Premium-entry areas open one hour before general stadium gates." },
-        { "time": "2:30-3:30 p.m.", "event": "Seahawks Legends autographs", "details": "First autograph session inside Ticketmaster Tailgate." },
-        { "time": "3:00 p.m.", "event": "Stadium-area live music begins", "details": "Multiple Seahawks-listed performers begin around the venue, including music in Muckleshoot Heritage Plaza, the Muckleshoot Sports Lounge, T-Mobile Endzone and stadium concourses." },
-        { "time": "3:30 p.m.", "event": "All Lumen Field gates open", "details": "General stadium entry begins. With a championship banner celebration and large opening-night crowd expected, entering well before kickoff is recommended." },
-        { "time": "3:30-4:30 p.m.", "event": "Seahawks Legends autographs", "details": "Second autograph session inside Ticketmaster Tailgate." },
-        { "time": "3:45 p.m.", "event": "Luke Bryan concert scheduled to end", "details": "Concert attendees can then move toward regular stadium entry and their seats." },
-        { "time": "Before kickoff", "event": "Super Bowl LX banner celebration and national anthem", "details": "The Seahawks will unveil their Super Bowl LX champions banner. Mike McCready of Pearl Jam is scheduled to perform the national anthem." },
-        { "time": "5:20 p.m.", "event": "Seahawks vs. Patriots kickoff", "details": "NFL Week 1 and a rematch of Super Bowl LX." },
-        { "time": "Halftime", "event": "Soundgarden performance", "details": "Soundgarden will perform with Taylor Momsen of The Pretty Reckless and Mike McCready of Pearl Jam." }
+        {
+          "time": "1:10 PM",
+          "event": "Mariners game begins",
+          "details": "The overlapping Mariners game materially affects SODO parking and traffic."
+        },
+        {
+          "time": "2:00 PM",
+          "event": "Ticketmaster Tailgate opens",
+          "details": "Official Seahawks pregame event inside the Lumen Field Event Center."
+        },
+        {
+          "time": "2:30 PM",
+          "event": "Suites and Delta Sky360 Club open",
+          "details": "Premium areas open."
+        },
+        {
+          "time": "2:30 PM-4:30 PM",
+          "event": "Seahawks Legends autographs",
+          "details": "Legends autograph sessions are scheduled at Ticketmaster Tailgate in two one-hour windows."
+        },
+        {
+          "time": "3:30 PM",
+          "event": "All stadium gates open",
+          "details": "The Seahawks recommend having mobile tickets ready before reaching the turnstiles."
+        },
+        {
+          "time": "5:20 PM",
+          "event": "Kickoff",
+          "details": "Seahawks vs. Patriots."
+        }
       ],
       "tailgates": [
-        { "name": "Ticketmaster Tailgate", "location": "Lumen Field Event Center", "startTime": "2:00 p.m.", "description": "The official Seahawks pregame event. It is open to fans of all ages, with a 21+ Sports Bar area, gaming and kid-friendly activities, value-priced concessions, Seahawks merchandise and live music. Week 1 includes Seahawks Legends autograph sessions, a Super Bowl LX trophy photo opportunity, and a Taste-Off featuring $12 Sloppy Joe and Cuban Sandwich entries. The first 10,000 fans in Ticketmaster Tailgate receive a commemorative ticket.", "price": null, "ageRestriction": null, "official": true, "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/" },
-        { "name": "XPH Seahawks vs. Patriots Tailgate", "location": "1518 1st Ave S, Seattle, WA 98134", "startTime": "", "description": "A verified off-property Xperience tailgate approximately a short walk south of Lumen Field. Tailgreeter lists the September 9 Patriots-Seahawks event with food, drinks and DJ sets.", "price": 75, "ageRestriction": null, "official": false, "sourceUrl": "https://tailgreeter.com/xperience-tailgates-seattle" }
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "2:00 PM",
+          "description": "Official Seahawks pregame event for ticketed fans. Week 1 includes live entertainment, Seahawks Legends autograph sessions, a gaming zone, kid-friendly activities, a sports bar area, Pro Shop merchandise and a Taste-Off featuring $12 Sloppy Joe and Cuban Sandwich options. The first 10,000 fans entering the tailgate receive a commemorative ticket.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
       ],
       "watchParties": [
-        { "name": "Tractor Tavern Seahawks Watch Party", "location": "Tractor Tavern, 5213 Ballard Ave NW, Seattle, WA 98107", "startTime": "5:00 p.m.", "description": "The Tractor Tavern's own current event calendar lists a dedicated Seahawks Watch Party for the September 9 opener. This is a particularly useful Ballard option for fans avoiding the stadium district.", "specials": [], "ageRestriction": "21+", "sourceUrl": "https://tractortavern.com/calendar/" },
-        { "name": "Ounces Seahawks Season Kickoff Watch Party", "location": "Ounces Taproom & Beer Garden, West Seattle", "startTime": "5:00 p.m.", "description": "Ounces is explicitly hosting the season opener from 5:00-8:30 p.m. with the game on three screens and game sound on. The venue advertises beer and food during the event.", "specials": [], "ageRestriction": null, "sourceUrl": "https://www.ounceswestseattle.com/events" },
-        { "name": "Synne Indoor Tailgate: Seahawks vs. Patriots", "location": "Synne Cellars at Hollywood Schoolhouse, 14810 NE 145th Street, Suite B, Woodinville, WA 98072", "startTime": "5:20 p.m.", "description": "Synne Cellars is hosting a no-cover indoor Seahawks watch party in The Classroom with the game on all three TVs and sound on. Guests can buy Synne wine or local beer and may bring takeout or order from neighboring restaurants. Seating is first come, first served.", "specials": ["No cover", "Local Watts Brewing beer available in addition to Synne Cellars wine"], "ageRestriction": null, "sourceUrl": "https://woodinvillewinecountry.com/event/synne-indoor-tailgate-seahawks-vs-patriots-synne-cellars/" },
-        { "name": "Wine Me Up Seahawks vs. Patriots Watch Party", "location": "Wine Me Up, Gilman Village, 317 NW Gilman Blvd 30B, Issaquah, WA 98027", "startTime": "5:00 p.m.", "description": "A dedicated Seahawks-Patriots watch party from 5:00-8:00 p.m. with TVs throughout the venue and game sound. The event features a JJ's Soul Food game-day menu and a full wine and cocktail bar.", "specials": ["JJ's Seattle Soul Dog", "Smash burger sliders", "Loaded fries", "BBQ pulled pork nachos", "Steak or chicken nachos", "Wings", "Mama's banana pudding"], "ageRestriction": "21+", "sourceUrl": "https://www.visitissaquahwa.com/event/game-day-watch-party-seahawks-v-patriots/" },
-        { "name": "Emerald Queen Casino Kickoff Night Watch Party", "location": "Emerald Queen Casino Tacoma, 2920 E R Street, Tacoma, WA 98404", "startTime": "4:20 p.m.", "description": "EQC is explicitly hosting Seattle vs. New England. The Sportsbook has first-come, first-served seating, and the game will also be shown in the Event Center on a 40-foot screen with doors at 4:20 p.m. The event is free to attend. Players Club members can enter Free Play drawings tied to each quarter.", "specials": ["Free admission", "Players Club members may enter drawings in which two winners after each quarter receive $250 in Free Play"], "ageRestriction": "21+", "sourceUrl": "https://www.emeraldqueen.com/watch-party/" }
+        {
+          "name": "Seahawks vs. Patriots NFL Kickoff Party at The Dock",
+          "location": "The Dock Sports Bar & Grill, Fremont, Seattle",
+          "startTime": "3:00 PM",
+          "description": "The Dock is explicitly advertising a Seahawks-Patriots kickoff party with a live DJ, outdoor beer garden and wall-to-wall game coverage.",
+          "specials": [
+            "Beer bucket specials"
+          ],
+          "ageRestriction": null,
+          "sourceUrl": "https://fremontdock.com/seattle-fremont-the-dock-events"
+        }
       ],
       "stadiumTips": [
-        { "title": "Arrive earlier than for a normal regular-season game", "details": "This game combines the NFL season opener, a championship banner celebration, a sold-out pregame concert and a neighboring 1:10 p.m. Mariners game. General gates open at 3:30 p.m. for the 5:20 p.m. kickoff.", "sourceUrl": "https://www.seahawks.com/game-day/" },
-        { "title": "Ticketmaster Tailgate has a Week 1 giveaway", "details": "The first 10,000 fans entering Ticketmaster Tailgate will receive a commemorative ticket courtesy of Ticketmaster.", "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/" },
-        { "title": "Clear-bag policy is enforced", "details": "Permitted clear bags may be no larger than 12 x 6 x 12 inches. Small non-clear clutches or wallets may be no larger than 4.5 x 6.5 inches. Oversized bags will be denied entry. Walker's Lockers operates near the north and south entrances for Seahawks events.", "sourceUrl": "https://www.lumenfield.com/plan-your-visit-stadium-guide/clear-bag-policy" },
-        { "title": "Have your mobile ticket ready before reaching the scanner", "details": "Lumen Field recommends opening tickets in the Ticketmaster account or mobile wallet before reaching the self-scan turnstiles. Groups can scan all tickets and then proceed through the turnstile one at a time.", "sourceUrl": "https://www.lumenfield.com/plan-your-visit-stadium-guide/tickets" },
-        { "title": "Lumen Field is cashless", "details": "Concessions, retail, parking and roaming vendors accept cards rather than cash. Cash-to-card kiosks are available for fans who need to convert cash to a prepaid card.", "sourceUrl": "https://www.lumenfield.com/plan-your-visit-stadium-guide/cashless" },
-        { "title": "Factory-sealed water is allowed", "details": "Lumen Field permits factory-sealed non-flavored, non-sparkling water bottles and empty soft-sided plastic sports bottles. Many other outside beverages and hard-sided containers are prohibited.", "sourceUrl": "https://www.lumenfield.com/plan-your-visit-stadium-guide/prohibited-items" },
-        { "title": "Use the new North Lot pedestrian pathway", "details": "The Seahawks added a stamped terracotta pedestrian pathway connecting the base of the Weller Street Bridge with Stadium Gate 1, designed to improve pedestrian safety on event days.", "sourceUrl": "https://www.seahawks.com/news/seahawks-celebrate-the-season-with-countdown-to-kickoff" },
-        { "title": "No private tailgating on Lumen Field property", "details": "Lumen Field's Seahawks transportation guidance states that tailgating is not permitted on stadium property. Use the official Ticketmaster Tailgate or a verified nearby private event instead.", "sourceUrl": "https://www.seahawks.com/game-day/transportation/" }
+        {
+          "title": "All tickets are mobile",
+          "details": "Download or update the Seahawks app and load your tickets before arriving. Lumen Field's new turnstiles allow a group to scan all tickets at the reader and then proceed through one at a time after each ticket shows a green check.",
+          "sourceUrl": "https://www.seahawks.com/game-day/"
+        },
+        {
+          "title": "Tailgating is not permitted on Lumen Field property",
+          "details": "Traditional vehicle tailgating is prohibited in Lumen Field-owned lots. Use the official Ticketmaster Tailgate or a verified off-site event instead.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "title": "Week 1 stadium giveaway",
+          "details": "The Seahawks gameday guide says fans in attendance will receive an exclusive blue or green Ring Pop Colorfest ring.",
+          "sourceUrl": "https://www.seahawks.com/game-day/"
+        }
       ],
-      "weather": { "summary": "The current National Weather Service day-seven forecast for downtown Seattle calls for mostly sunny weather on Wednesday. Because the forecast is still at the edge of the reliable seven-day window, check again within 48 hours of kickoff for an evening-specific update.", "temperature": "High near 72°F; Tuesday night low around 56°F", "precipitationChance": "No measurable precipitation chance is currently specified for Wednesday in the NWS text forecast; conditions are listed as mostly sunny.", "wind": "Not yet specified for Wednesday in the current NWS day-seven text forecast.", "sourceUrl": "https://forecast.weather.gov/MapClick.php?lat=47.611196&lon=-122.33711" },
+      "weather": {
+        "summary": "Mostly sunny in the current National Weather Service forecast.",
+        "temperature": "High near 73°F",
+        "precipitationChance": "",
+        "wind": "",
+        "sourceUrl": "https://forecast.weather.gov/MapClick.php?CityName=Seattle&lat=47.6344&lon=-122.342&site=SEW&state=WA"
+      },
       "sources": [
-        { "name": "Seattle Seahawks Gameday Guide", "url": "https://www.seahawks.com/game-day/" },
-        { "name": "Seattle Seahawks Transportation Guide", "url": "https://www.seahawks.com/game-day/transportation/" },
-        { "name": "Seattle Seahawks Ticketmaster Tailgate", "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/" },
-        { "name": "Seattle Seahawks Countdown to Kickoff announcement", "url": "https://www.seahawks.com/news/seahawks-celebrate-the-season-with-countdown-to-kickoff" },
-        { "name": "Seattle Seahawks Luke Bryan Kickoff Concert information", "url": "https://www.seahawks.com/game-day/countdown-to-kickoff/kickoff-concert/mobile-view" },
-        { "name": "Lumen Field Seahawks vs. Patriots event page", "url": "https://www.lumenfield.com/sport-events/seattle-seahawks-vs-new-england-patriots-2026" },
-        { "name": "Lumen Field Parking and Transportation", "url": "https://www.lumenfield.com/plan-your-visit/parking-transportation" },
-        { "name": "Lumen Field Clear Bag Policy", "url": "https://www.lumenfield.com/plan-your-visit-stadium-guide/clear-bag-policy" },
-        { "name": "Lumen Field Prohibited Items", "url": "https://www.lumenfield.com/plan-your-visit-stadium-guide/prohibited-items" },
-        { "name": "Lumen Field Cashless Policy", "url": "https://www.lumenfield.com/plan-your-visit-stadium-guide/cashless" },
-        { "name": "Lumen Field Ticket and Entry Guide", "url": "https://www.lumenfield.com/plan-your-visit-stadium-guide/tickets" },
-        { "name": "Sound Transit Event Service Calendar", "url": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service" },
-        { "name": "Sound Transit Event Service Guide", "url": "https://www.soundtransit.org/ride-with-us/event-service" },
-        { "name": "Seattle Department of Transportation Travel Tips Aug. 27-Sept. 10", "url": "https://sdotblog.seattle.gov/2026/08/27/seattle-travel-tips-august-27-september-10-2026/" },
-        { "name": "Bellair Seahawks Sports Shuttle", "url": "https://airporter.com/sportsshuttle/" },
-        { "name": "XPH Seattle Tailgates", "url": "https://tailgreeter.com/xperience-tailgates-seattle" },
-        { "name": "Tractor Tavern Calendar", "url": "https://tractortavern.com/calendar/" },
-        { "name": "Ounces Taproom Event Calendar", "url": "https://www.ounceswestseattle.com/events" },
-        { "name": "Woodinville Wine Country - Synne Seahawks Watch Party", "url": "https://woodinvillewinecountry.com/event/synne-indoor-tailgate-seahawks-vs-patriots-synne-cellars/" },
-        { "name": "Visit Issaquah - Wine Me Up Seahawks Watch Party", "url": "https://www.visitissaquahwa.com/event/game-day-watch-party-seahawks-v-patriots/" },
-        { "name": "Emerald Queen Casino Kickoff Night Watch Party", "url": "https://www.emeraldqueen.com/watch-party/" },
-        { "name": "National Weather Service Downtown Seattle Forecast", "url": "https://forecast.weather.gov/MapClick.php?lat=47.611196&lon=-122.33711" }
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Seahawks Gameday Guide",
+          "url": "https://www.seahawks.com/game-day/"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Seahawks Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        },
+        {
+          "name": "Sound Transit Event Service Calendar",
+          "url": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "The Dock Events",
+          "url": "https://fremontdock.com/seattle-fremont-the-dock-events"
+        },
+        {
+          "name": "National Weather Service Seattle Forecast",
+          "url": "https://forecast.weather.gov/MapClick.php?CityName=Seattle&lat=47.6344&lon=-122.342&site=SEW&state=WA"
+        }
+      ]
+    },
+    "1392244": {
+      "gameId": "1392244",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Arizona Cardinals",
+        "date": "2026-09-20",
+        "homeAway": "away",
+        "venue": "State Farm Stadium"
+      },
+      "summary": "Seattle's first road game is at State Farm Stadium in Glendale. No sufficiently verified Seahawks-specific Puget Sound watch party or traveling Seahawks tailgate for this game was found yet. Fans traveling to Arizona should prepare for mobile entry, the NFL clear-bag rules and cashless stadium operations.",
+      "alerts": [],
+      "transportation": [],
+      "parking": [
+        {
+          "name": "State Farm Stadium parking",
+          "details": "Use the Cardinals' official game-specific parking information when released and arrive early; security checkpoints are typically busiest during the final 30 minutes before kickoff.",
+          "sourceUrl": "https://www.azcardinals.com/gameday/stadium-policies"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "1:25 PM PT / 1:25 PM MST",
+          "event": "Kickoff",
+          "details": "Seahawks at Cardinals at State Farm Stadium."
+        }
+      ],
+      "tailgates": [],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "State Farm Stadium clear-bag rules",
+          "details": "Approved clear bags may not exceed 12 x 12 x 6 inches; one-gallon clear freezer bags and small clutches up to 4.5 x 6.5 x 2 inches are also permitted.",
+          "sourceUrl": "https://www.azcardinals.com/gameday/stadium-policies"
+        },
+        {
+          "title": "State Farm Stadium is cashless",
+          "details": "The Cardinals identify State Farm Stadium as a 100% cashless venue.",
+          "sourceUrl": "https://www.azcardinals.com/gameday/stadium-policies"
+        },
+        {
+          "title": "Mobile bag check is available",
+          "details": "Non-compliant bags can currently be stored at two mobile bag-check locations outside the security perimeter for $20 per bag. Recheck this price before the game because it is time-sensitive.",
+          "sourceUrl": "https://www.azcardinals.com/gameday/stadium-policies"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Arizona Cardinals Stadium Policies",
+          "url": "https://www.azcardinals.com/gameday/stadium-policies"
+        }
+      ]
+    },
+    "1392256": {
+      "gameId": "1392256",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Washington Commanders",
+        "date": "2026-09-27",
+        "homeAway": "away",
+        "venue": "Northwest Stadium"
+      },
+      "summary": "Seattle visits Northwest Stadium for a 10:00 a.m. Pacific kickoff. No verified Seahawks-specific Seattle-area watch party or traveling Seahawks tailgate was found yet. For fans traveling, Commanders parking is pass-controlled and stadium tailgating is permitted in most lots under specific rules.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "Washington Metro",
+          "recommendation": "Check the Commanders' official gameday transportation page immediately before travel.",
+          "details": "The Commanders maintain Metro information as part of their official stadium gameday resources.",
+          "sourceUrl": "https://www.commanders.com/stadium/game-day"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Northwest Stadium parking",
+          "details": "A pre-purchased parking pass is required for official stadium lots. Passes correspond to a specific color and letter lot.",
+          "sourceUrl": "https://www.commanders.com/stadium/game-day"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "10:00 AM PT / 1:00 PM ET",
+          "event": "Kickoff",
+          "details": "Seahawks at Commanders."
+        }
+      ],
+      "tailgates": [],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "Tailgating is allowed in most official lots",
+          "details": "Northwest Stadium permits tailgating in most parking lots, except H-Burgundy and team/staff lots. Tailgating must end by kickoff.",
+          "sourceUrl": "https://www.commanders.com/stadium/tailgating-policy"
+        },
+        {
+          "title": "Clear-bag policy",
+          "details": "Clear plastic, vinyl or PVC bags up to 12 x 6 x 12 inches, one-gallon clear freezer bags and small clutches around 4.5 x 6.5 inches are permitted.",
+          "sourceUrl": "https://www.commanders.com/stadium/clear-bag-policy"
+        },
+        {
+          "title": "Mobile tickets only",
+          "details": "Commanders tickets are mobile; printed PDFs and screenshots are not accepted.",
+          "sourceUrl": "https://www.commanders.com/stadium/game-day"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Commanders Gameday",
+          "url": "https://www.commanders.com/stadium/game-day"
+        },
+        {
+          "name": "Northwest Stadium Tailgating Policy",
+          "url": "https://www.commanders.com/stadium/tailgating-policy"
+        },
+        {
+          "name": "Northwest Stadium Clear Bag Policy",
+          "url": "https://www.commanders.com/stadium/clear-bag-policy"
+        }
+      ]
+    },
+    "1392277": {
+      "gameId": "1392277",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Los Angeles Chargers",
+        "date": "2026-10-04",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "Seattle returns to Lumen Field for a Sunday afternoon game. Sound Transit has specifically listed Seahawks event-service Sounder trains for October 4, making commuter rail a verified option for this game. The official Ticketmaster Tailgate opens three hours before kickoff.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "Sounder game trains",
+          "recommendation": "Strong option for eligible north- and south-line riders.",
+          "details": "Sound Transit specifically lists Seahawks event service for October 4. Check the event page closer to game day for exact train times.",
+          "sourceUrl": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "Link light rail",
+          "recommendation": "Recommended for most Seattle-area fans.",
+          "details": "The 1 Line serves Stadium and International District/Chinatown stations near Lumen Field.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Lumen Field on-site parking",
+          "details": "The North Lot and Lumen Field Garage are presold on a season basis and generally do not offer single-game day-of parking. Reserve an off-site space in advance.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "10:25 AM",
+          "event": "Ticketmaster Tailgate opens",
+          "details": "Official tailgate opens three hours before kickoff."
+        },
+        {
+          "time": "1:25 PM",
+          "event": "Kickoff",
+          "details": "Chargers at Seahawks."
+        }
+      ],
+      "tailgates": [
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "10:25 AM",
+          "description": "Official Seahawks pregame event open to fans holding a ticket to the game, with food, entertainment, games, family activities and a 21+ sports-bar area.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "Lumen Field property does not allow vehicle tailgating",
+          "details": "Use the official Ticketmaster Tailgate or a separately verified off-site event.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Sound Transit Seahawks Event Service",
+          "url": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ]
+    },
+    "1392292": {
+      "gameId": "1392292",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "San Francisco 49ers",
+        "date": "2026-10-11",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "The 49ers visit Lumen Field for a Sunday afternoon NFC West game. Sound Transit has specifically listed Seahawks Sounder event service for October 11. The official Ticketmaster Tailgate opens three hours before kickoff.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "Sounder game trains",
+          "recommendation": "Verified game-day option for this date.",
+          "details": "Sound Transit lists special Seahawks event service for October 11. Confirm exact departure times closer to game day.",
+          "sourceUrl": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "Link light rail",
+          "recommendation": "Recommended for Seattle-region travel.",
+          "details": "Stadium and International District/Chinatown stations are both convenient to Lumen Field.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Lumen Field-area parking",
+          "details": "Official on-site lots are primarily season-presold. Reserve off-site parking ahead of time rather than expecting day-of stadium inventory.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "10:25 AM",
+          "event": "Ticketmaster Tailgate opens",
+          "details": "Official Seahawks pregame event."
+        },
+        {
+          "time": "1:25 PM",
+          "event": "Kickoff",
+          "details": "49ers at Seahawks."
+        }
+      ],
+      "tailgates": [
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "10:25 AM",
+          "description": "Official Seahawks ticket-holder tailgate opening three hours before kickoff.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "Prepare mobile tickets before reaching the gate",
+          "details": "All Seahawks tickets are mobile. Loading tickets before joining entry queues reduces problems at the turnstiles.",
+          "sourceUrl": "https://www.seahawks.com/game-day/"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Sound Transit Seahawks Event Service",
+          "url": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ]
+    },
+    "1392295": {
+      "gameId": "1392295",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Denver Broncos",
+        "date": "2026-10-15",
+        "homeAway": "away",
+        "venue": "Empower Field at Mile High"
+      },
+      "summary": "Seattle plays Denver on Thursday night. No verified Seahawks-specific Puget Sound party or traveling Seahawks tailgate was found yet. Fans traveling to Denver should review Empower Field's current entry policy before leaving for the stadium.",
+      "alerts": [],
+      "transportation": [],
+      "parking": [],
+      "timeline": [
+        {
+          "time": "5:15 PM PT / 6:15 PM MT",
+          "event": "Kickoff",
+          "details": "Seahawks at Broncos."
+        }
+      ],
+      "tailgates": [],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "Empower Field clear-bag rules",
+          "details": "Approved clear bags may be up to 12 x 6 x 12 inches; one-gallon resealable clear bags and small bags up to 4.5 x 6.5 inches are also allowed.",
+          "sourceUrl": "https://www.denverbroncos.com/game-day/kbyg"
+        },
+        {
+          "title": "No re-entry",
+          "details": "Empower Field has a no-re-entry policy after a ticket has been scanned.",
+          "sourceUrl": "https://www.denverbroncos.com/game-day/kbyg"
+        },
+        {
+          "title": "Some outside food and water are permitted",
+          "details": "Current Broncos guidance allows individual food in an approved clear bag and unfrozen factory-sealed non-alcoholic drinks; empty plastic water bottles under 34 ounces are also permitted. Recheck before the game.",
+          "sourceUrl": "https://www.denverbroncos.com/game-day/kbyg"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Denver Broncos Know Before You Go",
+          "url": "https://www.denverbroncos.com/game-day/kbyg"
+        }
+      ]
+    },
+    "1392321": {
+      "gameId": "1392321",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Kansas City Chiefs",
+        "date": "2026-10-25",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "Kansas City visits Seattle for Sunday Night Football. The official Ticketmaster Tailgate opens three hours before kickoff. Sound Transit has not currently published special Seahawks Sounder event service for this specific game, so do not assume a game train will operate.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "Link light rail",
+          "recommendation": "Preferred transit choice for the Sunday-night game.",
+          "details": "The 1 Line serves two stations near Lumen Field. Check late-evening service before game day.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Lumen Field-area parking",
+          "details": "On-site North Lot and Lumen Field Garage spaces are generally season-presold. Reserve off-site parking ahead of the primetime game.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "2:20 PM",
+          "event": "Ticketmaster Tailgate opens",
+          "details": "Official Seahawks pregame event."
+        },
+        {
+          "time": "5:20 PM",
+          "event": "Kickoff",
+          "details": "Chiefs at Seahawks."
+        }
+      ],
+      "tailgates": [
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "2:20 PM",
+          "description": "Official Seahawks pregame event for ticket holders, opening three hours before kickoff.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ],
+      "watchParties": [],
+      "stadiumTips": [],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        },
+        {
+          "name": "Sound Transit Seahawks Event Service",
+          "url": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        }
+      ]
+    },
+    "1392336": {
+      "gameId": "1392336",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Chicago Bears",
+        "date": "2026-11-02",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "The Bears visit Lumen Field on Monday night. The official Ticketmaster Tailgate opens three hours before kickoff. No special Sounder event train is currently listed for this game, so weekday commuters should plan around Link, Metro or another confirmed return option.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "Link light rail",
+          "recommendation": "Best general transit option for a Monday evening game.",
+          "details": "Use Stadium or International District/Chinatown station and expect rush-hour crowding before kickoff.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "King County Metro",
+          "recommendation": "Useful for local Seattle trips.",
+          "details": "Regular Metro service serves the stadium district, but there is no dedicated Seahawks park-and-ride bus service.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Lumen Field-area parking",
+          "details": "Reserve off-site parking in advance. The stadium's primary on-site lots are season-presold.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "2:15 PM",
+          "event": "Ticketmaster Tailgate opens",
+          "details": "Official Seahawks pregame event."
+        },
+        {
+          "time": "5:15 PM",
+          "event": "Kickoff",
+          "details": "Bears at Seahawks."
+        }
+      ],
+      "tailgates": [
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "2:15 PM",
+          "description": "Official Seahawks ticket-holder tailgate.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ],
+      "watchParties": [],
+      "stadiumTips": [],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ]
+    },
+    "1392349": {
+      "gameId": "1392349",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Arizona Cardinals",
+        "date": "2026-11-08",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "Arizona visits Seattle for a Sunday afternoon NFC West game. Sound Transit specifically lists Seahawks Sounder event service for November 8. The official Ticketmaster Tailgate opens three hours before kickoff.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "Sounder game trains",
+          "recommendation": "Verified game-day option for this matchup.",
+          "details": "Sound Transit lists Seahawks event service for November 8. Check exact train times as game day approaches.",
+          "sourceUrl": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "Link light rail",
+          "recommendation": "Recommended for most Seattle-region fans.",
+          "details": "Use Stadium or International District/Chinatown station.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Lumen Field-area parking",
+          "details": "Reserve off-site parking in advance rather than depending on the season-presold stadium lots.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "10:25 AM",
+          "event": "Ticketmaster Tailgate opens",
+          "details": "Official Seahawks pregame event."
+        },
+        {
+          "time": "1:25 PM",
+          "event": "Kickoff",
+          "details": "Cardinals at Seahawks."
+        }
+      ],
+      "tailgates": [
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "10:25 AM",
+          "description": "Official Seahawks ticket-holder tailgate opening three hours before kickoff.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ],
+      "watchParties": [],
+      "stadiumTips": [],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Sound Transit Seahawks Event Service",
+          "url": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ]
+    },
+    "1392361": {
+      "gameId": "1392361",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Las Vegas Raiders",
+        "date": "2026-11-15",
+        "homeAway": "away",
+        "venue": "Allegiant Stadium"
+      },
+      "summary": "Seattle visits Allegiant Stadium in Las Vegas. No verified Seahawks-specific Seattle watch party or traveling fan event was found yet. Raiders rules allow pregame tailgating in designated parking areas, but setups must be broken down when the game begins.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "RTC / local transit",
+          "recommendation": "Check the current Raiders gameday guide for 2026 event-specific transit before traveling.",
+          "details": "Raiders gameday materials have used RTC Game Day Express service for home games; exact 2026 service for Seahawks-Raiders should be reconfirmed closer to November.",
+          "sourceUrl": "https://www.raiders.com/stadium/allegiant-stadium-code-of-conduct"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Allegiant Stadium parking",
+          "details": "Raiders guidance strongly encourages pre-purchasing parking. Official stadium lots open four hours before Raiders home kickoffs.",
+          "sourceUrl": "https://www.raiders.com/stadium/allegiant-stadium-code-of-conduct"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "1:05 PM PT",
+          "event": "Kickoff",
+          "details": "Seahawks at Raiders."
+        }
+      ],
+      "tailgates": [],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "Tailgating must end at kickoff",
+          "details": "Allegiant Stadium permits pregame tailgating within designated parking-space limits, but tailgating is prohibited once the event starts and after the game.",
+          "sourceUrl": "https://www.raiders.com/stadium/allegiant-stadium-code-of-conduct"
+        },
+        {
+          "title": "Parking lots open four hours before kickoff",
+          "details": "Vehicles may not park overnight, and stadium rules limit lining up before lots open.",
+          "sourceUrl": "https://www.raiders.com/stadium/allegiant-stadium-code-of-conduct"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Raiders Allegiant Stadium Code of Conduct",
+          "url": "https://www.raiders.com/stadium/allegiant-stadium-code-of-conduct"
+        }
+      ]
+    },
+    "1392392": {
+      "gameId": "1392392",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "San Francisco 49ers",
+        "date": "2026-11-29",
+        "homeAway": "away",
+        "venue": "Levi's Stadium"
+      },
+      "summary": "Seattle visits Levi's Stadium after its Week 11 bye. No verified Seahawks-specific Bay Area tailgate or Puget Sound watch party was found yet. Levi's Stadium permits tailgating only in designated areas and requires all tailgating to end after kickoff.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "VTA / rail connections",
+          "recommendation": "Use public transit if convenient and recheck event-specific service close to kickoff.",
+          "details": "Levi's Stadium event guidance uses VTA rail service with connections from BART at Milpitas and Caltrain at Mountain View. Exact service levels should be reconfirmed for November 29.",
+          "sourceUrl": "https://www.49ers.com/game-day/tailgating-policy"
+        }
+      ],
+      "parking": [],
+      "timeline": [
+        {
+          "time": "1:25 PM PT",
+          "event": "Kickoff",
+          "details": "Seahawks at 49ers."
+        }
+      ],
+      "tailgates": [],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "Tailgating is restricted to designated areas",
+          "details": "Tailgating is allowed only in specified Levi's Stadium parking areas, must stay directly in front of or behind the vehicle and must cease after kickoff.",
+          "sourceUrl": "https://www.49ers.com/game-day/tailgating-policy"
+        },
+        {
+          "title": "No glass containers in parking lots",
+          "details": "Levi's Stadium tailgating rules prohibit glass containers in all lots.",
+          "sourceUrl": "https://www.49ers.com/game-day/tailgating-policy"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "49ers Tailgating Policy",
+          "url": "https://www.49ers.com/game-day/tailgating-policy"
+        }
+      ]
+    },
+    "1392408": {
+      "gameId": "1392408",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Dallas Cowboys",
+        "date": "2026-12-07",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "Dallas visits Lumen Field for Monday Night Football. The official Ticketmaster Tailgate opens three hours before kickoff. Sound Transit has not currently listed special Sounder event service for this specific game.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "Link light rail",
+          "recommendation": "Preferred option for the Monday-night game.",
+          "details": "Use Stadium or International District/Chinatown station and allow for weekday commute traffic and crowded trains.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Lumen Field-area parking",
+          "details": "Reserve off-site parking well ahead of a high-demand Monday-night game. Stadium-owned primary lots are season-presold.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "2:15 PM",
+          "event": "Ticketmaster Tailgate opens",
+          "details": "Official Seahawks pregame event."
+        },
+        {
+          "time": "5:15 PM",
+          "event": "Kickoff",
+          "details": "Cowboys at Seahawks."
+        }
+      ],
+      "tailgates": [
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "2:15 PM",
+          "description": "Official Seahawks pregame event for game-ticket holders.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ],
+      "watchParties": [],
+      "stadiumTips": [],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ]
+    },
+    "1392421": {
+      "gameId": "1392421",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "New York Giants",
+        "date": "2026-12-13",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "The Giants visit Lumen Field for a Sunday afternoon game. Sound Transit specifically lists Seahawks Sounder event service for December 13, making commuter rail a confirmed game-day option. The Ticketmaster Tailgate opens three hours before kickoff.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "Sounder game trains",
+          "recommendation": "Verified special-event option for this game.",
+          "details": "Sound Transit lists Seahawks event service for December 13. Confirm detailed north- and south-line departure times closer to game day.",
+          "sourceUrl": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "Link light rail",
+          "recommendation": "Recommended alternative for most Seattle-region fans.",
+          "details": "Stadium and International District/Chinatown stations are close to Lumen Field.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Lumen Field-area parking",
+          "details": "Primary stadium lots are season-presold. Reserve off-site parking ahead of time.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "10:25 AM",
+          "event": "Ticketmaster Tailgate opens",
+          "details": "Official Seahawks pregame event."
+        },
+        {
+          "time": "1:25 PM",
+          "event": "Kickoff",
+          "details": "Giants at Seahawks."
+        }
+      ],
+      "tailgates": [
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "10:25 AM",
+          "description": "Official Seahawks pregame event for ticket holders.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ],
+      "watchParties": [],
+      "stadiumTips": [],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Sound Transit Seahawks Event Service",
+          "url": "https://www.soundtransit.org/get-to-know-us/news-events/calendar?category=event_service&subcategory=442"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ]
+    },
+    "1392425": {
+      "gameId": "1392425",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Philadelphia Eagles",
+        "date": "2026-12-19",
+        "homeAway": "away",
+        "venue": "Lincoln Financial Field"
+      },
+      "summary": "Seattle travels to Philadelphia for a Saturday afternoon game. No sufficiently current Seahawks-specific Philadelphia tailgate or Seattle-area watch party was verified yet, so none is listed. Game-specific parking, SEPTA service and entry information should be rechecked closer to December.",
+      "alerts": [],
+      "transportation": [],
+      "parking": [],
+      "timeline": [
+        {
+          "time": "2:00 PM PT / 5:00 PM ET",
+          "event": "Kickoff",
+          "details": "Seahawks at Eagles."
+        }
+      ],
+      "tailgates": [],
+      "watchParties": [],
+      "stadiumTips": [],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        }
+      ]
+    },
+    "1392443": {
+      "gameId": "1392443",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Los Angeles Rams",
+        "date": "2026-12-25",
+        "homeAway": "home",
+        "venue": "Lumen Field"
+      },
+      "summary": "Seattle hosts the Rams at Lumen Field on Christmas night. Holiday transit schedules, ferry service, restaurant hours and road conditions will need to be checked much closer to December 25. The Seahawks' official Ticketmaster Tailgate policy says the event operates at every home game and opens three hours before kickoff.",
+      "alerts": [
+        {
+          "title": "Christmas Day service schedules will differ",
+          "text": "Transit, ferry and local business schedules may operate on holiday timetables. Current September schedules should not be used for December 25 planning.",
+          "severity": "warning",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "transportation": [
+        {
+          "name": "Link light rail",
+          "recommendation": "Likely the best transit option, but verify Christmas Day service before travel.",
+          "details": "The 1 Line normally serves Stadium and International District/Chinatown stations near Lumen Field. Holiday frequency and operating hours require a fresh check.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Washington State Ferries",
+          "recommendation": "Verify Christmas Day sailing schedules before relying on a ferry connection.",
+          "details": "Bainbridge and Bremerton routes normally reach Colman Dock near the stadium, but holiday service may differ.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Lumen Field-area parking",
+          "details": "Reserve parking in advance. Do not assume stadium-owned lots will have single-game inventory.",
+          "sourceUrl": "https://www.seahawks.com/game-day/transportation/"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "2:15 PM",
+          "event": "Ticketmaster Tailgate scheduled opening",
+          "details": "The official tailgate normally opens three hours before every Seahawks home game."
+        },
+        {
+          "time": "5:15 PM",
+          "event": "Kickoff",
+          "details": "Rams at Seahawks on Christmas."
+        }
+      ],
+      "tailgates": [
+        {
+          "name": "Ticketmaster Tailgate",
+          "location": "Lumen Field Event Center",
+          "startTime": "2:15 PM",
+          "description": "Official Seahawks pregame event. Game-specific Christmas programming has not yet been published.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ],
+      "watchParties": [],
+      "stadiumTips": [],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Seahawks Transportation Guide",
+          "url": "https://www.seahawks.com/game-day/transportation/"
+        },
+        {
+          "name": "Ticketmaster Tailgate",
+          "url": "https://www.seahawks.com/game-day/ticketmaster-tailgate/"
+        }
+      ]
+    },
+    "1392467": {
+      "gameId": "1392467",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Carolina Panthers",
+        "date": "2027-01-03",
+        "homeAway": "away",
+        "venue": "Bank of America Stadium"
+      },
+      "summary": "Seattle plays Carolina in Charlotte in Week 17. No verified Seahawks-specific Charlotte tailgate or Puget Sound watch party was found yet. Bank of America Stadium has substantial privately operated parking nearby and encourages advance reservations, while Charlotte light rail is a practical stadium-access option.",
+      "alerts": [],
+      "transportation": [
+        {
+          "name": "CATS light rail / transit",
+          "recommendation": "Strong option for fans staying in the Charlotte area.",
+          "details": "Panthers transportation guidance recommends light rail and transit as alternatives to driving. Recheck January service and fares before the game.",
+          "sourceUrl": "https://www.panthers.com/schedule/traffic-parking"
+        }
+      ],
+      "parking": [
+        {
+          "name": "Uptown Charlotte parking",
+          "details": "The Panthers report more than 30,000 parking spaces within a 10-15 minute walk of Bank of America Stadium, primarily operated by independent parking operators. Advance reservation is recommended.",
+          "sourceUrl": "https://www.panthers.com/schedule/traffic-parking"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "10:00 AM PT / 1:00 PM ET",
+          "event": "Kickoff",
+          "details": "Seahawks at Panthers."
+        }
+      ],
+      "tailgates": [],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "Clear-bag policy",
+          "details": "Bank of America Stadium allows transparent plastic, vinyl or PVC bags up to 12 x 6 x 12 inches and small purses or clutches no larger than 4.5 x 6.5 inches.",
+          "sourceUrl": "https://www.panthers.com/stadium/beyonce"
+        },
+        {
+          "title": "Stadium is cashless",
+          "details": "Purchases at Bank of America Stadium are cashless.",
+          "sourceUrl": "https://www.panthers.com/stadium/beyonce"
+        },
+        {
+          "title": "No stadium-property tailgating",
+          "details": "The Panthers state that tailgating is prohibited at the stadium itself; rules in privately operated surrounding lots vary by operator.",
+          "sourceUrl": "https://www.panthers.com/stadium/beyonce"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "Panthers Traffic and Parking",
+          "url": "https://www.panthers.com/schedule/traffic-parking"
+        },
+        {
+          "name": "Bank of America Stadium Policies",
+          "url": "https://www.panthers.com/stadium/beyonce"
+        }
+      ]
+    },
+    "1392478": {
+      "gameId": "1392478",
+      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "game": {
+        "opponent": "Los Angeles Rams",
+        "date": "2027-01-10",
+        "homeAway": "away",
+        "venue": "SoFi Stadium"
+      },
+      "summary": "Seattle closes the regular season on the road against the Rams. The Seahawks and NFL still list the Week 18 game date and kickoff time as TBD; January 10 is the current Week 18 calendar placeholder and should not be treated as finalized until the NFL announces the schedule. No Seahawks-specific Los Angeles tailgate or watch party is listed because none was verified this far in advance.",
+      "alerts": [
+        {
+          "title": "Week 18 date and kickoff time are not finalized",
+          "text": "The Seahawks' official schedule currently lists Week 18 at the Rams as TBD. Recheck the NFL and Seahawks schedule before publishing travel or event times.",
+          "severity": "critical",
+          "sourceUrl": "https://www.seahawks.com/schedule/"
+        }
+      ],
+      "transportation": [
+        {
+          "name": "LA Metro and SoFi Stadium shuttle",
+          "recommendation": "Consider transit instead of driving once the Week 18 date and kickoff time are finalized.",
+          "details": "For the 2026-27 NFL season, Rams parking guidance says the SoFi Stadium shuttle boards at the LAX/Metro Transit Center rather than Hawthorne/Lennox.",
+          "sourceUrl": "https://www.therams.com/tickets/parking"
+        },
+        {
+          "name": "Rideshare",
+          "recommendation": "Use the designated SoFi rideshare area instead of arranging a pickup directly at the stadium curb.",
+          "details": "The Rams designate a rideshare area on Kareem Court via Pincay Drive, using 3178 Pincay Dr., Inglewood, as the recommended address.",
+          "sourceUrl": "https://www.therams.com/tickets/parking"
+        }
+      ],
+      "parking": [
+        {
+          "name": "SoFi Stadium on-site parking",
+          "details": "On-site parking must be purchased in advance; the Rams state that event-day parking is not sold at SoFi Stadium. Current season parking is sold out, with single-game inventory available through resale.",
+          "sourceUrl": "https://www.therams.com/tickets/parking"
+        },
+        {
+          "name": "City of Inglewood Park & Go",
+          "details": "The Rams list the City of Inglewood Park & Go system as an off-site parking alternative.",
+          "sourceUrl": "https://www.therams.com/tickets/parking"
+        }
+      ],
+      "timeline": [
+        {
+          "time": "TBD",
+          "event": "Kickoff",
+          "details": "NFL Week 18 date and time have not yet been finalized."
+        }
+      ],
+      "tailgates": [],
+      "watchParties": [],
+      "stadiumTips": [
+        {
+          "title": "Tailgating only in the Pink Zone",
+          "details": "SoFi Stadium permits NFL tailgating only in the Pink Zone. That lot opens five hours before kickoff.",
+          "sourceUrl": "https://www.therams.com/tickets/parking"
+        },
+        {
+          "title": "Parking zones open four hours before kickoff",
+          "details": "Most SoFi parking zones open four hours before kickoff; the Pink Zone opens five hours before kickoff.",
+          "sourceUrl": "https://www.therams.com/tickets/parking"
+        },
+        {
+          "title": "Mobile tickets and clear-bag rules",
+          "details": "SoFi entry is mobile-ticket only; screenshots are not accepted because ticket barcodes rotate. NFL clear bags up to 12 x 6 x 12 inches and small bags up to 4.5 x 6.5 inches are permitted.",
+          "sourceUrl": "https://www.therams.com/stadium/sofi-stadium"
+        }
+      ],
+      "weather": null,
+      "sources": [
+        {
+          "name": "Seattle Seahawks 2026 Schedule",
+          "url": "https://www.seahawks.com/schedule/"
+        },
+        {
+          "name": "NFL Seahawks 2026 Schedule",
+          "url": "https://www.nfl.com/schedules/2026/by-team/seattle-seahawks"
+        },
+        {
+          "name": "Rams SoFi Stadium Parking and Transportation",
+          "url": "https://www.therams.com/tickets/parking"
+        },
+        {
+          "name": "Rams SoFi Stadium Guide",
+          "url": "https://www.therams.com/stadium/sofi-stadium"
+        }
       ]
     }
   }
 }
+

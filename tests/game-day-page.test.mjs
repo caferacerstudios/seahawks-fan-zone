@@ -59,8 +59,9 @@ test("structured Game Day Guides are selected by the requested game ID", () => {
   assert.match(component, /gameDayGuides\?\.games\?\.\[requestedGameId\] \?\? null/);
   assert.match(component, /<GameDayGuide guide=\{gameDayGuide\}/);
   assert.equal(gameDayGuides.schemaVersion, 1);
-  assert.equal(gameDayGuides.games["1392216"].gameId, "1392216");
-  assert.equal(gameDayGuides.games["1392244"], undefined);
+  const expectedGuideIds = ["1392216", "1392244", "1392256", "1392277", "1392292", "1392295", "1392321", "1392336", "1392349", "1392361", "1392392", "1392408", "1392421", "1392425", "1392443", "1392467", "1392478"];
+  assert.deepEqual(Object.keys(gameDayGuides.games).sort(), expectedGuideIds);
+  for (const gameId of expectedGuideIds) assert.equal(gameDayGuides.games[gameId].gameId, gameId);
   assert.doesNotMatch(guideComponent, /1392216|New England Patriots/);
   assert.match(guideComponent, /Game Day Guide coming soon\./);
 });
