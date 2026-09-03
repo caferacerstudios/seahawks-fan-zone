@@ -43,7 +43,7 @@ test("future and completed games transition at the same canonical URL", () => {
 });
 
 test("missing viewing data gets an explicit placeholder without invented values", async () => {
-  const component = await readFile(new URL("../src/components/GameGuidePage.astro", import.meta.url), "utf8");
+  const component = await readFile(new URL("../src/components/GameDayPage.astro", import.meta.url), "utf8");
   assert.match(component, /Viewing information coming soon\./);
   assert.match(component, /Game Day Guide coming soon\./);
   assert.doesNotMatch(component, /serverTicketObservation/);

@@ -37,7 +37,7 @@ test("generic Tickets HTML is substantial and useful without scripts", () => {
   assert.doesNotMatch(visible, /Frequently Asked Questions/i);
 });
 
-test("a generated game page exposes factual game HTML and the permanent guide", () => {
+test("a generated game page exposes facts, permanent guides, and the complete Ticket Finder", () => {
   const visible = stripNonVisible(gameHtml);
   assert.match(visible, /Seattle Seahawks/);
   for (const text of ["Game facts", "Matchup", "Where to Watch", "Viewing information coming soon", "Game Day Guide", "Game Day Guide coming soon"]) assert.match(visible, new RegExp(text));
@@ -47,10 +47,17 @@ test("a generated game page exposes factual game HTML and the permanent guide", 
   assert.doesNotMatch(gameHtml, /["']@type["']\s*:\s*["']Offer["']/i);
   const overview = gameHtml.indexOf('class="game-overview"');
   const guides = gameHtml.indexOf('class="game-guide-cards"');
+  const explorer = gameHtml.indexOf('id="ticket-price-explorer"');
+  const supporting = gameHtml.indexOf("Supporting ticket information");
   const related = gameHtml.indexOf("Related Seahawks coverage");
-  assert.ok(overview >= 0 && overview < guides && guides < related, "game sections should follow facts, guide cards, then related coverage");
-  for (const text of ["Current Ticket Observation", "Choose a Seahawks game", "Compare Ticket Providers", "Lowest Ticket Price History", "Supporting ticket information"]) assert.doesNotMatch(visible, new RegExp(text));
-  assert.doesNotMatch(gameHtml, /id="ticket-price-explorer"/i);
+  assert.ok(overview >= 0 && overview < guides && guides < explorer && explorer < supporting && supporting < related, "game sections should follow facts, guide cards, Ticket Finder, supporting information, then related coverage");
+  for (const text of ["Choose a Seahawks game", "Days Until Kickoff", "Current Lowest", "Compare Ticket Providers", "Lowest Ticket Price History"]) assert.match(gameHtml, new RegExp(text));
+  for (const text of ["Current Ticket Observation", "Lowest observed price", "Ticket-data timestamp", "Provider coverage", "ServerTicketSummary"]) assert.doesNotMatch(visible, new RegExp(text));
+  assert.match(visible, /Supporting ticket information/);
+  assert.match(gameHtml, /id="ticket-price-explorer"/i);
+  assert.equal((visible.match(/Where to Watch/g) || []).length, 1);
+  assert.equal((visible.match(/Game Day Guide/g) || []).length, 1);
+  assert.equal((gameHtml.match(/data-game-hero/g) || []).length, 1, "the dynamic explorer should contain one matchup hero template");
 });
 
 test("the built tickets page retains the complete Ticket Finder", () => {
