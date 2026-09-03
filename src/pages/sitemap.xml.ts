@@ -4,7 +4,7 @@ import { NEWS_CATEGORIES, categorySlug, publishedArticles } from "../lib/news";
 import { TICKET_FEATURE } from "../lib/tickets/config";
 import { EVENTSPY_COVERAGE } from "../lib/tickets/eventspy-coverage.mjs";
 import { gameCollection, gameDayPageModel } from "../lib/game-details.mjs";
-import { gameIndexability, latestMaterialDate, playerIndexability, preferredPlayerId } from "../lib/indexability.mjs";
+import { buildPlayerRouteRegistry, gameIndexability, latestMaterialDate, playerIndexability } from "../lib/indexability.mjs";
 import { readPlayerProfiles } from "../lib/player-profiles.mjs";
 
 const TOPICS = ["/topics/players", "/topics/roster", "/topics/injuries", "/topics/opponents", "/topics/game-week", "/topics/nfc-west", "/topics/position-groups", "/topics/championship"];
@@ -35,19 +35,24 @@ export const GET: APIRoute = async () => {
   const eligibleGames = games.filter((model: any) => gameIndexability({ game: model.game, id: model.id, opponentName: model.opponentName, canonicalPath: `/games/${encodeURIComponent(model.id)}` }).indexable);
   const includeStatic = (path: string) => path === "/tickets" ? TICKET_FEATURE.includeInSitemap : path === "/weekly-recap" ? hasRecaps : path === "/schedule" ? eligibleGames.length > 0 : path === "/players" ? allPlayers.length > 0 : path === "/team" ? Boolean(nfl?.teamSeasonStats) : path === "/standings" ? hasStandings : true;
 
-  const candidateIds = new Set([...allPlayers.map(playerId), ...Object.keys(profiles?.profiles ?? {}), ...Object.keys(careerFacts?.players ?? {})].filter(Boolean).map(String));
-  const eligiblePlayers = [...candidateIds].map((routeId) => {
-    const record = allPlayers.find((item) => String(playerId(item)) === routeId);
-    const profile = profileFor(profiles, routeId);
+  const profileRecords = Object.entries(profiles?.profiles ?? {}).map(([id, profile]: any) => ({ id, name:profile?.name ?? profile?.full_name }));
+  const registry = buildPlayerRouteRegistry([...allPlayers, ...profileRecords]);
+  const eligiblePlayers = [...registry.routes.values()].filter((route: any) => !route.alias).map((route: any) => {
+    const routeId = route.canonicalId;
+    const record = allPlayers.find((item) => route.dataIds.includes(String(playerId(item))));
+    const profile = route.dataIds.map((id: string) => profileFor(profiles, id)).find(Boolean);
     const identity = playerName(record) || profile?.name || profile?.full_name || "";
-    const canonicalId = preferredPlayerId(routeId, identity);
-    const currentRecord = current.find((item: any) => String(item.id) === canonicalId || String(item.id) === routeId);
-    const facts = careerFacts?.players?.[canonicalId] ?? careerFacts?.players?.[routeId];
-    const hasStats = stats.some((item: any) => String(playerId(item)) === routeId);
+    const canonicalId = routeId;
+    const currentRecord = current.find((item: any) => route.dataIds.includes(String(item.id)));
+    const facts = route.dataIds.map((id: string) => careerFacts?.players?.[id]).find(Boolean);
+    const hasStats = stats.some((item: any) => route.dataIds.includes(String(playerId(item))));
     const usefulSections = [profile?.careerHighlights?.length, profile?.seasonOverview, profile?.recap?.paragraph, facts?.careerTimeline?.length, facts?.recentSeasons?.length, hasStats];
-    const decision = playerIndexability({ routeId, canonicalId, identity, biography: profileBio(profile), rosterStatus: currentRecord?.status, historicallyLabeled: Boolean(facts?.recentSeasons?.length || hasStats), usefulSections, generatorError: profile?.error ?? profile?.generation?.error });
+    const materialUpdatedAt = latestMaterialDate([profile?.materialUpdatedAt, profile?.generation?.generatedAt, (facts?.sourceFacts ?? []).map((fact: any)=>fact.reviewedAt)]);
+    const title = `${identity} Seattle Seahawks Profile`;
+    const canonicalPath = `/players/${encodeURIComponent(canonicalId)}`;
+    const decision = playerIndexability({ routeId, canonicalId, identity, profileIdentity:profile?.name, biography: profileBio(profile), rosterStatus: currentRecord?.status, historicallyLabeled: Boolean(facts?.recentSeasons?.length || hasStats), usefulSections, generatorError: profile?.error ?? profile?.generation?.error, title, h1:title, canonicalPath, materialUpdatedAt, roleContext:Boolean(profile?.careerHighlights?.length || profile?.seasonOverview || facts?.careerTimeline?.length || hasStats), statisticsLabelValid:true, verifiedResolved:Boolean(record || profile) });
     const factDates = [...(facts?.sourceFacts ?? []).map((fact: any) => fact.reviewedAt), ...(facts?.recentSeasons ?? []).map((season: any) => season.updatedAt)];
-    return { canonicalId, decision, lastmod: latestMaterialDate([profile?.updatedAt, profile?.generation?.generatedAt, factDates]) };
+    return { canonicalId, decision, lastmod: latestMaterialDate([materialUpdatedAt, factDates]) };
   }).filter((entry) => entry.decision.indexable);
 
   const pages = [

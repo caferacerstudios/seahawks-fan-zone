@@ -1,8 +1,13 @@
 const NON_INDEXABLE_STATUS = /\b(cancel(?:led|ed)?|invalid|void|abandon(?:ed)?|postponed)\b/i;
-const ERROR_OUTPUT = /\b(generator error|generation failed|unable to generate|error generating)\b/i;
+const ERROR_OUTPUT = /\b(generator error|generation failed|unable to generate|error generating|acceptance sentinel|fixture recap|repository|build artifact|placeholder prose|we(?:'|’)re excited|our new addition|the 12s)\b/i;
+const UNRESOLVED_TITLE = /\b(unknown|player profile)\b/i;
 
 export const INDEX_ROBOTS = "index, follow";
 export const NOINDEX_ROBOTS = "noindex, follow";
+export const PLAYER_QUALITY_STATES = Object.freeze({
+  INDEXABLE:"indexable", INCOMPLETE:"noindex_incomplete", UNRESOLVED:"noindex_unresolved",
+  HISTORICAL:"retired_or_historical", ALIAS:"redirect_alias",
+});
 
 export const NAMED_PLAYER_CANONICALS = Object.freeze(new Map([
   ["jaxon smith njigba", "jaxon-smith-njigba"],
@@ -16,7 +21,35 @@ const normalizedName = (value) => text(value).toLowerCase().replace(/[^a-z0-9]+/
 const teamAbbr = (team) => text(team?.abbreviation ?? team?.abbr).toUpperCase();
 
 export function preferredPlayerId(routeId, playerName) {
-  return NAMED_PLAYER_CANONICALS.get(normalizedName(playerName)) ?? String(routeId);
+  const id = String(routeId);
+  return NAMED_PLAYER_CANONICALS.get(normalizedName(playerName)) ?? (/^\d+$/.test(id) ? slugPlayerName(playerName) : id) ?? id;
+}
+
+export function slugPlayerName(value) {
+  return normalizedName(value).replace(/\s+/g, "-") || null;
+}
+
+export function buildPlayerRouteRegistry(records = []) {
+  const identities = new Map();
+  for (const record of records) {
+    const id = text(String(record?.id ?? record?.player_id ?? record?.player?.id ?? ""));
+    const name = text(record?.name ?? record?.full_name ?? record?.player?.full_name ?? `${record?.first_name ?? record?.player?.first_name ?? ""} ${record?.last_name ?? record?.player?.last_name ?? ""}`);
+    const key = normalizedName(name);
+    if (!id || !key) continue;
+    const entry = identities.get(key) ?? { name, ids:new Set() };
+    entry.ids.add(id); identities.set(key, entry);
+  }
+  const routes = new Map(), aliases = [];
+  for (const entry of identities.values()) {
+    const ids = [...entry.ids], preferredSourceId = ids.find((id)=>!/^\d+$/.test(id)) ?? ids[0];
+    const canonicalId = preferredPlayerId(preferredSourceId, entry.name);
+    routes.set(canonicalId, { canonicalId, dataIds:[...entry.ids], name:entry.name, alias:false });
+    for (const id of entry.ids) if (id !== canonicalId) {
+      routes.set(id, { canonicalId, dataIds:[...entry.ids], name:entry.name, alias:true });
+      aliases.push({ alias:id, target:canonicalId, name:entry.name });
+    }
+  }
+  return { routes, aliases };
 }
 
 export function gameIndexability({ game, id, opponentName, canonicalPath } = {}) {
@@ -36,16 +69,26 @@ export function gameIndexability({ game, id, opponentName, canonicalPath } = {})
   return { indexable: reasons.length === 0, reasons };
 }
 
-export function playerIndexability({ routeId, canonicalId, identity, biography, rosterStatus, historicallyLabeled = false, usefulSections = [], generatorError = null } = {}) {
+export function playerIndexability({ routeId, canonicalId, identity, profileIdentity, biography, rosterStatus, historicallyLabeled = false, usefulSections = [], generatorError = null, title, h1, canonicalPath, materialUpdatedAt, roleContext = false, statisticsLabelValid = true, verifiedResolved = true } = {}) {
   const bio = text(biography);
   const reasons = [];
-  if (!text(identity) || identity === "Unknown" || identity === "Player") reasons.push("unresolved player identity");
+  const name = text(identity);
+  if (String(routeId) !== String(canonicalId)) return { state:PLAYER_QUALITY_STATES.ALIAS, indexable:false, reasons:["alternate player alias"], redirectTarget:`/players/${encodeURIComponent(String(canonicalId))}` };
+  if (!verifiedResolved || !name || /^(unknown|player)$/i.test(name)) reasons.push("unresolved player identity");
+  if (text(profileIdentity) && normalizedName(profileIdentity) !== normalizedName(name)) reasons.push("displayed name does not match profile identity");
   if (!bio || bio.length < 80) reasons.push("missing meaningful biography or career context");
+  if (ERROR_OUTPUT.test(bio)) reasons.push("generator or placeholder prose is visible");
+  if (!roleContext) reasons.push("missing player-specific career or role context");
   if (!text(rosterStatus) && !historicallyLabeled) reasons.push("missing current or historical roster status");
   if (!usefulSections.some(Boolean)) reasons.push("missing player-specific data section");
   if (generatorError || ERROR_OUTPUT.test(bio)) reasons.push("generator-error output");
-  if (String(routeId) !== String(canonicalId)) reasons.push("alternate player alias");
-  return { indexable: reasons.length === 0, reasons };
+  if (!name || !text(title) || !text(h1) || !title.includes(name) || !h1.includes(name) || !/seahawks/i.test(title) || !/seahawks/i.test(h1) || UNRESOLVED_TITLE.test(title.replace(name,""))) reasons.push("title or H1 is unresolved or lacks player and Seahawks context");
+  if (canonicalPath !== `/players/${encodeURIComponent(String(canonicalId))}`) reasons.push("invalid canonical");
+  if (!statisticsLabelValid) reasons.push("current and historical statistics are mislabeled");
+  if (!text(materialUpdatedAt) || !Number.isFinite(Date.parse(materialUpdatedAt))) reasons.push("missing per-player materialUpdatedAt");
+  const unresolved = reasons.some((reason) => /identity|canonical|unresolved/.test(reason));
+  const indexable = reasons.length === 0;
+  return { state:indexable ? (historicallyLabeled && !text(rosterStatus) ? PLAYER_QUALITY_STATES.HISTORICAL : PLAYER_QUALITY_STATES.INDEXABLE) : (unresolved ? PLAYER_QUALITY_STATES.UNRESOLVED : PLAYER_QUALITY_STATES.INCOMPLETE), indexable, reasons };
 }
 
 export function pageRobots(decision) {

@@ -21,10 +21,10 @@ test("offline rendering embeds generated profiles in final static HTML", { timeo
   const missingHtml = fs.readFileSync(path.join(root, "dist/players/aj-barner/index.html"), "utf8");
   const darnoldHtml = fs.readFileSync(path.join(root, "dist/players/sam-darnold/index.html"), "utf8");
 
-  for (const html of [numericHtml, aliasHtml]) {
-    assert.match(html, /SFZ PLAYER BIO ACCEPTANCE SENTINEL/);
-    assert.ok(!html.includes(fallback));
-  }
+  assert.doesNotMatch(numericHtml, /SFZ PLAYER BIO ACCEPTANCE SENTINEL/);
+  assert.match(numericHtml, /numeric-route-test-player/);
+  assert.match(aliasHtml, /SFZ PLAYER BIO ACCEPTANCE SENTINEL/);
+  assert.ok(!aliasHtml.includes(fallback));
   assert.match(aliasHtml, /season overview/i);
   assert.doesNotMatch(aliasHtml, /Gameplay recap/);
   assert.ok(missingHtml.includes(fallback));
@@ -56,6 +56,7 @@ test("offline rendering embeds generated profiles in final static HTML", { timeo
   assert.match(sitemap, /\/players\/sam-darnold/);
   assert.doesNotMatch(sitemap, /\/players\/(?:aj-barner|12345)/);
   assert.match(missingHtml, /<meta name="robots" content="noindex, follow"/);
+  assert.match(aliasHtml, /<meta name="robots" content="noindex, follow"/);
 
   const newsSitemap = fs.readFileSync(path.join(root, "dist/news-sitemap.xml"), "utf8");
   const cutoff = Date.now() - 2 * 24 * 60 * 60 * 1000;
