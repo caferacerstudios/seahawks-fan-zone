@@ -27,8 +27,8 @@ if (routeStyle === "games" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(requested
   } catch {}
 }
 const metadata = routeStyle === "games" ? gamePageMetadata(selectedGame, serverTicketObservation) : null;
-const pageTitle = routeStyle === "tickets" ? "Seattle Seahawks Ticket Finder" : metadata.title;
-const description = routeStyle === "tickets" ? "Compare recent Seattle Seahawks ticket price observations, understand their limits, and review independent buying guidance." : metadata.description;
+const pageTitle = routeStyle === "tickets" ? "Seattle Seahawks Ticket Finder and Price Comparison" : metadata.title;
+const description = routeStyle === "tickets" ? "Compare recent Seahawks ticket price observations and provider options, understand fee and freshness limits, and review independent buying guidance." : metadata.description;
 const gameDecision = routeStyle === "games" ? gameIndexability({game:selectedGame?.game,id:requestedGameId,opponentName:selectedGame?.opponentName,canonicalPath}) : null;
 const emittedCanonicalPath = routeStyle === "games" ? canonicalPath : TICKET_FEATURE.canonical ? canonicalPath : undefined;
 const robots = routeStyle === "games" ? pageRobots(gameDecision) : TICKET_FEATURE.robots;

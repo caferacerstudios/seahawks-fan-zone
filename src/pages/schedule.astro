@@ -33,7 +33,7 @@ const freshness = scheduleFreshness(context.updatedAt);
 const clearHref = scheduleRoot?.seasons?.length ? `/schedule?season=${season}` : "/schedule";
 ---
 
-<SeahawksLayout title={`Seahawks Schedule (${season})`} pageTitle={`Seahawks Schedule (${season})`} description={`Seattle Seahawks ${season} season schedule, results, and upcoming games`} seo={{ title: `Seahawks Schedule (${season}) | Seahawks Fan Zone`, description: `Seattle Seahawks ${season} season schedule, results, and upcoming games`, canonicalPath: `/schedule${scheduleRoot?.seasons?.length ? `?season=${season}` : ""}` }} activePath="/schedule" pageType="schedule" season={season}>
+<SeahawksLayout seo={{ title: `${season} Seattle Seahawks Schedule, Times and Results`, description: `See the ${season} Seattle Seahawks schedule with opponents, dates, Pacific kickoff times, venues, game status and final scores as games are completed.`, canonicalPath: "/schedule" }} pageTitle={`${season} Seattle Seahawks Schedule`} pageTagline="Dates, opponents, Pacific kickoff times, venues, game status and results for every scheduled Seahawks game." activePath="/schedule" pageType="schedule" season={season}>
   <form class="schedule-toolbar" id="schedule-filters" method="get" aria-labelledby="toolbar-title">
     <h2 id="toolbar-title">Find games</h2>
     <div class="toolbar-selects">

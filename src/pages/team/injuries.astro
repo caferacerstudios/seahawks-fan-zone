@@ -2,7 +2,7 @@
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import { formatUpdateDate, injuryStatuses, playerPath } from "../../lib/team-updates";
 ---
-<SeahawksLayout title="Seahawks Injuries and Status" pageTitle="Seahawks Injuries & Status" pageTagline="Sourced injury and participation-status updates, kept separate from roster transactions." activePath="/team/injuries" monetizationEligible={false}>
+<SeahawksLayout pageTitle="Seattle Seahawks Injuries & Status" pageTagline="Sourced injury, reserve-list and participation-status updates, kept separate from roster transactions and medical speculation." activePath="/team/injuries" monetizationEligible={false} breadcrumbs={[{name:"Home",href:"/"},{name:"Roster",href:"/players"},{name:"Injuries & status",href:"/team/injuries"}]}>
   <nav class="utility-nav" aria-label="Team updates"><a href="/team/transactions">Transactions</a><a aria-current="page" href="/team/injuries">Injuries &amp; status</a></nav>
   <p class="notice"><strong>About this tracker:</strong> An absent entry does not mean a player is healthy. Diagnoses, severity, and recovery timelines are included only when a cited source explicitly supports them.</p>
   {injuryStatuses.length ? <ol class="updates">

@@ -7,7 +7,6 @@ import { gameCollection, gameDayPageModel } from "../lib/game-details.mjs";
 import { buildPlayerRouteRegistry, gameIndexability, latestMaterialDate, playerIndexability } from "../lib/indexability.mjs";
 import { readPlayerProfiles } from "../lib/player-profiles.mjs";
 
-const TOPICS = ["/topics/players", "/topics/roster", "/topics/injuries", "/topics/opponents", "/topics/game-week", "/topics/nfc-west", "/topics/position-groups", "/topics/championship"];
 const escapeXml = (value: unknown) => String(value).replace(/[<>&'\"]/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[character]!);
 const validDate = (value: unknown) => value && Number.isFinite(new Date(String(value)).getTime()) ? new Date(String(value)).toISOString() : undefined;
 const playerId = (player: any) => player?.id ?? player?.player_id ?? player?.player?.id;
@@ -61,7 +60,6 @@ export const GET: APIRoute = async () => {
     ...NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category)).map((category) => ({ loc: `/news/category/${categorySlug(category)}`, lastmod: latestMaterialDate(publishedArticles.filter((article) => article.category === category).map((article) => article.updatedAt)) })),
     ...eligibleGames.map((model: any) => ({ loc: `/games/${encodeURIComponent(model.id)}`, lastmod: validDate(recaps?.recaps?.[model.id]?.updatedAt ?? model.game?.updatedAt) })),
     ...eligiblePlayers.map(({ canonicalId, lastmod }) => ({ loc: `/players/${encodeURIComponent(canonicalId)}`, lastmod })),
-    ...TOPICS.map((loc) => ({ loc, lastmod: undefined })),
   ];
   const uniquePages = pages.filter((page, index) => pages.findIndex((other) => other.loc === page.loc) === index);
   const urls = uniquePages.map(({ loc, lastmod }) => `<url><loc>${escapeXml(absoluteUrl(loc))}</loc>${lastmod ? `<lastmod>${escapeXml(lastmod)}</lastmod>` : ""}</url>`).join("");

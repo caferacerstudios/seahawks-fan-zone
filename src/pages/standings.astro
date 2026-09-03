@@ -92,12 +92,13 @@ const views = STANDINGS_PHASES.map((phase) => {
   const hasGames = rows.some((row) => row.gamesPlayed > 0);
   return { phase, label: phaseLabels[phase], rows, hasGames, seattle: rows.find((row) => row.abbreviation === "SEA"), leader: rows[0], upcoming: games.filter((game) => game.state !== "completed"), completed: games.filter((game) => game.state === "completed"), officialRank: standingsData?.phases?.[phase]?.officialRank === true };
 });
+const hasMeaningfulStandings = views.some((view) => view.hasGames);
 ---
 
 <SeahawksLayout
-  seo={{ title: `${season} Seattle Seahawks Standings | Seahawks Fan Zone`, description: `Phase-aware Seattle Seahawks NFC West records for ${season}.`, canonicalPath: "/standings" }}
+  seo={{ title: `${season} Seattle Seahawks NFC West Standings`, description: `Track Seattle's ${season} NFC West position, record and division results once games begin, with preseason and regular-season records clearly separated.`, canonicalPath: "/standings", robots: hasMeaningfulStandings ? "index, follow" : "noindex, follow" }}
   pageTitle="Seattle Seahawks NFC West Standings"
-  pageTagline={`${season} division position, record, splits, and schedule context—shown only after relevant games are completed.`}
+  pageTagline={`${season} division position, record, splits and schedule context, shown only after relevant games are completed.`}
   activePath="/standings"
   pageType="standings"
   season={season}

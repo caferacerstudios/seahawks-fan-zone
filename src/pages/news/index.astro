@@ -11,14 +11,14 @@ const hasMore = publishedArticles.length > NEWS_PAGE_SIZE + 1;
 const counts = new Map(populatedNewsCategories.map((category) => [category, publishedArticles.filter((article) => article.category === category).length]));
 const structuredData = { "@context":"https://schema.org", "@type":"CollectionPage", name:"Seattle Seahawks News and Analysis", description:"Original Seattle Seahawks reporting, analysis, roster context and game-week coverage from Seahawks Fan Zone.", url:absoluteUrl("/news"), mainEntity:{ "@type":"ItemList", itemListElement:publishedArticles.map((article, index) => ({ "@type":"ListItem", position:index + 1, url:absoluteUrl(`/news/${article.slug}`), name:article.headline })) } };
 ---
-<SeahawksLayout seo={{ title:"Seattle Seahawks News & Original Analysis | Seahawks Fan Zone", description:"Read original Seattle Seahawks news, analysis, roster strategy and game-week coverage, with a crawlable archive of every Seahawks Fan Zone story.", canonicalPath:"/news" }} {structuredData} activePath="/news" showPageHeader={false} pageType="news-index">
-  <header class="newsroom-header"><p>Independent · Original · Accountable</p><h1>Newsroom</h1><span>Seahawks reporting with the context that matters to the 12s.</span></header>
+<SeahawksLayout {structuredData} activePath="/news" showPageHeader={false} pageType="news-index">
+  <header class="newsroom-header"><p>Independent · Original · Accountable</p><h1>Seattle Seahawks News and Analysis</h1><span>Original reporting and analysis on Seattle's roster, injuries, games and place in the NFC West.</span></header>
 
   <nav class="category-rail" aria-label="News categories">
     {populatedNewsCategories.map((category) => <a href={`/news/category/${categorySlug(category)}/`}>{category}<span>{counts.get(category)}</span></a>)}
   </nav>
 
-  {lead ? <section aria-labelledby="lead-story"><h2 class="section-title" id="lead-story">Lead story</h2><ArticleCard article={lead} prominent /></section> : <p class="news-empty">The newsroom is preparing its first story. Check back soon.</p>}
+  {lead && <section aria-labelledby="lead-story"><h2 class="section-title" id="lead-story">Lead story</h2><ArticleCard article={lead} prominent /></section>}
 
   <section class="latest" aria-labelledby="latest-stories">
     <div class="latest-heading"><div><p>From the newsroom</p><h2 class="section-title" id="latest-stories">Latest stories</h2></div><a href="/news/rss.xml">Follow via RSS →</a></div>
