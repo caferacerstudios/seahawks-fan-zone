@@ -40,7 +40,11 @@ test("generic Tickets HTML is substantial and useful without scripts", () => {
 test("a generated game page exposes facts, permanent guides, and the complete Ticket Finder", () => {
   const visible = stripNonVisible(gameHtml);
   assert.match(visible, /Seattle Seahawks/);
-  for (const text of ["Game facts", "Matchup", "Where to Watch", "Game Day Guide", "Game Day Guide coming soon"]) assert.match(visible, new RegExp(text));
+  for (const text of ["Game facts", "Matchup", "Where to Watch", "Game Day Guide"]) assert.match(visible, new RegExp(text));
+  if (gameId === "1392216") {
+    for (const text of ["Important Alerts", "Getting There", "Game Day Timeline", "Tailgates & Pregame", "Stadium Tips", "Weather"]) assert.match(visible, new RegExp(text));
+    assert.doesNotMatch(visible, /Game Day Guide coming soon/);
+  } else assert.match(visible, /Game Day Guide coming soon/);
   assert.ok(/<time\b[^>]*datetime=/i.test(gameHtml) || /<dt>Venue<\/dt>/i.test(gameHtml), "game page should contain a semantic date or venue when supplied");
   assert.equal(h1Count(gameHtml), 1);
   assert.doesNotMatch(gameHtml, /eventspy/i);
