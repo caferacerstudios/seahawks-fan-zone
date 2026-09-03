@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
+    "test": "npm run build:offline && node --test tests/*.test.mjs",
 
     "fetch-nfl": "node scripts/fetch-nfl.mjs",
     "generate-game-recaps": "node scripts/generate-game-recaps.mjs",
