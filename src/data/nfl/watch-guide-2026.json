@@ -279,14 +279,14 @@
     {
       "phase": "regular",
       "week": 18,
-      "dateLabel": "Date TBD",
+      "dateLabel": "Jan. 9 or 10, 2027",
       "kickoffLabel": "Time TBD",
       "matchup": "Seattle Seahawks at Los Angeles Rams",
       "venue": "SoFi Stadium",
       "officialGameUrl": "https://www.seahawks.com/game-day/2026/reg-week18/seahawks-at-rams/",
       "status": "tbd",
       "localTv": [],
-      "national": "Date, time, network, and stream TBD",
+      "national": "Kickoff time, network, and stream TBD",
       "streams": [
         { "name": "NFL Seahawks ways to watch", "url": "https://www.nfl.com/ways-to-watch/team-schedule/seattle-seahawks" }
       ]

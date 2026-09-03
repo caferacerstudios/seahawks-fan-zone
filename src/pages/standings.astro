@@ -5,14 +5,17 @@ import SeasonState from "../components/SeasonState.astro";
 import { formatPacificTime } from "../lib/season-context";
 import { activeStandingsPhase, buildPhasedStandings, STANDINGS_PHASES, validateStandings } from "../lib/standings.mjs";
 import { formatKickoff, normalizeSchedule } from "../lib/schedule.mjs";
+import { reconcileOfficialSchedule } from "../lib/schedule-guide.mjs";
 import scheduleData from "../data/nfl/seahawks.json";
+import watchGuide from "../data/nfl/watch-guide-2026.json";
 
 let standingsData: any = null;
 try { standingsData = (await import("../data/nfl/standings.json")).default; } catch {}
 
 const WEST = new Set(["SEA", "LAR", "SF", "ARI"]);
 const NAMES: Record<string, string> = { SEA: "Seattle Seahawks", LAR: "Los Angeles Rams", SF: "San Francisco 49ers", ARI: "Arizona Cardinals" };
-const schedule = normalizeSchedule(scheduleData, scheduleData?.season);
+const rawGames = Array.isArray(scheduleData?.games) ? scheduleData.games : [...(scheduleData?.gamesPreseason ?? []),...(scheduleData?.gamesRegular ?? []),...(scheduleData?.gamesPostseason ?? [])];
+const schedule = normalizeSchedule({ ...scheduleData, games:reconcileOfficialSchedule(rawGames,watchGuide) }, scheduleData?.season);
 const season = schedule.season;
 const hasPhasedStandings = STANDINGS_PHASES.every((phase) => standingsData?.phases?.[phase]?.phase === phase);
 if (!hasPhasedStandings) {
@@ -102,6 +105,7 @@ const hasMeaningfulStandings = views.some((view) => view.hasGames);
   activePath="/standings"
   pageType="standings"
   season={season}
+  monetizationEligible={hasMeaningfulStandings}
 >
   <nav class="phase-tabs" aria-label="Standings phase">{views.map((view) => <a href={`?phase=${view.phase}`} data-phase-control={view.phase} aria-current={view.phase === defaultPhase ? "page" : undefined}>{view.label}</a>)}</nav>
   {views.map((view) => <div data-phase-panel={view.phase} hidden={view.phase !== defaultPhase}>

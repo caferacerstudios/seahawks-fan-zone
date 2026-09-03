@@ -477,7 +477,7 @@ const relatedGames = Object.entries(gameRecapsData?.recaps || {}).filter(([,reca
 const personStructuredData = playerDecision.indexable ? { "@context":"https://schema.org", "@type":"Person", name:displayName, jobTitle:String(position).toUpperCase(), affiliation:{ "@type":"SportsTeam", name:"Seattle Seahawks" }, url:new URL(canonicalPath, Astro.site ?? Astro.url).toString() } : undefined;
 ---
 
-<SeahawksLayout title={pageTitle} pageTitle={pageH1} description={pageDescription} seo={{title:`${pageTitle} | Seahawks Fan Zone`,description:pageDescription,canonicalPath,robots}} structuredData={personStructuredData} activePath="/players" pageType="player" season={seasonContext.seasonYear} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }, { name: displayName, href: canonicalPath }]}>
+<SeahawksLayout title={pageTitle} pageTitle={pageH1} description={pageDescription} seo={{title:`${pageTitle} | Seahawks Fan Zone`,description:pageDescription,canonicalPath,robots}} structuredData={personStructuredData} activePath="/players" pageType="player" season={seasonContext.seasonYear} monetizationEligible={playerDecision.indexable} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }, { name: displayName, href: canonicalPath }]}>
   <div class="profile-contexts">
     <div><span>Current roster</span><strong>{currentRosterData?.season}</strong><small>{currentRosterRecord?.status || "Not listed on current roster"}</small></div>
     <div><span>Performance shown</span><strong>{playerStatisticsContext.label}</strong><small>Historical season totals</small></div>

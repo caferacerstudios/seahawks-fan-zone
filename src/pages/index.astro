@@ -4,11 +4,13 @@ import AdSlot from "../components/AdSlot.astro";
 import HomepageStories from "../components/HomepageStories.astro";
 import HomepageGlance from "../components/HomepageGlance.astro";
 import { formatKickoff, normalizeSchedule, scheduleFreshness, selectFeaturedGame } from "../lib/schedule.mjs";
+import { reconcileOfficialSchedule } from "../lib/schedule-guide.mjs";
 import { gameDayView } from "../lib/game-day.mjs";
 import { injuryStatuses, transactions } from "../lib/team-updates";
 import { buildHomepageGlance } from "../lib/homepage-glance.mjs";
 import rosterStore from "../data/team/roster.json";
-import { currentRosterDirectoryPlayers } from "../lib/roster.mjs";
+import watchGuide from "../data/nfl/watch-guide-2026.json";
+import { currentRosterPlayers } from "../lib/roster.mjs";
 
 let nfl: any = null;
 let standings: any = null;
@@ -41,7 +43,8 @@ const week = (game: any) => game?.week !== null && game?.week !== undefined && S
 const marks = new Map(Object.keys(import.meta.glob("../../public/images/nfl/teams/*.{png,svg,webp}"))
   .map((path) => [path.split("/").pop()?.split(".")[0]?.toUpperCase(), path.replace("../../public", "")]));
 
-const schedule = nfl?.season ? normalizeSchedule(nfl, nfl.season) : null;
+const scheduleSource = nfl?.season ? { ...nfl, games:reconcileOfficialSchedule(Array.isArray(nfl.games) ? nfl.games : [...(nfl.gamesPreseason ?? []),...(nfl.gamesRegular ?? []),...(nfl.gamesPostseason ?? [])], watchGuide) } : null;
+const schedule = scheduleSource ? normalizeSchedule(scheduleSource, nfl.season) : null;
 const games = schedule?.games ?? [];
 const completed = games.filter((game) => game.state === "completed");
 const upcoming = games.filter((game) => !["completed", "canceled", "bye", "in_progress"].includes(game.state) && (time(game) ?? Number.MAX_SAFE_INTEGER) >= now.getTime());
@@ -76,7 +79,7 @@ const state = selection.state;
 const action = state === "live" ? "View Game Center" : state === "final" ? "Read Recap" : "View Preview";
 const freshness = scheduleFreshness(nfl?.updatedAt, now);
 const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank || leaders.length || latest);
-const glanceModel = nfl ? buildHomepageGlance({ nfl: { ...nfl, currentRoster: currentRosterDirectoryPlayers(rosterStore) }, standings, transactions, injuries: injuryStatuses, now }) : null;
+const glanceModel = scheduleSource ? buildHomepageGlance({ nfl: { ...scheduleSource, currentRoster: currentRosterPlayers(rosterStore) }, standings, transactions, injuries: injuryStatuses, now }) : null;
 ---
 
 <SeahawksLayout activePath="/" showPageHeader={false} monetizationEligible={Boolean(featured || hasDashboard)}>
