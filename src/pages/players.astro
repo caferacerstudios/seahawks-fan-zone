@@ -7,7 +7,7 @@ import data from "../data/nfl/seahawks.json";
 import rosterStore from "../data/team/roster.json";
 import injuriesStore from "../data/team/injuries.json";
 import transactionsStore from "../data/team/transactions.json";
-import { currentRosterPlayers, practiceSquadPlayers, reserveRosterPlayers, rosterCount } from "../lib/roster.mjs";
+import { currentRosterDirectoryCount, currentRosterPlayers, practiceSquadPlayers, reserveRosterPlayers, rosterCount } from "../lib/roster.mjs";
 
 const active = currentRosterPlayers(rosterStore), practiceSquad = practiceSquadPlayers(rosterStore), reserve = reserveRosterPlayers(rosterStore);
 const currentGroups = [
@@ -18,7 +18,7 @@ const currentGroups = [
 const positions = [...new Set(currentGroups.flatMap((group) => group.players).map((p) => p.position).filter(Boolean))].sort();
 const updates = new Map([...(transactionsStore.records || []), ...(injuriesStore.records || [])].map((r) => [String(r.playerId), r]));
 const rosterGroups = currentGroups.map((group) => ({ ...group, players:group.players.map((p) => ({ ...p, update:updates.get(String(p.id)) })) }));
-const rosterDirectoryCount = currentGroups.reduce((total, group) => total + group.players.length, 0);
+const rosterDirectoryCount = currentRosterDirectoryCount(rosterStore);
 const sourceContext = getSeasonContext(data, "regular season");
 const statsSeason = Number(data?.playerStatsSeason ?? sourceContext.sourceSeason ?? sourceContext.seasonYear);
 const statsRows = Array.isArray(data?.playerSeasonStats) ? data.playerSeasonStats : [];

@@ -31,8 +31,9 @@ test("both URLs resolve game 1392216 through the same shared page model", () => 
 });
 
 test("ticket UI prefers canonical schedule dates and uses the shared Pacific formatter", () => {
-  assert.match(component, /canonical\?\.startsAt\?\?canonical\?\.date\?\?row\.localDate/);
-  assert.match(component, /g\.game\?\.startsAt\?\?g\.game\?\.date\?\?event\?\.localDate/);
+  assert.match(component, /canonical\?canonical\.startsAt\?\?canonical\.date:row\.localDate/);
+  assert.match(component, /dateValue=g\.game\?\.startsAt\?\?g\.game\?\.date/);
+  assert.doesNotMatch(component, /g\.game\?\.date\?\?event\?\.localDate|localTimeLabel/);
   assert.match(component, /formatPacificCalendarDate/);
 });
 
@@ -64,6 +65,13 @@ test("structured Game Day Guides are selected by the requested game ID", () => {
   for (const gameId of expectedGuideIds) assert.equal(gameDayGuides.games[gameId].gameId, gameId);
   assert.doesNotMatch(guideComponent, /1392216|New England Patriots/);
   assert.match(guideComponent, /Game Day Guide coming soon\./);
+});
+
+test("Week 18 guide does not publish its former placeholder date", () => {
+  const week18 = gameDayGuides.games["1392478"];
+  assert.equal(week18.game.date, null);
+  assert.match(week18.summary, /date and kickoff time as TBD/);
+  assert.doesNotMatch(JSON.stringify(week18), /2027-01-10|January 10/);
 });
 
 test("Game Day Guide safely renders contextual external links and optional content", () => {

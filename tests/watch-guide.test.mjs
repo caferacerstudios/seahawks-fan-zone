@@ -23,7 +23,7 @@ test("schedule summaries use the static guide's concise provider labels", () => 
   assert.deepEqual(watchGuideScheduleLines(entry(6)), ["FOX 13 simulcast", "Prime Video"]);
   assert.deepEqual(watchGuideScheduleLines(entry(13)), ["KOMO 4", "ABC · ESPN"]);
   assert.deepEqual(watchGuideScheduleLines(entry(18)), ["TBD"]);
-  assert.equal(entry(18).dateLabel, "Jan. 9 or 10, 2027");
+  assert.equal(entry(18).dateLabel, "Date TBD");
   assert.equal(entry(18).kickoffLabel, "Time TBD");
   assert.equal(entry(18).national, "Date, time, network, and stream TBD");
 });

@@ -1201,11 +1201,11 @@
       "lastUpdated": "2026-09-03T08:36:00-07:00",
       "game": {
         "opponent": "Los Angeles Rams",
-        "date": "2027-01-10",
+        "date": null,
         "homeAway": "away",
         "venue": "SoFi Stadium"
       },
-      "summary": "Seattle closes the regular season on the road against the Rams. The Seahawks and NFL still list the Week 18 game date and kickoff time as TBD; January 10 is the current Week 18 calendar placeholder and should not be treated as finalized until the NFL announces the schedule. No Seahawks-specific Los Angeles tailgate or watch party is listed because none was verified this far in advance.",
+      "summary": "Seattle closes the regular season on the road against the Rams. The Seahawks and NFL still list the Week 18 game date and kickoff time as TBD. No Seahawks-specific Los Angeles tailgate or watch party is listed because none was verified this far in advance.",
       "alerts": [
         {
           "title": "Week 18 date and kickoff time are not finalized",
@@ -1288,4 +1288,3 @@
     }
   }
 }
-

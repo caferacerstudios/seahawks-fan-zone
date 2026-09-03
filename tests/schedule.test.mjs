@@ -13,6 +13,7 @@ import {
 } from "../src/lib/schedule.mjs";
 import { groupScheduleMonths, normalizeScheduleFilters, scheduleGameMatches, scheduleRow } from "../src/lib/schedule-display.mjs";
 import { gameCalendar, gameDayView, seasonCalendar } from "../src/lib/game-day.mjs";
+import { reconcileOfficialSchedule } from "../src/lib/schedule-guide.mjs";
 
 const SEA = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const SF = { abbreviation: "SF", full_name: "San Francisco 49ers" };
@@ -54,6 +55,33 @@ test("does not manufacture a Week 18 kickoff time from midnight", () => {
   const week18 = schedule.games[0];
   assert.equal(week18.timeConfirmed, false);
   assert.match(formatScheduleDate(week18), /Time TBD$/);
+});
+
+test("official guide reconciliation restores missing preseason finals without duplicating provider games", () => {
+  const guide = { season: 2026, games: [{ phase: "preseason", week: 1, dateLabel: "Aug. 15, 2026", matchup: "Dallas Cowboys at Seattle Seahawks", result: "Cowboys 17, Seahawks 7", status: "completed" }] };
+  const provider = [game("reg-1", 1, "2026-09-13T20:00:00Z")];
+  const schedule = normalizeSchedule({ season: 2026, games: reconcileOfficialSchedule(provider, guide) });
+  assert.equal(schedule.gamesPreseason.length, 1);
+  assert.deepEqual({ state: schedule.gamesPreseason[0].state, away: schedule.gamesPreseason[0].visitor_team_score, home: schedule.gamesPreseason[0].home_team_score }, { state: "completed", away: 17, home: 7 });
+  assert.equal(schedule.gamesPreseason[0].seahawksRecordAfter, undefined);
+  assert.equal(schedule.gamesRegular.length, 1);
+  assert.deepEqual(reconcileOfficialSchedule(provider, guide)[0], provider[0]);
+  assert.equal(reconcileOfficialSchedule([...provider, schedule.gamesPreseason[0]], guide).length, 2);
+});
+
+test("official Week 18 TBD suppresses a provider placeholder across public timing outputs", () => {
+  const provider = [game("week-18", 18, "2027-01-10T05:00:00Z")];
+  const guide = { season: 2026, games: [{ phase: "regular", week: 18, status: "tbd", dateLabel: "Jan. 9 or 10, 2027" }] };
+  const schedule = normalizeSchedule({ season: 2026, games: reconcileOfficialSchedule(provider, guide) });
+  const week18 = schedule.gamesRegular[0];
+  assert.deepEqual({ date: week18.date, startsAt: week18.startsAt, dateConfirmed: week18.dateConfirmed, timeConfirmed: week18.timeConfirmed }, { date: null, startsAt: null, dateConfirmed: false, timeConfirmed: false });
+  assert.equal(formatKickoff(week18, "date"), "Date TBD");
+  assert.equal(formatKickoff(week18, "time"), "Time TBD");
+  assert.equal(gameCalendar(week18, "https://seahawks.example").enabled, false);
+  assert.doesNotMatch(seasonCalendar(schedule, "https://seahawks.example").content, /week-18/);
+  assert.throws(() => validateSchedule({ ...schedule, games: [{ ...week18, date: "2027-01-09", dateConfirmed: true }] }), /official TBD game exposes/);
+  const confirmed = reconcileOfficialSchedule([{ ...provider[0], date_confirmed: true, time_confirmed: true }], guide)[0];
+  assert.equal(confirmed.date, provider[0].date);
 });
 
 test("chooses the earliest unfinished game after completed games", () => {

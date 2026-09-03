@@ -283,6 +283,7 @@ export function validateSchedule(schedule, displaySeason = schedule?.season) {
     if (game.state !== "bye" && game.isHome === null) errors.push(`impossible home/away assignment: ${game.id}`);
     if (game.timeConfirmed && !game.startsAt) errors.push(`placeholder timestamp marked confirmed: ${game.id}`);
     if (game.timeConfirmed && /T00:00:00(?:\.000)?Z$/.test(game.startsAt ?? "")) errors.push(`placeholder timestamp marked confirmed: ${game.id}`);
+    if (game.schedule_authority === "official-team-guide-tbd" && (game.date || game.startsAt || game.dateConfirmed || game.timeConfirmed)) errors.push(`official TBD game exposes a synthetic kickoff: ${game.id}`);
     if (game.dateConfirmed && !calendarDate(game.date)) errors.push(`invalid kickoff date: ${game.id}`);
     if (game.startsAt && !Number.isFinite(new Date(game.startsAt).getTime())) errors.push(`invalid kickoff timestamp: ${game.id}`);
     if (game.date && game.startsAt) {

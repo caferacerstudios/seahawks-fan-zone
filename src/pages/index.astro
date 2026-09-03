@@ -8,6 +8,7 @@ import { gameDayView } from "../lib/game-day.mjs";
 import { injuryStatuses, transactions } from "../lib/team-updates";
 import { buildHomepageGlance } from "../lib/homepage-glance.mjs";
 import rosterStore from "../data/team/roster.json";
+import { currentRosterDirectoryPlayers } from "../lib/roster.mjs";
 
 let nfl: any = null;
 let standings: any = null;
@@ -75,7 +76,7 @@ const state = selection.state;
 const action = state === "live" ? "View Game Center" : state === "final" ? "Read Recap" : "View Preview";
 const freshness = scheduleFreshness(nfl?.updatedAt, now);
 const hasDashboard = Boolean(latestScored || nextThree.length || divisionRank || leaders.length || latest);
-const glanceModel = nfl ? buildHomepageGlance({ nfl: { ...nfl, currentRoster: rosterStore.players }, standings, transactions, injuries: injuryStatuses, now }) : null;
+const glanceModel = nfl ? buildHomepageGlance({ nfl: { ...nfl, currentRoster: currentRosterDirectoryPlayers(rosterStore) }, standings, transactions, injuries: injuryStatuses, now }) : null;
 ---
 
 <SeahawksLayout activePath="/" showPageHeader={false} monetizationEligible={Boolean(featured || hasDashboard)}>

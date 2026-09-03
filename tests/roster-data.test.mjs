@@ -2,12 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
-import { currentRosterPlayers, duplicateCurrentPlayerIds, filterRosterByStatus, practiceSquadPlayers, reserveRosterPlayers, rosterCount } from "../src/lib/roster.mjs";
-import { newestFirst, transactionFreshness, transactionRosterMismatches } from "../src/lib/team-updates-core.mjs";
+import { currentRosterDirectoryCount, currentRosterPlayers, duplicateCurrentPlayerIds, filterRosterByStatus, practiceSquadPlayers, reserveRosterPlayers, rosterCount } from "../src/lib/roster.mjs";
+import { currentInjuryStatuses, newestFirst, transactionFreshness, transactionRosterMismatches } from "../src/lib/team-updates-core.mjs";
 
 const read = (path) => JSON.parse(fs.readFileSync(new URL(path, import.meta.url), "utf8"));
 const roster = read("../src/data/team/roster.json");
 const transactions = read("../src/data/team/transactions.json");
+const injuries = read("../src/data/team/injuries.json");
 
 test("official roster snapshot count excludes reserve and historical records", () => {
   assert.equal(rosterCount(roster), 53);
@@ -15,6 +16,17 @@ test("official roster snapshot count excludes reserve and historical records", (
   assert.equal(practiceSquadPlayers(roster).length, 17);
   assert.equal(filterRosterByStatus(roster, "Reserve/Injured").length, 9);
   assert.equal(reserveRosterPlayers(roster).length, 11);
+  assert.equal(currentRosterDirectoryCount(roster), 81);
+});
+
+test("injury tracker includes current sourced IR and PUP statuses without duplicates or exempt players", () => {
+  const statuses = currentInjuryStatuses(injuries.records, transactions.records, roster);
+  assert.equal(statuses.length, 10);
+  assert.equal(new Set(statuses.map((row) => `${row.playerId}:${row.status}`)).size, statuses.length);
+  assert.ok(statuses.some((row) => row.playerId === "zach-charbonnet" && row.status === "PUP"));
+  assert.ok(statuses.some((row) => row.playerId === "irv-charles" && row.status === "Reserve/Injured"));
+  assert.ok(!statuses.some((row) => row.playerId === "terrion-arnold"));
+  assert.equal(statuses.filter((row) => row.playerId === "bud-clark").length, 1);
 });
 
 test("current roster has no duplicate player identities", () => {

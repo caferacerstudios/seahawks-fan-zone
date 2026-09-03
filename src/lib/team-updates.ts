@@ -1,6 +1,7 @@
 import injuriesStore from "../data/team/injuries.json";
 import transactionsStore from "../data/team/transactions.json";
-import { newestFirst, transactionFreshness } from "./team-updates-core.mjs";
+import rosterStore from "../data/team/roster.json";
+import { currentInjuryStatuses, newestFirst, transactionFreshness } from "./team-updates-core.mjs";
 
 export const TRANSACTION_TYPES = [
   "Signed", "Waived", "Released", "Claimed", "Injured Reserve", "PUP",
@@ -75,10 +76,11 @@ export const transactionsMetadata = {
   sourceNote: transactionsStore.sourceNote,
 };
 
-export const injuryStatuses = newestFirst(
+export const injuryStatuses = currentInjuryStatuses(
   (injuriesStore.records as unknown[]).filter(isInjuryStatusRecord),
-  (row) => row.date,
-);
+  transactions,
+  rosterStore,
+) as InjuryStatusRecord[];
 
 export const playerPath = (id: string | number) => `/players/${encodeURIComponent(String(id))}`;
 export const formatUpdateDate = (value: string) => new Intl.DateTimeFormat("en-US", {
