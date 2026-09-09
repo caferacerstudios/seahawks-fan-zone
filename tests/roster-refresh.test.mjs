@@ -10,6 +10,8 @@ import {
   validateRosterRefresh,
 } from "../src/lib/roster-refresh.mjs";
 import { rosterFreshness } from "../src/lib/roster.mjs";
+import { parseOfficialTransactions, reconcileTransactions } from "../src/lib/transaction-refresh.mjs";
+import { parseOfficialInjuryReport, reconcileInjuryReports } from "../src/lib/injury-refresh.mjs";
 
 const previous = {
   schemaVersion: 1,
@@ -48,6 +50,28 @@ test("grouped official payloads retain every supported roster section", () => {
     "reserve/injured": [{ name: "Reserve Player", position: "T", number: 3 }],
   } }), "application/json");
   assert.deepEqual(fetched.map((player) => player.status).sort(), ["Active", "Practice Squad", "Reserve/Injured"].sort());
+});
+
+test("server-rendered official roster tables are accepted when JSON is absent", () => {
+  const html = `<div class="nfl-o-roster"><h4><span class="nfl-o-roster__title-status">Practice Squad</span></h4><table><tbody><tr><td><a href="/team/players-roster/bobby-hart/">Bobby Hart</a></td><td>68</td><td>T</td></tr></tbody></table></div>`;
+  assert.deepEqual(parseOfficialRoster(html), [{ name: "Bobby Hart", position: "T", number: 68, status: "Practice Squad", sourceId: "bobby-hart" }]);
+});
+
+test("official transaction tables append dated practice-squad moves without overwriting history", () => {
+  const html = `<div class="nfl-c-transactions-report"><table><thead><tr><th class="nfl-c-transactions-report__month">September</th></tr></thead><tbody><tr><td class="nfl-c-transactions-report__date">09/05</td><td><p>Released LB Marvin Jones Jr. from the practice squad. Signed S D'Anthony Bell to the practice squad.</p></td></tr></tbody></table></div>`;
+  const fetched = parseOfficialTransactions(html, 2026);
+  assert.deepEqual(fetched.map((row) => [row.playerId, row.newStatus]), [["marvin-jones-jr", "Released"], ["danthony-bell", "Practice Squad"]]);
+  const prior = { schemaVersion: 1, records: [fetched[0]] };
+  const next = reconcileTransactions(prior, fetched, { now: new Date("2026-09-06T00:00:00Z") });
+  assert.equal(next.records.length, 2);
+  assert.equal(next.asOf, "2026-09-06T00:00:00.000Z");
+});
+
+test("official injury tables preserve dates and distinguish participation from game status", () => {
+  const html = `<table><caption>Table - Injury report</caption><thead><tr><th>Player</th><th>Position</th><th>Injury</th><th>Sun</th><th>Mon</th><th>Tue</th><th>Game Status</th></tr></thead><tbody><tr><td><a href="/team/players-roster/ty-okada/">Ty Okada</a></td><td>S</td><td>Hamstring</td><td>DNP</td><td>LP</td><td>FP</td><td>OUT</td></tr></tbody></table>`;
+  const fetched = parseOfficialInjuryReport(html, { now: new Date("2026-09-08T20:00:00Z") });
+  assert.deepEqual(fetched.map((row) => [row.date.slice(0, 10), row.reportType, row.status]), [["2026-09-06", "Practice Participation", "DNP"], ["2026-09-07", "Practice Participation", "Limited"], ["2026-09-08", "Practice Participation", "Full"], ["2026-09-08", "Game Status", "Out"]]);
+  assert.equal(reconcileInjuryReports({ records: [fetched[0]] }, fetched, { now: new Date("2026-09-08T21:00:00Z") }).records.length, 4);
 });
 
 test("duplicate source identities cannot create duplicate current players", () => {

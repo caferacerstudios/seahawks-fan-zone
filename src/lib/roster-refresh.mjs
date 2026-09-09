@@ -27,6 +27,10 @@ function slug(name) {
   return clean(name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
+function htmlText(value) {
+  return clean(String(value ?? "").replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&#39;|&apos;/gi, "'").replace(/&quot;/gi, '"'));
+}
 
 export function normalizeRosterStatus(value) {
   const raw = clean(typeof value === "object" ? value?.name ?? value?.label ?? value?.title : value).toLowerCase();
@@ -60,6 +64,25 @@ export function parseOfficialRoster(body, contentType = "") {
     try { documents.push(JSON.parse(match[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&"))); } catch { /* ignore unrelated scripts */ }
   }
   const arrays = documents.flatMap((document) => collectCandidateArrays(document));
+  // The club roster currently ships as server-rendered tables rather than a
+  // recognizable JSON document. Parse each labeled roster section at the same
+  // ingestion boundary so a markup-mode change does not freeze the artifact.
+  for (const section of text.matchAll(/<div[^>]+class=["'][^"']*\bnfl-o-roster(?:\s|["'])[^>]*>([\s\S]*?)(?=<div[^>]+class=["'][^"']*\bnfl-o-roster(?:\s|["'])|$)/gi)) {
+    const block = section[1];
+    const status = normalizeRosterStatus(htmlText(block.match(/nfl-o-roster__title-status[^>]*>([\s\S]*?)<\/span>/i)?.[1]
+      ?? block.match(/<caption[^>]*>([\s\S]*?)<\/caption>/i)?.[1]));
+    if (!status) continue;
+    const rows = [];
+    for (const match of block.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      const row = match[1];
+      const player = [...row.matchAll(/<a[^>]+href=["']\/team\/players-roster\/([^"'/]+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi)]
+        .find((candidate) => htmlText(candidate[2]));
+      const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) => htmlText(cell[1]));
+      if (!player || cells.length < 3) continue;
+      rows.push({ name: htmlText(player[2]), slug: player[1], number: /^\d+$/.test(cells[1]) ? Number(cells[1]) : null, position: cells[2], status });
+    }
+    if (rows.length) arrays.push(rows);
+  }
   if (!arrays.length) throw new Error("Official roster response contained no recognizable player records.");
   const uniqueRows = new Map();
   for (const row of arrays.flat()) {

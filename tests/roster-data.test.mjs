@@ -19,14 +19,15 @@ test("official roster snapshot count excludes reserve and historical records", (
   assert.equal(currentRosterDirectoryCount(roster), 81);
 });
 
-test("injury tracker includes current sourced IR and PUP statuses without duplicates or exempt players", () => {
+test("injury tracker keeps dated game-week reports separate from current reserve statuses", () => {
   const statuses = currentInjuryStatuses(injuries.records, transactions.records, roster);
-  assert.equal(statuses.length, 10);
-  assert.equal(new Set(statuses.map((row) => `${row.playerId}:${row.status}`)).size, statuses.length);
   assert.ok(statuses.some((row) => row.playerId === "zach-charbonnet" && row.status === "PUP"));
   assert.ok(statuses.some((row) => row.playerId === "irv-charles" && row.status === "Reserve/Injured"));
   assert.ok(!statuses.some((row) => row.playerId === "terrion-arnold"));
   assert.equal(statuses.filter((row) => row.playerId === "bud-clark").length, 1);
+  assert.ok(statuses.some((row) => row.playerId === "ty-okada" && row.reportType === "Game Status" && row.status === "Out"));
+  assert.ok(statuses.some((row) => row.playerId === "nick-emmanwori" && row.reportType === "Game Status" && row.status === "Questionable"));
+  assert.deepEqual(new Set(statuses.filter((row) => row.reportType === "Practice Participation").map((row) => row.status)), new Set(["DNP", "Limited", "Full"]));
 });
 
 test("current roster has no duplicate player identities", () => {
@@ -75,11 +76,15 @@ test("latest meaningful transactions reconcile with current roster statuses", ()
   assert.equal(roster.players.find((row) => row.id === "trevon-diggs").status, "Practice Squad");
   assert.equal(roster.players.find((row) => row.id === "kellen-diesch").status, "Released");
   assert.equal(latest.get("irv-charles").newStatus, "Reserve/Injured");
+  assert.equal(latest.get("bobby-hart").newStatus, "Practice Squad");
+  assert.equal(latest.get("danthony-bell").newStatus, "Practice Squad");
+  assert.equal(latest.get("uso-seumalo").newStatus, "Released");
+  assert.equal(latest.get("marvin-jones-jr").newStatus, "Released");
 });
 
 test("transaction freshness becomes explicit when the verified snapshot ages", () => {
   assert.equal(transactionFreshness(transactions, new Date("2026-09-03T12:00:00-07:00")).stale, false);
-  const stale = transactionFreshness(transactions, new Date("2026-09-07T12:00:00-07:00"));
+  const stale = transactionFreshness(transactions, new Date("2026-09-09T12:00:00-07:00"));
   assert.equal(stale.stale, true);
   assert.match(stale.message, /not a complete current record/);
 });

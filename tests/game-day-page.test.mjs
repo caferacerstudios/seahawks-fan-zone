@@ -74,6 +74,18 @@ test("Week 18 guide does not publish its former placeholder date", () => {
   assert.doesNotMatch(JSON.stringify(week18), /2027-01-10|January 10/);
 });
 
+test("Week 1 guide distinguishes the sold-out concert and current stadium entertainment", () => {
+  const guide = gameDayGuides.games["1392216"];
+  const text = JSON.stringify(guide);
+  assert.match(text, /USAA Salute 250 Kickoff Concert/);
+  assert.match(text, /sold out/i);
+  assert.match(text, /game-ticket holders should not assume|game ticket alone does not provide concert access/i);
+  assert.match(text, /Mike McCready/);
+  assert.match(text, /Soundgarden/);
+  assert.match(text, /Taylor Momsen/);
+  assert.match(text, /Ticketmaster Tailgate/);
+});
+
 test("Game Day Guide safely renders contextual external links and optional content", () => {
   assert.match(sourceLinkComponent, /parsed\.protocol === "http:" \|\| parsed\.protocol === "https:"/);
   assert.match(sourceLinkComponent, /target="_blank" rel="noopener noreferrer"/);

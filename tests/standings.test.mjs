@@ -22,9 +22,25 @@ test("phase aggregation never mixes preseason, regular season, and postseason", 
   const preseason = payload.phases.preseason.rows.find((row) => row.abbreviation === "SEA");
   const regular = payload.phases.regular.rows.find((row) => row.abbreviation === "SEA");
   assert.deepEqual({ record: [preseason.wins, preseason.losses, preseason.ties], pf: preseason.pointsFor, pa: preseason.pointsAgainst, pct: preseason.percentage }, { record: [0, 2, 0], pf: 23, pa: 36, pct: ".000" });
-  assert.deepEqual({ record: [regular.wins, regular.losses, regular.ties], rank: regular.rank }, { record: [0, 0, 0], rank: "Tied" });
+  assert.equal(regular, undefined);
+  assert.equal(preseason.rank, null, "an incomplete division sample must not receive a rank");
   assert.equal(activeStandingsPhase(games), "preseason");
   assert.equal(validateStandings(payload, games), true);
+});
+
+test("missing team results are omitted rather than normalized to genuine 0-0 records", () => {
+  const payload = buildPhasedStandings({ season: 2026, updatedAt: "2026-08-23T12:00:00Z", games: [
+    game("sea-only", "preseason", "2026-08-15", teams[1], teams[0], { status: "Final", home_team_score: 20, visitor_team_score: 10 }),
+  ], teams });
+  assert.deepEqual(payload.phases.preseason.rows.map((row) => row.abbreviation).sort(), ["ARI", "SEA"]);
+  assert.ok(payload.phases.preseason.rows.every((row) => row.gamesPlayed === 1 && row.rank === null));
+  assert.equal(payload.phases.regular.rows.length, 0);
+});
+
+test("an explicitly sourced official 0-0 record remains distinguishable from a missing row", () => {
+  const payload = buildPhasedStandings({ season: 2026, updatedAt: "2026-09-01T12:00:00Z", games: [], teams });
+  payload.phases.regular = { phase: "regular", officialRank: false, recordAuthority: "official", rows: [{ abbreviation: "SEA", name: "Seattle Seahawks", wins: 0, losses: 0, ties: 0, gamesPlayed: 0, percentage: ".000", pointsFor: 0, pointsAgainst: 0, differential: 0 }] };
+  assert.equal(validateStandings(payload, []), true);
 });
 
 test("winning percentage includes ties and has NFL formatting", () => {

@@ -18,6 +18,10 @@ export function currentInjuryStatuses(injuries, transactions, rosterStore) {
   const covered = new Set();
 
   for (const row of newestFirst(injuries || [], (entry) => entry.date)) {
+    if (["Practice Participation", "Game Status"].includes(row.reportType)) {
+      result.push(row);
+      continue;
+    }
     const player = current.get(String(row.playerId));
     if (!player || row.status !== player.status) continue;
     const identity = `${row.playerId}:${row.status}`;

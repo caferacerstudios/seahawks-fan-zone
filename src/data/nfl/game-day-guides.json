@@ -3,14 +3,14 @@
   "games": {
     "1392216": {
       "gameId": "1392216",
-      "lastUpdated": "2026-09-03T08:36:00-07:00",
+      "lastUpdated": "2026-09-08T10:09:00-07:00",
       "game": {
         "opponent": "New England Patriots",
         "date": "2026-09-09",
         "homeAway": "home",
         "venue": "Lumen Field"
       },
-      "summary": "Seattle opens the 2026 regular season at Lumen Field in a Wednesday-night Super Bowl LX rematch. This is a major-event day downtown: the Seahawks will raise their Super Bowl LX championship banner, the official Ticketmaster Tailgate opens at 2:00 p.m., all stadium gates open at 3:30 p.m., and the Mariners have a 1:10 p.m. game that removes the Mariners Garage and Lumen Field North Lot from Seahawks parking availability. Link light rail is the strongest transit option; Sound Transit does not currently list special Seahawks Sounder event service for this game.",
+      "summary": "Seattle opens the 2026 regular season at Lumen Field in a Wednesday-night Super Bowl LX rematch. This is a major-event day downtown: the sold-out, separately ticketed USAA Salute 250 Kickoff Concert featuring Luke Bryan starts at 2:30 p.m.; the Ticketmaster Tailgate opens at 2:00 p.m.; all stadium gates open at 3:30 p.m.; and the Mariners have a 1:10 p.m. game that removes normal Seahawks parking from the Mariners Garage and Lumen Field North Lot. Fans should be seated by 5:00 p.m. for the banner unveiling. Link light rail is the strongest transit option.",
       "alerts": [
         {
           "title": "Mariners game removes major Seahawks parking inventory",
@@ -81,9 +81,19 @@
           "details": "The overlapping Mariners game materially affects SODO parking and traffic."
         },
         {
+          "time": "1:30 PM",
+          "event": "Kickoff Concert Gate 3 opens",
+          "details": "Entry opens for holders of the separate, sold-out USAA Salute 250 Kickoff Concert ticket who also have an active September 9 game ticket. A game ticket alone does not provide concert access."
+        },
+        {
           "time": "2:00 PM",
           "event": "Ticketmaster Tailgate opens",
           "details": "Official Seahawks pregame event inside the Lumen Field Event Center."
+        },
+        {
+          "time": "2:30 PM",
+          "event": "Luke Bryan Kickoff Concert begins",
+          "details": "The official USAA Salute 250 Kickoff Concert begins in the Lumen Field North Lot and is scheduled to end at 3:45 p.m. It is distinct from the Ticketmaster Tailgate."
         },
         {
           "time": "2:30 PM",
@@ -101,12 +111,27 @@
           "details": "The Seahawks recommend having mobile tickets ready before reaching the turnstiles."
         },
         {
+          "time": "5:00 PM",
+          "event": "Recommended seated time",
+          "details": "Be in your seat for pregame entertainment and the Super Bowl LX championship-banner unveiling."
+        },
+        {
           "time": "5:20 PM",
           "event": "Kickoff",
           "details": "Seahawks vs. Patriots."
         }
       ],
       "tailgates": [
+        {
+          "name": "USAA Salute 250 Kickoff Concert featuring Luke Bryan",
+          "location": "Lumen Field North Lot; concert entry at Gate 3",
+          "startTime": "Gate 3 opens 1:30 PM; concert 2:30-3:45 PM",
+          "description": "Official Seahawks pregame concert. The event is sold out and required separate concert registration plus an active September 9 game ticket; ordinary game-ticket holders should not assume they have concert access. Concert guests can enter Lumen Field from the North Lot through Gate 2 after the show. This is separate from the general Ticketmaster Tailgate in the Event Center.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/countdown-to-kickoff/kickoff-concert/"
+        },
         {
           "name": "Ticketmaster Tailgate",
           "location": "Lumen Field Event Center",
@@ -133,6 +158,16 @@
       ],
       "stadiumTips": [
         {
+          "title": "National anthem: Mike McCready",
+          "details": "Pearl Jam guitarist Mike McCready will perform the national anthem during the pregame ceremony.",
+          "sourceUrl": "https://www.seahawks.com/news/performing-anthem-playing-with-soundgarden-at-halftime-incredibly-special-incredibly-poignant-for-pearl-jam-s-mike-mccready"
+        },
+        {
+          "title": "Halftime: Soundgarden with Taylor Momsen and Mike McCready",
+          "details": "Soundgarden will perform at halftime with Taylor Momsen on vocals and Mike McCready joining the band.",
+          "sourceUrl": "https://www.seahawks.com/news/performing-anthem-playing-with-soundgarden-at-halftime-incredibly-special-incredibly-poignant-for-pearl-jam-s-mike-mccready"
+        },
+        {
           "title": "All tickets are mobile",
           "details": "Download or update the Seahawks app and load your tickets before arriving. Lumen Field's new turnstiles allow a group to scan all tickets at the reader and then proceed through one at a time after each ticket shows a green check.",
           "sourceUrl": "https://www.seahawks.com/game-day/"
@@ -156,6 +191,14 @@
         "sourceUrl": "https://forecast.weather.gov/MapClick.php?CityName=Seattle&lat=47.6344&lon=-122.342&site=SEW&state=WA"
       },
       "sources": [
+        {
+          "name": "Seahawks USAA Salute 250 Kickoff Concert",
+          "url": "https://www.seahawks.com/game-day/countdown-to-kickoff/kickoff-concert/"
+        },
+        {
+          "name": "Seahawks Week 1 Anthem and Halftime Announcement",
+          "url": "https://www.seahawks.com/news/performing-anthem-playing-with-soundgarden-at-halftime-incredibly-special-incredibly-poignant-for-pearl-jam-s-mike-mccready"
+        },
         {
           "name": "Seattle Seahawks 2026 Schedule",
           "url": "https://www.seahawks.com/schedule/"

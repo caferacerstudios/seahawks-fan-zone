@@ -756,10 +756,58 @@
       "sourcePublisher": "Seattle Seahawks",
       "sourceUrl": "https://www.seahawks.com/news/seahawks-sign-17-to-practice-squad-including-veterans-trevon-diggs-aj-finley-velus-jones-jr-rodney-thomas-ii",
       "updateStatus": "Official"
+    },
+    {
+      "timestamp": "2026-09-03T12:00:01-07:00",
+      "playerId": "bobby-hart",
+      "playerName": "Bobby Hart",
+      "transactionType": "Practice Squad",
+      "previousStatus": "Released",
+      "newStatus": "Practice Squad",
+      "description": "Seattle signed tackle Bobby Hart to the practice squad.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/news/seahawks-sign-t-bobby-hart-to-practice-squad",
+      "updateStatus": "Official"
+    },
+    {
+      "timestamp": "2026-09-03T12:00:00-07:00",
+      "playerId": "uso-seumalo",
+      "playerName": "Uso Seumalo",
+      "transactionType": "Released",
+      "previousStatus": "Practice Squad",
+      "newStatus": "Released",
+      "description": "Seattle released defensive tackle Uso Seumalo from the practice squad.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/team/transactions/2026",
+      "updateStatus": "Official"
+    },
+    {
+      "timestamp": "2026-09-05T16:19:01-07:00",
+      "playerId": "danthony-bell",
+      "playerName": "D'Anthony Bell",
+      "transactionType": "Practice Squad",
+      "previousStatus": "Released",
+      "newStatus": "Practice Squad",
+      "description": "Seattle signed safety D'Anthony Bell to the practice squad.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/news/seahawks-sign-s-d-anthony-bell-to-practice-squad-x2425",
+      "updateStatus": "Official"
+    },
+    {
+      "timestamp": "2026-09-05T16:19:00-07:00",
+      "playerId": "marvin-jones-jr",
+      "playerName": "Marvin Jones Jr.",
+      "transactionType": "Released",
+      "previousStatus": "Practice Squad",
+      "newStatus": "Released",
+      "description": "Seattle released linebacker Marvin Jones Jr. from the practice squad.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/team/transactions/2026",
+      "updateStatus": "Official"
     }
   ],
-  "asOf": "2026-09-02T12:00:00-07:00",
+  "asOf": "2026-09-05T16:19:01-07:00",
   "sourcePublisher": "Seattle Seahawks",
   "sourceUrl": "https://www.seahawks.com/team/transactions/2026",
-  "sourceNote": "Official Seahawks transaction log verified through August 31, 2026; records are event-based and may include multiple moves for one player."
+  "sourceNote": "Official Seahawks transaction log verified through September 5, 2026; records are event-based and may include multiple moves for one player."
 }
