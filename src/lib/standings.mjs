@@ -24,16 +24,24 @@ export function formatWinningPercentage(wins, losses, ties) {
 
 export function aggregateStandings(games, teams, phase) {
   if (!STANDINGS_PHASES.includes(phase)) throw new Error(`Invalid standings phase: ${phase}`);
+  const emptyRow = (team) => {
+    const code = abbr(team);
+    return { abbreviation: code, name: team?.full_name ?? team?.fullName ?? team?.name ?? NAMES[code] ?? code, conference: team?.conference ?? null, wins: 0, losses: 0, ties: 0, pointsFor: 0, pointsAgainst: 0, divisionWins: 0, divisionLosses: 0, divisionTies: 0, conferenceWins: 0, conferenceLosses: 0, conferenceTies: 0, streak: "—" };
+  };
   const rows = new Map((teams ?? []).map((team) => {
     const code = abbr(team);
-    return [code, { abbreviation: code, name: team?.full_name ?? team?.fullName ?? team?.name ?? NAMES[code] ?? code, conference: team?.conference ?? null, wins: 0, losses: 0, ties: 0, pointsFor: 0, pointsAgainst: 0, divisionWins: 0, divisionLosses: 0, divisionTies: 0, conferenceWins: 0, conferenceLosses: 0, conferenceTies: 0, streak: "—" }];
+    return [code, emptyRow(team)];
   }));
 
+  const observed = new Set();
   for (const game of [...(games ?? [])].sort((a, b) => text(a?.startsAt ?? a?.datetime ?? a?.date).localeCompare(text(b?.startsAt ?? b?.datetime ?? b?.date)))) {
     if (schedulePhase(game) !== phase || scheduleState(game) !== "completed") continue;
     const home = abbr(game?.home_team ?? game?.homeTeam), away = abbr(game?.visitor_team ?? game?.away_team ?? game?.awayTeam);
     const homeScore = score(game, "home"), awayScore = score(game, "away");
+    if (home && !rows.has(home)) rows.set(home, emptyRow(game?.home_team ?? game?.homeTeam));
+    if (away && !rows.has(away)) rows.set(away, emptyRow(game?.visitor_team ?? game?.away_team ?? game?.awayTeam));
     if (!rows.has(home) || !rows.has(away) || homeScore === null || awayScore === null) continue;
+    observed.add(home); observed.add(away);
     for (const [code, own, other, ownScore, otherScore] of [[home, rows.get(home), away, homeScore, awayScore], [away, rows.get(away), home, awayScore, homeScore]]) {
       own.pointsFor += ownScore; own.pointsAgainst += otherScore;
       const outcome = ownScore === otherScore ? "ties" : ownScore > otherScore ? "wins" : "losses";
@@ -48,7 +56,7 @@ export function aggregateStandings(games, teams, phase) {
     }
   }
 
-  const result = [...rows.values()].filter((row) => WEST.has(row.abbreviation));
+  const result = [...rows.values()].filter((row) => WEST.has(row.abbreviation) && observed.has(row.abbreviation));
   for (const row of result) {
     row.percentage = formatWinningPercentage(row.wins, row.losses, row.ties);
     row.differential = row.pointsFor - row.pointsAgainst;
@@ -57,7 +65,8 @@ export function aggregateStandings(games, teams, phase) {
     row.gamesPlayed = row.wins + row.losses + row.ties;
   }
   result.sort((a, b) => winningPercentage(b.wins, b.losses, b.ties) - winningPercentage(a.wins, a.losses, a.ties) || b.differential - a.differential || a.name.localeCompare(b.name));
-  result.forEach((row, index) => { row.rank = result.every((item) => item.gamesPlayed === 0) ? "Tied" : String(index + 1); });
+  const completeDivision = result.length === WEST.size;
+  result.forEach((row, index) => { row.rank = completeDivision ? String(index + 1) : null; });
   return result;
 }
 
@@ -92,7 +101,9 @@ export function validateStandings(payload, games = []) {
     const expected = aggregateStandings(games, [...gameTeams, ...bucket.rows.map((row) => ({ abbreviation: row.abbreviation, full_name: row.name, conference: row.conference }))], phase);
     for (const row of bucket.rows) {
       const source = expected.find((item) => item.abbreviation === row.abbreviation);
-      if (!source || row.wins !== source.wins || row.losses !== source.losses || row.ties !== source.ties) errors.push(`${phase} ${row.abbreviation} record does not match filtered games`);
+      if (bucket.recordAuthority !== "official" && (!source || row.wins !== source.wins || row.losses !== source.losses || row.ties !== source.ties)) errors.push(`${phase} ${row.abbreviation} record does not match filtered games`);
+      if (![row.wins, row.losses, row.ties].every((value) => Number.isInteger(value) && value >= 0)) errors.push(`${phase} ${row.abbreviation} record is missing or invalid`);
+      if (row.gamesPlayed !== row.wins + row.losses + row.ties) errors.push(`${phase} ${row.abbreviation} games-played mismatch`);
       if (row.percentage !== formatWinningPercentage(row.wins, row.losses, row.ties)) errors.push(`${phase} ${row.abbreviation} percentage mismatch`);
       if (row.differential !== row.pointsFor - row.pointsAgainst) errors.push(`${phase} ${row.abbreviation} point differential mismatch`);
     }

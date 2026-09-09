@@ -115,7 +115,7 @@ const hasMeaningfulStandings = views.some((view) => view.hasGames);
     <h2>{season} {view.label} {view.phase === "regular" ? "standings" : "records"}</h2>
     {view.seattle && view.hasGames ? (
       <div class="sea-summary">
-        <div><span>{view.officialRank ? "Division rank" : "Provisional order"}</span><strong>{view.seattle.rank === "Tied" ? "Tied" : ordinal(view.seattle.rank)}</strong></div>
+        <div><span>{view.officialRank ? "Division rank" : "Division order"}</span><strong>{view.seattle.rank == null ? "Unavailable" : ordinal(view.seattle.rank)}</strong></div>
         <div><span>Record</span><strong>{view.seattle.wins}-{view.seattle.losses}{view.seattle.ties ? `-${view.seattle.ties}` : ""}</strong></div>
         <div><span>Division</span><strong>{view.phase === "regular" ? view.seattle.division : "Not applicable"}</strong></div>
         <div><span>Conference</span><strong>{view.phase === "regular" ? view.seattle.conference : "Not applicable"}</strong></div>
@@ -125,13 +125,14 @@ const hasMeaningfulStandings = views.some((view) => view.hasGames);
   </header>
 
   {view.phase === "preseason" && <p class="season-notice">Preseason results do not affect regular-season standings or playoff position.</p>}
-  {!view.officialRank && view.rows.some((row) => row.gamesPlayed > 0) && <p class="season-notice">Ordering is provisional; the source does not provide an official phase-specific rank or complete NFL tiebreakers.</p>}
+  {!view.officialRank && view.rows.length === 4 && <p class="season-notice">{view.phase === "preseason" ? "These are preseason records, not a division position or playoff standing." : "Ordering is provisional; the source does not provide complete NFL tiebreakers."}</p>}
+  {view.rows.length > 0 && view.rows.length < 4 && <p class="season-notice">The source does not contain a complete four-team record set, so missing teams are omitted and no division order is calculated.</p>}
 
   <section class="standings-section">
     <div class="section-heading">
       <h2>NFC West {view.label.toLowerCase()} standings</h2>
     </div>
-    {view.rows.length && view.hasGames ? <NfcWestTable rows={view.rows} label={`${season} ${view.label} NFC West standings`} showSplits={view.phase === "regular"} rankLabel={view.officialRank ? "Rank" : "Order (provisional)"} /> : <SeasonState title={`${view.label} table opens after completed games`} explanation={`There are no completed ${view.label.toLowerCase()} games with sourced scores, so a four-team 0-0 table would add no useful information.`} actionHref="/schedule" actionLabel={`View the ${season} schedule`} priorHref="/history" priorLabel="Explore Seahawks history" icon="NFC" />}
+    {view.rows.length && view.hasGames ? <NfcWestTable rows={view.rows} label={`${season} ${view.label} NFC West standings`} showSplits={view.phase === "regular"} rankLabel={view.officialRank ? "Rank" : "Order"} /> : <SeasonState title={`${view.label} table opens after completed games`} explanation={`There are no completed ${view.label.toLowerCase()} games with sourced scores, so a four-team 0-0 table would add no useful information.`} actionHref="/schedule" actionLabel={`View the ${season} schedule`} priorHref="/history" priorLabel="Explore Seahawks history" icon="NFC" />}
   </section>
 
   <div class="division-grid">

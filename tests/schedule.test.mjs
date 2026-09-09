@@ -69,6 +69,15 @@ test("official guide reconciliation restores missing preseason finals without du
   assert.equal(reconcileOfficialSchedule([...provider, schedule.gamesPreseason[0]], guide).length, 2);
 });
 
+test("official guide restores missing kickoff and venue on completed provider games", () => {
+  const guide = { season: 2026, games: [{ phase: "preseason", week: 1, dateLabel: "Aug. 15, 2026", kickoffLabel: "5:00 p.m. PDT", matchup: "Dallas Cowboys at Seattle Seahawks", venue: "Lumen Field", result: "Cowboys 17, Seahawks 7", status: "completed" }] };
+  const provider = [{ ...game("pre-1", 1, "2026-08-15", { season_type: "preseason", status: "Final", home_team: SEA, visitor_team: { abbreviation: "DAL", full_name: "Dallas Cowboys" }, home_team_score: 7, visitor_team_score: 17 }), time_confirmed: false, venue: null }];
+  const restored = normalizeSchedule({ season: 2026, games: reconcileOfficialSchedule(provider, guide) }).games[0];
+  assert.equal(restored.venue, "Lumen Field");
+  assert.equal(restored.timeConfirmed, true);
+  assert.match(formatKickoff(restored), /5:00 PM PT$/);
+});
+
 test("official Week 18 TBD suppresses a provider placeholder across public timing outputs", () => {
   const provider = [game("week-18", 18, "2027-01-10T05:00:00Z")];
   const guide = { season: 2026, games: [{ phase: "regular", week: 18, status: "tbd", dateLabel: "Jan. 9 or 10, 2027" }] };

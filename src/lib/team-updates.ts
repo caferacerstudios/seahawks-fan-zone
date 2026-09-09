@@ -33,6 +33,8 @@ export interface InjuryStatusRecord {
   playerId: string | number;
   playerName?: string;
   status: string;
+  reportType?: "Roster Status" | "Practice Participation" | "Game Status";
+  injury?: string;
   description: string;
   sourcePublisher: string;
   sourceUrl: string;
@@ -59,6 +61,7 @@ export function isTransactionRecord(value: unknown): value is TransactionRecord 
 export function isInjuryStatusRecord(value: unknown): value is InjuryStatusRecord {
   const row = value as InjuryStatusRecord;
   return Boolean(row && validDate(row.date) && playerId(row.playerId) && text(row.status)
+    && (row.reportType === undefined || ["Roster Status", "Practice Participation", "Game Status"].includes(row.reportType))
     && text(row.description) && text(row.sourcePublisher) && sourceUrl(row.sourceUrl)
     && UPDATE_STATUSES.includes(row.updateStatus));
 }

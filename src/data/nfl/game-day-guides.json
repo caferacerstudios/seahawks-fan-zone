@@ -82,9 +82,19 @@
           "details": "The nearby Mariners game creates a direct parking and SODO traffic conflict."
         },
         {
+          "time": "1:30 PM",
+          "event": "Kickoff Concert Gate 3 opens",
+          "details": "Entry opens for holders of the separate, sold-out USAA Salute 250 Kickoff Concert ticket who also have an active September 9 game ticket. A game ticket alone does not provide concert access."
+        },
+        {
           "time": "2:00 PM",
           "event": "Ticketmaster Tailgate opens",
           "details": "Official Seahawks pregame event inside the Lumen Field Event Center."
+        },
+        {
+          "time": "2:30 PM",
+          "event": "Luke Bryan Kickoff Concert begins",
+          "details": "The official USAA Salute 250 Kickoff Concert begins in the Lumen Field North Lot and is scheduled to end at 3:45 p.m. It is distinct from the Ticketmaster Tailgate."
         },
         {
           "time": "2:30 PM",
@@ -102,12 +112,27 @@
           "details": "The Seahawks ask fans to be in their seats for the Super Bowl LX banner unveiling."
         },
         {
+          "time": "5:00 PM",
+          "event": "Recommended seated time",
+          "details": "Be in your seat for pregame entertainment and the Super Bowl LX championship-banner unveiling."
+        },
+        {
           "time": "5:20 PM",
           "event": "Kickoff",
           "details": "Seattle Seahawks vs. New England Patriots."
         }
       ],
       "tailgates": [
+        {
+          "name": "USAA Salute 250 Kickoff Concert featuring Luke Bryan",
+          "location": "Lumen Field North Lot; concert entry at Gate 3",
+          "startTime": "Gate 3 opens 1:30 PM; concert 2:30-3:45 PM",
+          "description": "Official Seahawks pregame concert. The event is sold out and required separate concert registration plus an active September 9 game ticket; ordinary game-ticket holders should not assume they have concert access. Concert guests can enter Lumen Field from the North Lot through Gate 2 after the show. This is separate from the general Ticketmaster Tailgate in the Event Center.",
+          "price": null,
+          "ageRestriction": null,
+          "official": true,
+          "sourceUrl": "https://www.seahawks.com/game-day/countdown-to-kickoff/kickoff-concert/"
+        },
         {
           "name": "Ticketmaster Tailgate",
           "location": "Lumen Field Event Center",
@@ -205,6 +230,14 @@
         "sourceUrl": "https://beta.weather.gov/place/WA/Seattle/"
       },
       "sources": [
+        {
+          "name": "Seahawks USAA Salute 250 Kickoff Concert",
+          "url": "https://www.seahawks.com/game-day/countdown-to-kickoff/kickoff-concert/"
+        },
+        {
+          "name": "Seahawks Week 1 Anthem and Halftime Announcement",
+          "url": "https://www.seahawks.com/news/performing-anthem-playing-with-soundgarden-at-halftime-incredibly-special-incredibly-poignant-for-pearl-jam-s-mike-mccready"
+        },
         {
           "name": "Seattle Seahawks 2026 Schedule",
           "url": "https://www.seahawks.com/schedule/"

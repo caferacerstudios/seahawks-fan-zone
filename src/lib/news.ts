@@ -198,17 +198,17 @@ const articles: NewsArticle[] = [
   },
   {
     slug: "nfl-approves-seahawks-sale-khosla-family-what-changes",
-    headline: "NFL approves Seahawks sale to Khosla family: What changes now and what remains unknown",
-    dek: "The ownership vote is complete, but the deal has not formally closed. Here is who will control the team, what the family has committed to and which decisions will matter next.",
+    headline: "Seahawks sale to Khosla family closes: What changes now and what remains unknown",
+    dek: "The Khosla family officially became the Seahawks’ controlling ownership group on September 3. Here are the announced roles, commitments and decisions that matter next.",
     publishedAt: "2026-08-28",
-    updatedAt: "2026-08-28",
+    updatedAt: "2026-09-03",
     author: "Seahawks Fan Zone Editorial Team",
     category: "Analysis",
     tags: ["Ownership", "Khosla family", "Paul Allen", "Lumen Field", "Analysis"],
     season: 2026,
     opponent: null,
     body: [
-      { type: "paragraph", html: "NFL owners unanimously approved the sale of the Seattle Seahawks to the Khosla family on August 26. That was the transaction’s largest regulatory hurdle, but it was not the closing. As of this article’s August 28 update, the Seahawks’ own account called approval a step closer to completion, and current reporting still described formal closing as pending. The Paul G. Allen Estate therefore remains the owner until the parties finish that process." },
+      { type: "paragraph", html: "<strong>Material update — September 3, 2026:</strong> The Seahawks announced that the transaction officially closed. The Khosla family is now the team’s controlling ownership group. This article retains its original August 28 analysis of the approval stage while updating all present-tense ownership and leadership information." },
       { type: "paragraph", html: "That distinction matters because approval answers who the league will permit to buy the club, while closing transfers the club. It also keeps the immediate football picture in perspective. Seattle is entering a season as the defending champion with an established president of football operations/general manager, John Schneider, and head coach, Mike Macdonald. No public announcement has replaced either executive or reassigned roster authority." },
 
       { type: "heading", heading: "How Seattle reached this point" },
@@ -218,16 +218,16 @@ const articles: NewsArticle[] = [
         { label: "February 18, 2026", html: "The estate opened a formal sale process, naming Allen & Company and Latham & Watkins as advisers. It said a sale fulfilled Paul Allen’s direction to sell his sports holdings eventually and direct estate proceeds to philanthropy." },
         { label: "July 11, 2026", html: "The estate announced a binding sale agreement with a Khosla family-led group. The parties did not disclose terms. The Associated Press, citing a person familiar with the deal, reported a $9.612 billion price. That number is credible reporting, not an officially confirmed term." },
         { label: "August 26, 2026", html: "NFL owners voted unanimously to approve the purchase. League approval also required the Khoslas to give up their minority interest in the San Francisco 49ers, according to AP reporting." },
-        { label: "Current status", html: "Formal closing remains the next milestone. No reliable public source reviewed for this article had confirmed completion by August 28." }
+        { label: "September 3, 2026", html: "The Seahawks announced that the sale officially closed, transferring control from the Paul G. Allen Estate to the Khosla family-led ownership group." }
       ] },
 
       { type: "heading", heading: "Who will control the team?" },
-      { type: "paragraph", html: "The most precise answer is Neeru Khosla. Reporting based on the NFL memo sent to clubs identifies her as the Seahawks’ controlling owner. That designation matters under league governance: the controlling owner is the family group’s principal representative and is accountable to the NFL for the franchise. The team’s July announcement used the broader formulation that the Khosla family would become the controlling owner, while the NFL’s approval coverage described the group as led by Vinod and Neeru Khosla." },
-      { type: "paragraph", html: "Vinod Khosla is a co-owner and has been the family’s principal public voice. He delivered the family statement in July and answered questions after the league vote. Public visibility does not make him the controlling owner. His stated approach was long-term, centered on learning from existing management and sustaining success. Those are statements of intent, not a new reporting structure or a promise of a particular level of spending." },
-      { type: "paragraph", html: "Their son Neal Khosla is a co-owner and, according to the NFL memo as reported by local and national outlets, is expected to have a significant leadership role in the ownership group. The exact title, decision rights and day-to-day portfolio have not been made public. Their daughter Nina Khosla joined Neeru, Vinod and Neal at the league meeting and was named in the Seahawks’ event coverage. No reviewed source assigned her an ownership, control or operating title. Attendance should not be converted into authority. The same rule applies to any other relatives or financial partners until the club or league documents their roles." },
+      { type: "paragraph", html: "The Seahawks’ September 3 closing announcement identifies the Khosla family as the controlling ownership group and names Neeru Khosla as Controlling Owner and President of the Seahawks Charitable Foundation. That designation makes her the family group’s principal representative under league governance." },
+      { type: "paragraph", html: "Vinod Khosla holds the title of Chair. His stated approach has been long-term, centered on learning from existing management and sustaining success. Those statements of intent are not a promise of a particular level of spending or a change to football reporting lines." },
+      { type: "paragraph", html: "Neal Khosla holds the title of Vice Chair. The closing announcement does not define his day-to-day portfolio or specific decision rights. Their daughter Nina Khosla attended the league meeting, but no reviewed official source assigned her an ownership, control or operating title. Attendance should not be converted into authority." },
 
       { type: "heading", heading: "What changes immediately?" },
-      { type: "paragraph", html: "At closing, the ultimate authority over the franchise changes. The owner can set budgets, appoint senior business and football executives, approve major capital projects and establish the organization’s tolerance for risk. League rules still constrain the club: the salary cap limits player payroll, roster and contract rules govern acquisitions, and many ownership actions require league approval." },
+      { type: "paragraph", html: "With the September 3 closing, ultimate authority over the franchise changed. Ownership can set budgets, appoint senior business and football executives, approve major capital projects and establish the organization’s tolerance for risk. League rules still constrain the club: the salary cap limits player payroll, roster and contract rules govern acquisitions, and many ownership actions require league approval." },
       { type: "paragraph", html: "Ownership is not the same job as choosing the game-day roster. Schneider and Macdonald run football operations within the authority and resources ownership gives them. An owner can change that structure, but there is no evidence the Khoslas have done so. Vinod Khosla’s comment that the family would learn from management points toward continuity at the start. It is not a binding commitment to retain every executive." },
       { type: "paragraph", html: "<strong>Analysis:</strong> Immediate owner influence is usually clearest in areas fans do not see on Sundays: reporting lines, hiring authority, facilities, analytics and medical resources, business staffing, and the willingness to guarantee cash in contracts. The cap prevents a wealthy owner from simply purchasing an unlimited roster. That is why personal-wealth estimates say little about future football spending. The revealing evidence will be organizational decisions, not a valuation headline or a celebratory news conference." },
 
@@ -241,20 +241,20 @@ const articles: NewsArticle[] = [
       { type: "paragraph", html: "The estate says Paul Allen directed that his sports holdings eventually be sold and that all estate proceeds go to philanthropy. That establishes the destination in broad terms, not the timing, recipient organizations or allocation of the Seahawks proceeds. The official announcement did not publish those details, and the reported sale price should not be treated as the net charitable amount. Transaction costs, obligations and the estate’s process can affect what is ultimately distributed." },
 
       { type: "factbox", heading: "The transaction at a glance", known: [
-        "NFL owners unanimously approved the Khosla family’s purchase on August 26.",
-        "Neeru Khosla is the reported controlling owner; Vinod and Neal Khosla are co-owners.",
+        "NFL owners unanimously approved the purchase on August 26, and the Seahawks announced the transaction closed on September 3.",
+        "The Khosla family is the controlling ownership group. Vinod Khosla is Chair, Neeru Khosla is Controlling Owner and President of the Seahawks Charitable Foundation, and Neal Khosla is Vice Chair.",
         "The official parties did not disclose the price. AP and ESPN reported $9.612 billion.",
         "The existing Lumen Field lease runs through 2032 with three 10-year options."
       ], unknown: [
-        "The exact closing date and final ownership percentages.",
-        "Neal Khosla’s formal title and operating responsibilities, and any role for Nina Khosla.",
+        "Final ownership percentages for the Khosla family and the announced co-owners.",
+        "Neal Khosla’s day-to-day operating responsibilities, and any formal role for Nina Khosla.",
         "Whether the group will exercise a lease option, pursue major renovations or study another stadium plan.",
         "Which philanthropic recipients will receive proceeds, in what amounts and on what schedule."
-      ], milestone: "Formal closing. Until the Seahawks, the NFL or the Allen estate confirms it, the ownership transfer should not be described as complete." },
+      ], milestone: "The next measurable milestones are the ownership group’s announced decisions on executive structure, stadium planning, community investment and the fan experience." },
 
       { type: "heading", heading: "What to watch during the first year" },
       { type: "watchlist", items: [
-        { label: "1. Executive structure", html: "Look for filed or announced changes to the president, general manager, head coach or senior business leadership, plus a formal title for Neal Khosla. No change is itself measurable evidence of continuity." },
+        { label: "1. Executive structure", html: "Look for filed or announced changes to the president, general manager, head coach or senior business leadership, plus details of Vice Chair Neal Khosla’s operating portfolio. No change is itself measurable evidence of continuity." },
         { label: "2. Football operations", html: "Track reporting lines, contract extensions for decision-makers and investments in scouting, analytics, sports science and facilities. These reveal owner priorities more clearly than public predictions about play-calling or personnel." },
         { label: "3. Stadium action", html: "Watch for an exercised lease option, a commissioned study, a capital plan agreed with the Public Stadium Authority or a public financing proposal. Each is more concrete than general comments about preserving Lumen Field." },
         { label: "4. Community commitments", html: "Measure new or renewed programs by published funding, duration, geographic reach and accountable partners. “Engagement” becomes operational only when the club attaches resources and goals." },
@@ -263,6 +263,7 @@ const articles: NewsArticle[] = [
       { type: "paragraph", html: "<strong>Analysis:</strong> The first year will test a simple divide. Stewardship language describes how the family wants to be understood. Choices about people, authority, facilities, community money and the fan experience will show how it intends to own the Seahawks. Until those choices arrive, continuity is the most supportable expectation, not a guarantee." }
     ],
     sources: [
+      { label: "Seattle Seahawks: Sale to the Khosla family is complete (Sept. 3, 2026)", url: "https://www.seahawks.com/news/seattle-seahawks-sale-to-the-khosla-family-is-complete" },
       { label: "Seattle Seahawks: NFL owners approve sale (Aug. 26, 2026)", url: "https://www.seahawks.com/news/nfl-owners-approve-sale-of-seahawks-to-khosla-family" },
       { label: "Seattle Seahawks: Estate reaches sale agreement (July 11, 2026)", url: "https://www.seahawks.com/news/estate-of-paul-g-allen-reaches-agreement-to-sell-seattle-seahawks" },
       { label: "Seattle Seahawks: Estate begins sale process (Feb. 18, 2026)", url: "https://www.seahawks.com/news/estate-of-paul-g-allen-begins-sale-process-for-seattle-seahawks" },

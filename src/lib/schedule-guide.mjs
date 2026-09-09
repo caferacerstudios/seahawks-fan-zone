@@ -50,7 +50,8 @@ function guideGame(entry, season) {
   return {
     id: `${season}-${phase(entry)}-${Number(entry.week)}`,
     season, season_type: phase(entry), week: Number(entry.week),
-    date, date_confirmed: Boolean(date), time_confirmed: false,
+    date, date_confirmed: Boolean(date), kickoff_time: entry.kickoffLabel ?? null,
+    time_confirmed: Boolean(date && entry.kickoffLabel),
     status: entry.status === "completed" ? "Final" : entry.status === "tbd" ? "TBD" : "Scheduled",
     ...matchupTeams, ...scores(entry.result, matchupTeams), venue: entry.venue ?? null,
     canonical_url: entry.officialGameUrl ?? null, schedule_authority: "official-team-guide",
@@ -72,6 +73,16 @@ export function reconcileOfficialSchedule(games, guide) {
         ...rows[index], date_tbd: true, time_tbd: true, date_confirmed: false, time_confirmed: false,
         network_confirmed: false, schedule_authority: "official-team-guide-tbd",
       };
+      else {
+        const source = guideGame(entry, Number(guide.season));
+        if (source) rows[index] = {
+          ...rows[index],
+          ...(!rows[index].venue && source.venue ? { venue: source.venue, venue_confirmed: true } : {}),
+          ...(rows[index].time_confirmed !== true && rows[index].timeConfirmed !== true
+            && source.kickoff_time ? { date: source.date, kickoff_time: source.kickoff_time, date_confirmed: true, time_confirmed: true } : {}),
+          schedule_authority: rows[index].schedule_authority ?? source.schedule_authority,
+        };
+      }
       continue;
     }
     if (phase(entry) !== "preseason" || entry.status !== "completed") continue;
