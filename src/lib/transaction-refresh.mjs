@@ -2,7 +2,11 @@ import fs from "node:fs";
 import { identityKey } from "./roster-refresh.mjs";
 
 export const DEFAULT_TRANSACTION_SOURCE = "https://www.seahawks.com/team/transactions/2026";
-const MONTHS = new Map(["January","01","February","02","March","03","April","04","May","05","June","06","July","07","August","08","September","09","October","10","November","11","December","12"]);
+const MONTHS = new Map([
+  ["January", "01"], ["February", "02"], ["March", "03"], ["April", "04"],
+  ["May", "05"], ["June", "06"], ["July", "07"], ["August", "08"],
+  ["September", "09"], ["October", "10"], ["November", "11"], ["December", "12"],
+]);
 const clean = (value) => String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&#39;|&apos;/gi, "'").replace(/\s+/g, " ").trim();
 const slug = (name) => clean(name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
