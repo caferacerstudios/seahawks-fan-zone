@@ -83,7 +83,9 @@ chmod --reference="${env_file}" "${second_env}"
 mv -- "${second_env}" "${env_file}"
 
 npm ci --ignore-scripts --no-audit --no-fund
+node scripts/validate-production-schedule.mjs --source
 npm run build:production-offline
+node scripts/validate-production-schedule.mjs --dist
 docker compose config -q
 # Force recreation so a changed read-only nginx/default.conf bind mount is
 # loaded by the running web container; updating the checkout alone is not enough.
