@@ -1,4 +1,4 @@
-import { schedulePhase } from "./schedule.mjs";
+import { normalizeGame, schedulePhase } from "./schedule.mjs";
 
 const TEAM_ABBR = new Map([
   ["Arizona Cardinals", "ARI"], ["Carolina Panthers", "CAR"], ["Chicago Bears", "CHI"],
@@ -12,6 +12,13 @@ const SEAHAWKS = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const text = (value) => String(value ?? "").trim();
 const phase = (row) => schedulePhase(row) ?? text(row?.phase ?? row?.season_type ?? row?.seasonType).toLowerCase();
 const key = (row) => `${phase(row)}:${Number(row?.week)}`;
+
+function hasUsableKickoff(game, season) {
+  try {
+    const normalized = normalizeGame(game, season);
+    return Boolean(normalized.dateConfirmed && normalized.timeConfirmed && normalized.startsAt);
+  } catch { return false; }
+}
 
 function guideDate(label, season) {
   if (!label || /\bor\b|tbd/i.test(label)) return null;
@@ -75,11 +82,13 @@ export function reconcileOfficialSchedule(games, guide) {
       };
       else {
         const source = guideGame(entry, Number(guide.season));
+        const providerHasKickoff = hasUsableKickoff(rows[index], Number(guide.season));
+        const guideHasKickoff = source && hasUsableKickoff(source, Number(guide.season));
         if (source) rows[index] = {
           ...rows[index],
           ...(!rows[index].venue && source.venue ? { venue: source.venue, venue_confirmed: true } : {}),
-          ...(rows[index].time_confirmed !== true && rows[index].timeConfirmed !== true
-            && source.kickoff_time ? { date: source.date, kickoff_time: source.kickoff_time, date_confirmed: true, time_confirmed: true } : {}),
+          ...(!providerHasKickoff && guideHasKickoff
+            ? { date: source.date, kickoff_time: source.kickoff_time, date_confirmed: true, time_confirmed: true } : {}),
           schedule_authority: rows[index].schedule_authority ?? source.schedule_authority,
         };
       }

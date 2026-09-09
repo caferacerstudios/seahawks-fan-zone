@@ -85,12 +85,15 @@ export function formatPacificCalendarDate(value, options = {}) {
 }
 
 function pacificLocalTimestamp(date, timeValue) {
-  const match = text(timeValue).match(/(?:^|\b)(\d{1,2}):(\d{2})\s*(AM|PM)(?:\s*(?:PT|PST|PDT))?(?:$|\b)/i);
+  const match = text(timeValue).match(/(?:^|\b)(\d{1,2}):(\d{2})\s*([AP])\s*\.?\s*M\s*\.?(?:\s*(?:PT|PST|PDT))?(?:$|\b)/i);
   if (!match) return null;
-  let hour = Number(match[1]) % 12;
-  if (match[3].toUpperCase() === "PM") hour += 12;
+  const clockHour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(clockHour) || clockHour < 1 || clockHour > 12 || !Number.isInteger(minute) || minute < 0 || minute > 59) return null;
+  let hour = clockHour % 12;
+  if (match[3].toUpperCase() === "P") hour += 12;
   const [year, month, day] = date.split("-").map(Number);
-  const localAsUtc = Date.UTC(year, month - 1, day, hour, Number(match[2]));
+  const localAsUtc = Date.UTC(year, month - 1, day, hour, minute);
   const midday = new Date(Date.UTC(year, month - 1, day, 12));
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(midday).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
   const offset = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute) - midday.getTime();
@@ -282,7 +285,6 @@ export function validateSchedule(schedule, displaySeason = schedule?.season) {
     if (weekKey && weeks.has(weekKey)) errors.push(`duplicate week: ${weekKey}`); else if (weekKey) weeks.add(weekKey);
     if (game.state !== "bye" && game.isHome === null) errors.push(`impossible home/away assignment: ${game.id}`);
     if (game.timeConfirmed && !game.startsAt) errors.push(`placeholder timestamp marked confirmed: ${game.id}`);
-    if (game.timeConfirmed && /T00:00:00(?:\.000)?Z$/.test(game.startsAt ?? "")) errors.push(`placeholder timestamp marked confirmed: ${game.id}`);
     if (game.schedule_authority === "official-team-guide-tbd" && (game.date || game.startsAt || game.dateConfirmed || game.timeConfirmed)) errors.push(`official TBD game exposes a synthetic kickoff: ${game.id}`);
     if (game.dateConfirmed && !calendarDate(game.date)) errors.push(`invalid kickoff date: ${game.id}`);
     if (game.startsAt && !Number.isFinite(new Date(game.startsAt).getTime())) errors.push(`invalid kickoff timestamp: ${game.id}`);

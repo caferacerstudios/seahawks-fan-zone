@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   formatScheduleDate,
   formatKickoff,
@@ -57,6 +58,16 @@ test("does not manufacture a Week 18 kickoff time from midnight", () => {
   assert.match(formatScheduleDate(week18), /Time TBD$/);
 });
 
+test("accepts a confirmed Pacific kickoff that falls at midnight UTC", () => {
+  const schedule = normalizeSchedule({ season: 2026, games: [game("pacific-five", 1, "2026-08-15", {
+    season_type: "preseason",
+    kickoff_time: "5:00 p.m. PDT",
+    time_confirmed: true,
+  })] });
+  assert.equal(schedule.games[0].startsAt, "2026-08-16T00:00:00.000Z");
+  assert.equal(validateSchedule(schedule), true);
+});
+
 test("official guide reconciliation restores missing preseason finals without duplicating provider games", () => {
   const guide = { season: 2026, games: [{ phase: "preseason", week: 1, dateLabel: "Aug. 15, 2026", matchup: "Dallas Cowboys at Seattle Seahawks", result: "Cowboys 17, Seahawks 7", status: "completed" }] };
   const provider = [game("reg-1", 1, "2026-09-13T20:00:00Z")];
@@ -76,6 +87,87 @@ test("official guide restores missing kickoff and venue on completed provider ga
   assert.equal(restored.venue, "Lumen Field");
   assert.equal(restored.timeConfirmed, true);
   assert.match(formatKickoff(restored), /5:00 PM PT$/);
+});
+
+test("Pacific local parsing accepts dotted and plain meridiems with ordinary variations", () => {
+  for (const [kickoff_time, expected] of [
+    ["5:20 p.m. PDT", "5:20 PM PT"],
+    ["10:00 A.M. PT", "10:00 AM PT"],
+    [" 5:15 pm pst ", "5:15 PM PT"],
+    ["5:00\tP. M. pdt", "5:00 PM PT"],
+  ]) {
+    const normalized = normalizeSchedule({ season: 2026, games: [game(kickoff_time, 1, "2026-09-09", { kickoff_time })] }).games[0];
+    assert.equal(formatKickoff(normalized, "time"), expected, kickoff_time);
+    assert.equal(normalized.timeConfirmed, true, kickoff_time);
+  }
+});
+
+test("checked-in guide reconciles into stable displayed kickoffs and preseason finals", () => {
+  const source = JSON.parse(readFileSync(new URL("../src/data/nfl/seahawks.json", import.meta.url), "utf8"));
+  const guide = JSON.parse(readFileSync(new URL("../src/data/nfl/watch-guide-2026.json", import.meta.url), "utf8"));
+  const once = reconcileOfficialSchedule(source.games, guide);
+  const twice = reconcileOfficialSchedule(once, guide);
+  assert.deepEqual(twice, once);
+
+  const schedule = normalizeSchedule({ ...source, games: twice });
+  const regularGames = schedule.gamesRegular.filter((game) => game.state !== "bye");
+  assert.equal(regularGames.length, 17);
+  assert.equal(regularGames.filter((game) => game.timeConfirmed).length, 16);
+  assert.equal(schedule.gamesRegular.filter((game) => game.state === "bye").length, 1);
+  assert.equal(schedule.gamesPreseason.length, 3);
+
+  const expectedRegular = new Map([
+    [1, ["Sep 9", "5:20 PM PT", "New England Patriots"]],
+    [2, ["Sep 20", "1:25 PM PT", "Arizona Cardinals"]],
+    [3, ["Sep 27", "10:00 AM PT", "Washington Commanders"]],
+    [8, ["Nov 2", "5:15 PM PT", "Chicago Bears"]],
+    [17, ["Jan 3", "10:00 AM PT", "Carolina Panthers"]],
+  ]);
+  for (const [week, [date, kickoff, opponent]] of expectedRegular) {
+    const row = scheduleRow(schedule.gamesRegular.find((game) => game.week === week));
+    assert.match(row.date, new RegExp(date));
+    assert.equal(row.kickoff, kickoff);
+    assert.equal(row.opponentName, opponent);
+  }
+  const week18 = schedule.gamesRegular.find((game) => game.week === 18);
+  assert.deepEqual({ date: week18.date, startsAt: week18.startsAt, time: scheduleRow(week18).kickoff }, { date: null, startsAt: null, time: "Time TBD" });
+
+  const expectedPreseason = [
+    [1, "2026-08-15", true, "Lumen Field", 17, 7, "L", "5:00 PM PT"],
+    [2, "2026-08-23", false, "Nissan Stadium", 16, 19, "L", "5:00 PM PT"],
+    [3, "2026-08-28", false, "GEHA Field at Arrowhead Stadium", 9, 9, "T", "5:00 PM PT"],
+  ];
+  for (const [week, date, isHome, venue, away, home, outcome, kickoff] of expectedPreseason) {
+    const game = schedule.gamesPreseason.find((item) => item.week === week);
+    const row = scheduleRow(game);
+    assert.deepEqual(
+      { id: game.id, date: game.date, isHome: game.isHome, venue: game.venue, state: game.state, away: game.visitor_team_score, home: game.home_team_score, outcome: row.result.outcome, kickoff: row.kickoff },
+      { id: `2026-preseason-${week}`, date, isHome, venue, state: "completed", away, home, outcome, kickoff },
+    );
+  }
+  const calendar = seasonCalendar(schedule, "https://seahawksfanzone.com");
+  assert.equal(calendar.eventCount, 19);
+  assert.match(calendar.content, /DTSTART:20261103T011500Z/);
+  assert.match(calendar.content, /DTSTART:20260816T000000Z/);
+});
+
+test("reconciliation preserves usable ISO kickoffs and rejects invalid guide clocks", () => {
+  const valid = game("provider-id", 1, "2026-09-10T00:20:00Z");
+  const validGuide = { season: 2026, games: [{ phase: "regular", week: 1, dateLabel: "Sep. 9", kickoffLabel: "7:45 p.m. PDT", matchup: "New England Patriots at Seattle Seahawks" }] };
+  assert.equal(reconcileOfficialSchedule([valid], validGuide)[0].date, valid.date);
+
+  const placeholder = { ...valid, date: "2026-09-09T00:00:00Z" };
+  const replaced = normalizeSchedule({ season: 2026, games: reconcileOfficialSchedule([placeholder], validGuide) }).games[0];
+  assert.equal(replaced.id, "provider-id");
+  assert.equal(formatKickoff(replaced, "time"), "7:45 PM PT");
+
+  for (const kickoffLabel of ["0:30 p.m. PT", "13:00 PM PST", "5:60 p.m. PDT", "Time TBD"]) {
+    const unknown = { ...valid, date: "2026-09-09", time_confirmed: false };
+    const guide = { season: 2026, games: [{ ...validGuide.games[0], kickoffLabel }] };
+    const normalized = normalizeSchedule({ season: 2026, games: reconcileOfficialSchedule([unknown], guide) }).games[0];
+    assert.equal(normalized.startsAt, null, kickoffLabel);
+    assert.equal(normalized.timeConfirmed, false, kickoffLabel);
+  }
 });
 
 test("official Week 18 TBD suppresses a provider placeholder across public timing outputs", () => {
