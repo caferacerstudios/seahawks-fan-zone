@@ -10,6 +10,7 @@ import {
   validateRosterRefresh,
 } from "../src/lib/roster-refresh.mjs";
 import { rosterFreshness } from "../src/lib/roster.mjs";
+import { currentInjuryStatuses, latestPlayerUpdates } from "../src/lib/team-updates-core.mjs";
 import { parseOfficialTransactions, reconcileTransactions } from "../src/lib/transaction-refresh.mjs";
 import { parseOfficialInjuryReport, reconcileInjuryReports } from "../src/lib/injury-refresh.mjs";
 
@@ -72,6 +73,47 @@ test("official injury tables preserve dates and distinguish participation from g
   const fetched = parseOfficialInjuryReport(html, { now: new Date("2026-09-08T20:00:00Z") });
   assert.deepEqual(fetched.map((row) => [row.date.slice(0, 10), row.reportType, row.status]), [["2026-09-06", "Practice Participation", "DNP"], ["2026-09-07", "Practice Participation", "Limited"], ["2026-09-08", "Practice Participation", "Full"], ["2026-09-08", "Game Status", "Out"]]);
   assert.equal(reconcileInjuryReports({ records: [fetched[0]] }, fetched, { now: new Date("2026-09-08T21:00:00Z") }).records.length, 4);
+});
+
+test("injury designations omit blank and dash placeholders while preserving official values", () => {
+  const rows = ["", "-", "(-)", "(—)", "OUT", "QUESTIONABLE"].map((status, index) => `<tr><td><a href="/team/players-roster/player-${index}/">Player ${index}</a></td><td>S</td><td>Knee</td><td>LP</td><td>${status}</td></tr>`).join("");
+  const html = `<table><caption>Table - Injury report</caption><thead><tr><th>Player</th><th>Position</th><th>Injury</th><th>Tue</th><th>Game Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const fetched = parseOfficialInjuryReport(html, { now: new Date("2026-09-08T20:00:00Z") });
+  assert.deepEqual(fetched.filter((row) => row.reportType === "Game Status").map((row) => row.status), ["Out", "Questionable"]);
+});
+
+test("injury reconciliation removes invalid stored designations and is idempotent per report", () => {
+  const valid = { date:"2026-09-08T12:00:00Z", playerId:"player", playerName:"Player", reportType:"Game Status", status:"Out", sourceUrl:"https://www.seahawks.com/team/injury-report/" };
+  const stored = { records:[{ ...valid, status:"(-)" }, valid, { ...valid }] };
+  const once = reconcileInjuryReports(stored, [valid]);
+  const twice = reconcileInjuryReports(once, [valid]);
+  assert.deepEqual(twice.records, [valid]);
+  assert.equal(currentInjuryStatuses([{ ...valid, status:"(-)" }, valid, { ...valid }], [], { players:[] }).length, 1);
+});
+
+test("latest applicable player update is stable when record order is shuffled", () => {
+  const practice = { date:"2026-09-07T12:00:00Z", playerId:"player", reportType:"Practice Participation", status:"Full" };
+  const game = { date:"2026-09-08T12:00:00Z", playerId:"player", reportType:"Game Status", status:"Out" };
+  const placeholder = { ...game, date:"2026-09-09T12:00:00Z", status:"(-)" };
+  assert.equal(latestPlayerUpdates([practice, placeholder, game]).get("player"), game);
+  assert.equal(latestPlayerUpdates([game, practice, placeholder]).get("player"), game);
+});
+
+test("plain and encoded apostrophes resolve to one roster identity", () => {
+  assert.equal(identityKey("D'Anthony Bell"), identityKey("D&#39;Anthony Bell"));
+  assert.equal(identityKey("D'Anthony Bell"), identityKey("D&#x27;Anthony Bell"));
+  const html = `<div class="nfl-o-roster"><span class="nfl-o-roster__title-status">Practice Squad</span><table><tr><td><a href="/team/players-roster/d-anthony-bell/">D&#x27;Anthony Bell</a></td><td>23</td><td>S</td></tr></table></div>`;
+  assert.equal(parseOfficialRoster(html)[0].name, "D'Anthony Bell");
+});
+
+test("refreshing an encoded roster name preserves the canonical ID and transaction join", () => {
+  const prior = { players:[{ id:"danthony-bell", name:"D'Anthony Bell", position:"S", number:23, status:"Practice Squad", profile:"existing" }] };
+  const fetched = parseOfficialRoster(source([{ name:"D&#x27;Anthony Bell", position:"S", number:23, status:"Practice Squad" }]), "application/json");
+  const next = reconcileRoster(prior, fetched);
+  const bell = next.players[0];
+  const transaction = { playerId:"danthony-bell", timestamp:"2026-09-05T12:00:00Z", transactionType:"Practice Squad" };
+  assert.deepEqual({ id:bell.id, name:bell.name, status:bell.status, profile:bell.profile }, { id:"danthony-bell", name:"D'Anthony Bell", status:"Practice Squad", profile:"existing" });
+  assert.equal(latestPlayerUpdates([transaction]).get(bell.id), transaction);
 });
 
 test("duplicate source identities cannot create duplicate current players", () => {

@@ -4,6 +4,7 @@ export const DEFAULT_INJURY_SOURCE = "https://www.seahawks.com/team/injury-repor
 const clean = (value) => String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&#39;|&apos;/gi, "'").replace(/\s+/g, " ").trim();
 const slug = (name) => clean(name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const PARTICIPATION = new Map([["DNP","DNP"],["LP","Limited"],["FP","Full"]]);
+const ABSENT_DESIGNATION = /^(?:\(?\s*[-–—]+\s*\)?|(?:not\s+)?(?:specified|listed)|n\/?a)$/i;
 const DAY = new Map([["Sun",0],["Mon",1],["Tue",2],["Wed",3],["Thu",4],["Fri",5],["Sat",6]]);
 function reportDate(label, now) {
   const wanted = DAY.get(label); if (wanted === undefined) return null;
@@ -30,16 +31,30 @@ export function parseOfficialInjuryReport(body, { now = new Date(), sourceUrl = 
         description: `Practice report: ${status === "DNP" ? "did not participate" : `${status.toLowerCase()} participation`} (${injury.toLowerCase()}).`, sourcePublisher: "Seattle Seahawks", sourceUrl, updateStatus: "Official" });
     }
     const designation = clean(cells[headings.length - 1]);
-    if (designation && !/^-|unspecified$/i.test(designation)) records.push({ date: now.toISOString(), playerId, playerName, reportType: "Game Status", status: designation[0] + designation.slice(1).toLowerCase(), injury,
-      description: `Final game designation: ${designation[0] + designation.slice(1).toLowerCase()} (${injury.toLowerCase()}).`, sourcePublisher: "Seattle Seahawks", sourceUrl, updateStatus: "Official" });
+    if (designation && !ABSENT_DESIGNATION.test(designation)) {
+      const status = designation[0] + designation.slice(1).toLowerCase();
+      const date = practiceColumns.map((column) => column.date).sort().at(-1) ?? now.toISOString().slice(0, 10);
+      records.push({ date: `${date}T12:00:00Z`, playerId, playerName, reportType: "Game Status", status, injury,
+        description: `Final game designation: ${status} (${injury.toLowerCase()}).`, sourcePublisher: "Seattle Seahawks", sourceUrl, updateStatus: "Official" });
+    }
   }
   return records;
 }
 
 export function reconcileInjuryReports(store, fetched, { now = new Date() } = {}) {
-  const records = [...(store?.records ?? [])];
-  const keys = new Set(records.map((row) => `${row.date.slice(0,10)}:${row.playerId}:${row.reportType}:${row.status}`));
-  for (const row of fetched) { const key = `${row.date.slice(0,10)}:${row.playerId}:${row.reportType}:${row.status}`; if (!keys.has(key)) { records.push(row); keys.add(key); } }
+  const valid = (row) => row?.reportType !== "Game Status" || (clean(row.status) && !ABSENT_DESIGNATION.test(clean(row.status)));
+  const records = [], observations = new Map();
+  for (const row of [...(store?.records ?? []), ...fetched].filter(valid)) {
+    const report = row.reportType ? `${String(row.date).slice(0, 10)}:${row.playerId}:${row.reportType}` : null;
+    if (!report) { records.push(row); continue; }
+    const existingIndex = observations.get(report);
+    if (existingIndex === undefined) { observations.set(report, records.length); records.push(row); continue; }
+    const existing = records[existingIndex];
+    // Keep an already curated source for the same observation; otherwise the
+    // newly fetched row replaces stale parser output without adding a duplicate.
+    const existingIsGeneric = existing.sourceUrl === DEFAULT_INJURY_SOURCE;
+    if (existingIsGeneric) records[existingIndex] = row;
+  }
   return { ...store, schemaVersion: Math.max(2, Number(store?.schemaVersion) || 1), asOf: now.toISOString(), sourcePublisher: "Seattle Seahawks", sourceUrl: DEFAULT_INJURY_SOURCE,
     sourceNote: "Official dated practice participation and final game-status reports retained as observations alongside reserve-list status.", records };
 }

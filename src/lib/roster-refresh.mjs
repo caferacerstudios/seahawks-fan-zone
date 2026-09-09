@@ -16,20 +16,25 @@ const CURRENT = new Set(["Active", "Practice Squad", "Reserve/Injured", "PUP", "
 
 function clean(value) { return String(value ?? "").replace(/\s+/g, " ").trim(); }
 function field(row, ...keys) { for (const key of keys) if (row?.[key] != null && clean(row[key])) return row[key]; return null; }
+function decodeText(value) {
+  return String(value ?? "").replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (entity, hex, decimal) => {
+    const codePoint = Number.parseInt(hex ?? decimal, hex ? 16 : 10);
+    return Number.isSafeInteger(codePoint) && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : entity;
+  }).replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&apos;/gi, "'").replace(/&quot;/gi, '"');
+}
 function playerName(row) {
-  return clean(field(row, "name", "fullName", "full_name", "displayName") ?? `${field(row, "firstName", "first_name") ?? ""} ${field(row, "lastName", "last_name") ?? ""}`);
+  return htmlText(field(row, "name", "fullName", "full_name", "displayName") ?? `${field(row, "firstName", "first_name") ?? ""} ${field(row, "lastName", "last_name") ?? ""}`);
 }
 export function identityKey(name) {
-  return clean(name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  return htmlText(name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z0-9]+/g, "");
 }
 function slug(name) {
-  return clean(name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  return htmlText(name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 function htmlText(value) {
-  return clean(String(value ?? "").replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&#39;|&apos;/gi, "'").replace(/&quot;/gi, '"'));
+  return clean(decodeText(String(value ?? "").replace(/<[^>]*>/g, " ")));
 }
 
 export function normalizeRosterStatus(value) {

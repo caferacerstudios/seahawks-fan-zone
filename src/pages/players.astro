@@ -8,6 +8,7 @@ import rosterStore from "../data/team/roster.json";
 import injuriesStore from "../data/team/injuries.json";
 import transactionsStore from "../data/team/transactions.json";
 import { currentRosterDirectoryCount, currentRosterPlayers, practiceSquadPlayers, reserveRosterPlayers, rosterCount } from "../lib/roster.mjs";
+import { latestPlayerUpdates } from "../lib/team-updates-core.mjs";
 
 const active = currentRosterPlayers(rosterStore), practiceSquad = practiceSquadPlayers(rosterStore), reserve = reserveRosterPlayers(rosterStore);
 const currentGroups = [
@@ -16,7 +17,7 @@ const currentGroups = [
   { id:"reserve", title:"Reserve status", players:reserve, caption:`Current ${rosterStore.season} Seattle Seahawks reserve and exempt lists` },
 ];
 const positions = [...new Set(currentGroups.flatMap((group) => group.players).map((p) => p.position).filter(Boolean))].sort();
-const updates = new Map([...(transactionsStore.records || []), ...(injuriesStore.records || [])].map((r) => [String(r.playerId), r]));
+const updates = latestPlayerUpdates([...(transactionsStore.records || []), ...(injuriesStore.records || [])]);
 const rosterGroups = currentGroups.map((group) => ({ ...group, players:group.players.map((p) => ({ ...p, update:updates.get(String(p.id)) })) }));
 const rosterDirectoryCount = currentRosterDirectoryCount(rosterStore);
 const sourceContext = getSeasonContext(data, "regular season");
