@@ -58,6 +58,16 @@ test("does not manufacture a Week 18 kickoff time from midnight", () => {
   assert.match(formatScheduleDate(week18), /Time TBD$/);
 });
 
+test("accepts a confirmed Pacific kickoff that falls at midnight UTC", () => {
+  const schedule = normalizeSchedule({ season: 2026, games: [game("pacific-five", 1, "2026-08-15", {
+    season_type: "preseason",
+    kickoff_time: "5:00 p.m. PDT",
+    time_confirmed: true,
+  })] });
+  assert.equal(schedule.games[0].startsAt, "2026-08-16T00:00:00.000Z");
+  assert.equal(validateSchedule(schedule), true);
+});
+
 test("official guide reconciliation restores missing preseason finals without duplicating provider games", () => {
   const guide = { season: 2026, games: [{ phase: "preseason", week: 1, dateLabel: "Aug. 15, 2026", matchup: "Dallas Cowboys at Seattle Seahawks", result: "Cowboys 17, Seahawks 7", status: "completed" }] };
   const provider = [game("reg-1", 1, "2026-09-13T20:00:00Z")];
