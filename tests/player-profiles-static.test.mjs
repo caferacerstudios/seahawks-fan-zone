@@ -51,7 +51,7 @@ test("offline rendering embeds generated profiles in final static HTML", { timeo
     canonicals.push(...pageCanonicals);
   }
   assert.equal(new Set(canonicals).size, canonicals.length, "a canonical occurs more than once in sitemap output");
-  assert.match(sitemap, /\/games\/fictional-game-home-001/);
+  assert.doesNotMatch(sitemap, /\/games\/fictional-game-home-001/);
   assert.match(sitemap, /\/games\/1392216/);
   assert.match(sitemap, /\/players\/sam-darnold/);
   assert.doesNotMatch(sitemap, /\/players\/(?:aj-barner|12345)/);

@@ -23,6 +23,7 @@ import { normalizeSchedule } from "../src/lib/schedule.mjs";
 import { reconcileOfficialSchedule } from "../src/lib/schedule-guide.mjs";
 import { buildPhasedStandings } from "../src/lib/standings.mjs";
 import { isCurrentRosterPlayer } from "../src/lib/roster.mjs";
+import { validateProductionSchedule } from "../src/lib/production-schedule-validation.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -319,6 +320,7 @@ async function main() {
   // Safety checks: don't overwrite with obviously broken payloads
   assertNonEmptyArray("gamesRegular", gamesRegular);
   assertNonEmptyArray("playerSeasonStats", enriched);
+  validateProductionSchedule(outCombined);
 
   preserveRecapGameSnapshots(combinedPath, recapsPath);
   safeWriteJson(combinedPath, outCombined);
@@ -347,6 +349,7 @@ main().catch((err) => {
   try {
     const existing = JSON.parse(fs.readFileSync(existingPath, "utf8"));
     normalizeSchedule(existing, existing.season);
+    validateProductionSchedule(existing);
     console.warn(`Schedule refresh failed; retaining last known valid schedule.\n${err?.message || err}`);
   } catch {
     console.error(err?.stack || String(err));
