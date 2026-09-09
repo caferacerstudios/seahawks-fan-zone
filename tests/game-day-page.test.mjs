@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { EVENTSPY_COVERAGE } from "../src/lib/tickets/eventspy-coverage.mjs";
 import { gameDayPageModel } from "../src/lib/game-details.mjs";
-import { currentProviderQuotes } from "../src/lib/tickets/provider-quotes.mjs";
+import { currentProviderQuotes, quoteAtSevenDayLow, relativeObservationAge } from "../src/lib/tickets/provider-quotes.mjs";
 
 const schedule = JSON.parse(await readFile(new URL("../src/data/nfl/seahawks.json", import.meta.url), "utf8"));
 const component = await readFile(new URL("../src/components/GameDayPage.astro", import.meta.url), "utf8");
@@ -41,6 +41,53 @@ test("provider quotes remain price sorted with unavailable providers last", () =
   const quotes = currentProviderQuotes([{ observedAt: "2026-09-01T22:15:00Z", ticketmasterCents: 12000, stubhubCents: null, vividseatsCents: 9500, seatgeekCents: 11000 }]);
   assert.deepEqual(quotes.map(({ provider }) => provider), ["vividseats", "seatgeek", "ticketmaster", "stubhub"]);
   assert.equal(quotes[0].isLowest, true);
+});
+
+test("current-lowest rendering shares the provider quote result instead of the summary", () => {
+  const history = [
+    { observedAt: "2026-09-01T10:00:00Z", ticketmasterCents: 15000, stubhubCents: 14000, vividseatsCents: 13000, seatgeekCents: 12000 },
+    { observedAt: "2026-09-02T10:00:00Z", ticketmasterCents: 11000, stubhubCents: null, vividseatsCents: null, seatgeekCents: null },
+  ];
+  const quotes = currentProviderQuotes(history);
+  const winner = quotes.find(quote => quote.isLowest);
+  assert.deepEqual([winner.provider, winner.priceCents, winner.observedAt], ["ticketmaster", 11000, "2026-09-02T10:00:00Z"]);
+  assert.match(component, /quotes=currentProviderQuotes\(v\.history\),winner=quotes\.find/);
+  assert.match(component, /providerCards\(v,quotes\)/);
+  assert.match(component, /data-current-lowest="\$\{currentLowest\?\?"unavailable"\}"/);
+  assert.match(component, /currentLowestCents:currentLowest/);
+  assert.doesNotMatch(component, /money\(v\.summary\.currentLowestCents\)|v\.summary\.currentLowestAgeLabel|v\.summary\.atSevenDayLow/);
+});
+
+test("sparse and tied quotes preserve latest valid observations and canonical tie order", () => {
+  const quotes = currentProviderQuotes([
+    { observedAt: "2026-09-01T10:00:00Z", ticketmasterCents: 10000, stubhubCents: 10000, vividseatsCents: 12000, seatgeekCents: 10000 },
+    { observedAt: "2026-09-02T10:00:00Z", ticketmasterCents: null, stubhubCents: null, vividseatsCents: null, seatgeekCents: null },
+  ]);
+  assert.deepEqual(quotes.filter(quote => quote.isLowest).map(quote => [quote.provider, quote.priceCents, quote.isTiedLowest]), [
+    ["ticketmaster", 10000, true], ["stubhub", 10000, true], ["seatgeek", 10000, true],
+  ]);
+});
+
+test("no valid provider quote produces no winner or lowest badge", () => {
+  const quotes = currentProviderQuotes([{ observedAt: "2026-09-02T10:00:00Z", ticketmasterCents: null, stubhubCents: 0, vividseatsCents: -1, seatgeekCents: null }]);
+  assert.equal(quotes.find(quote => quote.isLowest), undefined);
+  assert.ok(quotes.every(quote => quote.priceCents === null && quote.isLowest === false));
+  assert.match(component, /currentPrice=currentLowest===null\?"Price unavailable"/);
+});
+
+test("headline age and seven-day badge use the selected provider observation", () => {
+  const now = Date.parse("2026-09-03T12:00:00Z");
+  const history = [
+    { observedAt: "2026-09-01T12:00:00Z", ticketmasterCents: 9000, stubhubCents: 12000, vividseatsCents: null, seatgeekCents: null },
+    { observedAt: "2026-09-03T10:00:00Z", ticketmasterCents: 10000, stubhubCents: 11000, vividseatsCents: null, seatgeekCents: null },
+  ];
+  const winner = currentProviderQuotes(history).find(quote => quote.isLowest);
+  assert.equal(winner.observedAt, "2026-09-03T10:00:00Z");
+  assert.equal(relativeObservationAge(winner.observedAt, now), "2 hours ago");
+  assert.equal(quoteAtSevenDayLow(history, winner, now), false);
+  assert.match(component, /relativeObservationAge\(winner\.observedAt,now\)/);
+  assert.match(component, /quoteAtSevenDayLow\(v\.history,winner,now\)/);
+  assert.match(component, /checkedTime\(v\.collectedAt\)/);
 });
 
 test("shared page omits diagnostic placeholders and restores stable upcoming-game guides", () => {

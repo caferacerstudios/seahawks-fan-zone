@@ -2,6 +2,29 @@ export function newestFirst(rows, dateOf) {
   return rows.slice().sort((a, b) => Date.parse(dateOf(b)) - Date.parse(dateOf(a)));
 }
 
+const PLACEHOLDER_GAME_STATUS = /^(?:\(?\s*[-–—]+\s*\)?|(?:not\s+)?(?:specified|listed)|n\/?a)$/i;
+const updateDate = (row) => row.timestamp ?? row.date;
+const updateTypeRank = (row) => row.reportType === "Game Status" ? 3 : row.timestamp ? 2 : row.reportType === "Practice Participation" ? 1 : 0;
+
+export function isApplicablePlayerUpdate(row) {
+  return Boolean(row && Number.isFinite(Date.parse(updateDate(row)))
+    && !(row.reportType === "Game Status" && (!String(row.status ?? "").trim() || PLACEHOLDER_GAME_STATUS.test(String(row.status).trim()))));
+}
+
+export function latestPlayerUpdates(rows = []) {
+  const latest = new Map();
+  for (const row of rows.filter(isApplicablePlayerUpdate)) {
+    const key = String(row.playerId ?? "");
+    if (!key) continue;
+    const previous = latest.get(key);
+    const timeDifference = previous ? Date.parse(updateDate(row)) - Date.parse(updateDate(previous)) : 1;
+    const typeDifference = previous ? updateTypeRank(row) - updateTypeRank(previous) : 1;
+    const tieBreaker = previous ? `${row.status ?? row.transactionType ?? ""}:${row.sourceUrl ?? ""}`.localeCompare(`${previous.status ?? previous.transactionType ?? ""}:${previous.sourceUrl ?? ""}`) : 1;
+    if (!previous || timeDifference > 0 || (timeDifference === 0 && (typeDifference > 0 || (typeDifference === 0 && tieBreaker > 0)))) latest.set(key, row);
+  }
+  return latest;
+}
+
 const EXPECTED_ROSTER_STATUS = new Map([
   ["Signed", "Active"], ["Claimed", "Active"], ["Practice Squad", "Practice Squad"],
   ["Injured Reserve", "Reserve/Injured"], ["PUP", "PUP"],
@@ -16,9 +39,13 @@ export function currentInjuryStatuses(injuries, transactions, rosterStore) {
     .map((player) => [String(player.id), player]));
   const result = [];
   const covered = new Set();
+  const reports = new Set();
 
-  for (const row of newestFirst(injuries || [], (entry) => entry.date)) {
+  for (const row of newestFirst(injuries || [], (entry) => entry.date).filter(isApplicablePlayerUpdate)) {
     if (["Practice Participation", "Game Status"].includes(row.reportType)) {
+      const report = `${String(row.date).slice(0, 10)}:${row.playerId}:${row.reportType}`;
+      if (reports.has(report)) continue;
+      reports.add(report);
       result.push(row);
       continue;
     }
