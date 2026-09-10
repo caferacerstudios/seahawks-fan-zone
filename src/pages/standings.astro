@@ -3,7 +3,7 @@ import SeahawksLayout from "../layouts/SeahawksLayout.astro";
 import NfcWestTable from "../components/NfcWestTable.astro";
 import SeasonState from "../components/SeasonState.astro";
 import { formatPacificTime } from "../lib/season-context";
-import { activeStandingsPhase, buildPhasedStandings, STANDINGS_PHASES, validateStandings } from "../lib/standings.mjs";
+import { activeStandingsPhase, buildPhasedStandings, reconcileStandings, STANDINGS_PHASES, validateStandings } from "../lib/standings.mjs";
 import { formatKickoff, normalizeSchedule } from "../lib/schedule.mjs";
 import { reconcileOfficialSchedule } from "../lib/schedule-guide.mjs";
 import scheduleData from "../data/nfl/seahawks.json";
@@ -23,7 +23,8 @@ if (!hasPhasedStandings) {
   standingsData = buildPhasedStandings({ season, updatedAt: schedule.updatedAt, games: schedule.games, teams });
   standingsData.refreshedDuringBuild = false;
 }
-validateStandings(standingsData, schedule.games);
+validateStandings(standingsData);
+reconcileStandings(standingsData, schedule.games, ["SEA"]);
 const defaultPhase = activeStandingsPhase(schedule.games);
 const phaseLabels: Record<string, string> = { preseason: "Preseason", regular: "Regular Season", postseason: "Postseason" };
 
