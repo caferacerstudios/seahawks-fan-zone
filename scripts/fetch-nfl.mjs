@@ -14,11 +14,15 @@
  * Optional:
  * - env NFL_TEAM_ABBR (default "SEA")
  * - env NFL_SEASON (default: current/upcoming NFL season)
+ * - NFL_FETCH_STRICT=1 makes any failed refresh exit nonzero
+ * - NFL_REQUEST_INTERVAL_MS (default 15000): spacing for every API request
+ * - NFL_FETCH_REPORT: optional JSON receipt path (contains no API key)
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createNflApiClient } from "./nfl-api-client.mjs";
 import { normalizeSchedule } from "../src/lib/schedule.mjs";
 import { reconcileOfficialSchedule } from "../src/lib/schedule-guide.mjs";
 import { buildPhasedStandings } from "../src/lib/standings.mjs";
@@ -27,8 +31,6 @@ import { validateProductionSchedule } from "../src/lib/production-schedule-valid
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const API_BASE = "https://api.balldontlie.io/nfl/v1";
 
 const TEAM_ABBR = (process.env.NFL_TEAM_ABBR || "SEA").toUpperCase();
 
@@ -50,81 +52,17 @@ const SEASON = Number(process.env.NFL_SEASON) || defaultSeason();
 
 const API_KEY = process.env.BALLDONTLIE_API_KEY;
 
-// Your curl used: -H "Authorization: $BALLDONTLIE_API_KEY"
-function authHeaderValue() {
-  // If user already stored "Bearer xxx", keep it.
-  if (API_KEY.toLowerCase().startsWith("bearer ")) return API_KEY;
-  return API_KEY;
-}
+const client = createNflApiClient({
+  apiKey: API_KEY,
+  intervalMs: Number(process.env.NFL_REQUEST_INTERVAL_MS ?? 15000),
+});
+const pagedGet = (...args) => client.pagedGet(...args);
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function apiGet(endpoint, params = {}) {
-  const url = new URL(API_BASE + endpoint);
-
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null) continue;
-
-    // allow arrays for exploded params: seasons[] / team_ids[] / weeks[]
-    if (Array.isArray(v)) {
-      for (const item of v) url.searchParams.append(k, String(item));
-      continue;
-    }
-
-    url.searchParams.set(k, String(v));
-  }
-
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: authHeaderValue() },
+function report(value) {
+  if (process.env.NFL_FETCH_REPORT) safeWriteJson(path.resolve(process.env.NFL_FETCH_REPORT), {
+    status: "failed", updatedAt: null, season: SEASON, playerStatsSeason: null,
+    requestCount: client.requestCount, ...value,
   });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const msg = `HTTP ${res.status} ${res.statusText} for ${url}\n${body}`;
-    const err = new Error(msg);
-    err.status = res.status;
-    throw err;
-  }
-
-  return res.json();
-}
-
-async function pagedGet(endpoint, baseParams = {}) {
-  const all = [];
-  let cursor = null;
-  const perPage = 100;
-
-  for (;;) {
-    const params = { ...baseParams };
-    if (cursor) params.cursor = cursor;
-
-    let json;
-    try {
-      json = await apiGet(endpoint, { ...params, per_page: perPage });
-    } catch (e) {
-      if (
-        String(e.message || "").includes("per_page") ||
-        String(e.message || "").includes("Bad Request")
-      ) {
-        json = await apiGet(endpoint, params);
-      } else {
-        throw e;
-      }
-    }
-
-    const data = Array.isArray(json?.data) ? json.data : [];
-    all.push(...data);
-
-    const next = json?.meta?.next_cursor || null;
-    if (!next) break;
-
-    cursor = next;
-    await sleep(120);
-  }
-
-  return all;
 }
 
 function safeWriteJson(filePath, obj) {
@@ -170,8 +108,7 @@ async function main() {
   const team = teams.find((t) => (t.abbreviation || "").toUpperCase() === TEAM_ABBR);
 
   if (!team) {
-    console.error(`Could not find team with abbreviation ${TEAM_ABBR}`);
-    process.exit(1);
+    throw new Error(`Could not find team with abbreviation ${TEAM_ABBR}`);
   }
 
   console.log(`Using ${TEAM_ABBR} team id: ${team.id}`);
@@ -180,6 +117,7 @@ async function main() {
   // 2) Fetch games for that season
   const fetchedLeagueGames = await pagedGet("/games", {
     "seasons[]": [SEASON],
+    "season_types[]": [1, 2, 3],
   });
   const leagueGames = fetchedLeagueGames.filter((g) => Number(g.season) === Number(SEASON));
   const gamesFiltered = leagueGames.filter((g) => [g.home_team?.id, g.visitor_team?.id].includes(team.id));
@@ -221,13 +159,13 @@ async function main() {
   let seasonStatsRegular = await pagedGet("/season_stats", {
     season: playerStatsSeason,
     team_id: team.id,
-    postseason: false,
+    "season_types[]": [2],
   });
 
   let seasonStatsPostseason = await pagedGet("/season_stats", {
     season: playerStatsSeason,
     team_id: team.id,
-    postseason: true,
+    "season_types[]": [3],
   });
 
   if (
@@ -243,13 +181,13 @@ async function main() {
     seasonStatsRegular = await pagedGet("/season_stats", {
       season: playerStatsSeason,
       team_id: team.id,
-      postseason: false,
+      "season_types[]": [2],
     });
 
     seasonStatsPostseason = await pagedGet("/season_stats", {
       season: playerStatsSeason,
       team_id: team.id,
-      postseason: true,
+      "season_types[]": [3],
     });
   }
 
@@ -277,6 +215,7 @@ async function main() {
   const updatedAt = new Date().toISOString();
   const otherLeagueGames = leagueGames.filter((g) => ![g.home_team?.id, g.visitor_team?.id].includes(team.id));
   const phasedStandings = buildPhasedStandings({ season: SEASON, updatedAt, games: [...otherLeagueGames, ...reconciledGames], teams });
+  phasedStandings.refreshedDuringBuild = process.env.NFL_FETCH_STRICT !== "1";
 
   const currentSeasonPayload = {
     fixture: false,
@@ -339,9 +278,17 @@ async function main() {
 
   safeWriteJson(standingsPath, phasedStandings);
   console.log(`wrote ${path.relative(process.cwd(), standingsPath)}`);
+  report({ status: "success", updatedAt, playerStatsSeason });
+  console.log(`NFL refresh succeeded: ${client.requestCount} API requests`);
 }
 
 main().catch((err) => {
+  report({ error: String(err?.message || err).replaceAll(API_KEY || "__unset_api_key__", "[redacted]") });
+  if (process.env.NFL_FETCH_STRICT === "1") {
+    console.error(`NFL refresh failed; staged output will not be published. ${String(err?.message || err).replaceAll(API_KEY || "__unset_api_key__", "[redacted]")}`);
+    process.exitCode = 1;
+    return;
+  }
   const existingPath = path.resolve(__dirname, "..", "src", "data", "nfl", "seahawks.json");
   // A refresh must never replace good data with an empty/partial response. If
   // a previously validated snapshot exists, keep building with that snapshot;
