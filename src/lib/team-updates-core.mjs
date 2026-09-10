@@ -11,13 +11,19 @@ export function isApplicablePlayerUpdate(row) {
     && !(row.reportType === "Game Status" && (!String(row.status ?? "").trim() || PLACEHOLDER_GAME_STATUS.test(String(row.status).trim()))));
 }
 
-export function latestPlayerUpdates(rows = []) {
+export function latestPlayerUpdates(rows = [], rosterStore = null) {
+  const rosterAsOf = Date.parse(rosterStore?.asOf);
+  const roster = new Map((rosterStore?.players || []).map((player) => [String(player.id), player]));
   const latest = new Map();
   for (const row of rows.filter(isApplicablePlayerUpdate)) {
     const key = String(row.playerId ?? "");
     if (!key) continue;
+    const player = roster.get(key);
+    const updateTime = Date.parse(updateDate(row));
+    if (row.timestamp && player && Number.isFinite(rosterAsOf) && rosterAsOf > updateTime
+      && row.newStatus && row.newStatus !== player.status) continue;
     const previous = latest.get(key);
-    const timeDifference = previous ? Date.parse(updateDate(row)) - Date.parse(updateDate(previous)) : 1;
+    const timeDifference = previous ? updateTime - Date.parse(updateDate(previous)) : 1;
     const typeDifference = previous ? updateTypeRank(row) - updateTypeRank(previous) : 1;
     const tieBreaker = previous ? `${row.status ?? row.transactionType ?? ""}:${row.sourceUrl ?? ""}`.localeCompare(`${previous.status ?? previous.transactionType ?? ""}:${previous.sourceUrl ?? ""}`) : 1;
     if (!previous || timeDifference > 0 || (timeDifference === 0 && (typeDifference > 0 || (typeDifference === 0 && tieBreaker > 0)))) latest.set(key, row);

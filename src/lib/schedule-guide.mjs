@@ -10,8 +10,30 @@ const TEAM_ABBR = new Map([
 
 const SEAHAWKS = { abbreviation: "SEA", full_name: "Seattle Seahawks" };
 const text = (value) => String(value ?? "").trim();
+const abbreviation = (team) => text(team?.abbreviation ?? team?.abbr).toUpperCase();
 const phase = (row) => schedulePhase(row) ?? text(row?.phase ?? row?.season_type ?? row?.seasonType).toLowerCase();
 const key = (row) => `${phase(row)}:${Number(row?.week)}`;
+
+function localCalendarDate(row, fallback) {
+  const explicit = text(row?.localDate ?? row?.local_date);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(explicit)) return explicit;
+  const raw = text(row?.startsAt ?? row?.datetime ?? row?.start_time ?? row?.kickoff ?? row?.date);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const instant = new Date(raw);
+  if (!Number.isFinite(instant.getTime())) return fallback;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone:"America/Los_Angeles", year:"numeric", month:"2-digit", day:"2-digit" }).formatToParts(instant).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function preseasonIdentity(row, season) {
+  try {
+    const normalized = normalizeGame(row, season);
+    const localDate = localCalendarDate(row, normalized.date);
+    if (normalized.phase !== "preseason" || !localDate || normalized.isHome == null) return null;
+    const opponent = abbreviation(normalized.opponent);
+    return opponent ? `${opponent}:${normalized.isHome ? "home" : "away"}:${localDate}` : null;
+  } catch { return null; }
+}
 
 function hasUsableKickoff(game, season) {
   try {
@@ -69,10 +91,16 @@ function guideGame(entry, season) {
 export function reconcileOfficialSchedule(games, guide) {
   const rows = Array.isArray(games) ? games.map((game) => ({ ...game })) : [];
   if (!Array.isArray(guide?.games) || !Number.isInteger(Number(guide?.season))) return rows;
+  const season = Number(guide.season);
   const byKey = new Map(rows.map((game, index) => [key(game), index]));
+  const preseasonByIdentity = new Map(rows.map((game, index) => [preseasonIdentity(game, season), index]).filter(([identity]) => identity));
   for (const entry of guide.games) {
     const entryKey = key(entry);
-    const index = byKey.get(entryKey);
+    const source = guideGame(entry, season);
+    const identity = source && phase(entry) === "preseason" ? preseasonIdentity(source, season) : null;
+    // Provider preseason week labels are not Seahawks-facing game identity.
+    // Match the actual opponent/site/date first, then display the guide's week.
+    const index = identity ? preseasonByIdentity.get(identity) : byKey.get(entryKey);
     if (index !== undefined) {
       const providerConfirmed = (rows[index].date_confirmed === true || rows[index].dateConfirmed === true)
         && (rows[index].time_confirmed === true || rows[index].timeConfirmed === true);
@@ -81,11 +109,11 @@ export function reconcileOfficialSchedule(games, guide) {
         network_confirmed: false, schedule_authority: "official-team-guide-tbd",
       };
       else {
-        const source = guideGame(entry, Number(guide.season));
-        const providerHasKickoff = hasUsableKickoff(rows[index], Number(guide.season));
-        const guideHasKickoff = source && hasUsableKickoff(source, Number(guide.season));
+        const providerHasKickoff = hasUsableKickoff(rows[index], season);
+        const guideHasKickoff = source && hasUsableKickoff(source, season);
         if (source) rows[index] = {
           ...rows[index],
+          ...(identity ? { week: source.week } : {}),
           ...(!rows[index].venue && source.venue ? { venue: source.venue, venue_confirmed: true } : {}),
           ...(!providerHasKickoff && guideHasKickoff
             ? { date: source.date, kickoff_time: source.kickoff_time, date_confirmed: true, time_confirmed: true } : {}),
@@ -95,8 +123,13 @@ export function reconcileOfficialSchedule(games, guide) {
       continue;
     }
     if (phase(entry) !== "preseason" || entry.status !== "completed") continue;
-    const game = guideGame(entry, Number(guide.season));
-    if (game) { byKey.set(entryKey, rows.length); rows.push(game); }
+    const game = source;
+    if (game) {
+      byKey.set(entryKey, rows.length);
+      const gameIdentity = preseasonIdentity(game, season);
+      if (gameIdentity) preseasonByIdentity.set(gameIdentity, rows.length);
+      rows.push(game);
+    }
   }
   return rows;
 }

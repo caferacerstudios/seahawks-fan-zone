@@ -36,6 +36,12 @@ test("numeric and name routes resolve to exactly one canonical",()=>{
   assert.equal(registry.routes.get("jane-doe").alias,false);
 });
 
+test("published malformed apostrophe IDs redirect to the decoded canonical player",()=>{
+  const registry=buildPlayerRouteRegistry([{id:"danthony-bell",name:"D'Anthony Bell",legacyIds:["d-x27-anthony-bell"]}]);
+  assert.equal(registry.routes.get("danthony-bell").alias,false);
+  assert.deepEqual(registry.routes.get("d-x27-anthony-bell"),{canonicalId:"danthony-bell",dataIds:["danthony-bell"],name:"D'Anthony Bell",alias:true});
+});
+
 test("representative roster states remain accessible but incomplete profiles are noindex",()=>{
   const base={routeId:"jane-doe",canonicalId:"jane-doe",identity:"Jane Doe",title:"Jane Doe Seattle Seahawks Profile",h1:"Jane Doe Seattle Seahawks Profile",canonicalPath:"/players/jane-doe",materialUpdatedAt:"2026-09-02",verifiedResolved:true};
   for(const rosterStatus of ["Active","Practice Squad","Reserve/Injured"]){const result=playerIndexability({...base,rosterStatus,biography:"",usefulSections:[],roleContext:false});assert.equal(result.state,PLAYER_QUALITY_STATES.INCOMPLETE);assert.equal(result.indexable,false);}
