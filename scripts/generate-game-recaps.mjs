@@ -1,225 +1,92 @@
 #!/usr/bin/env node
-/**
- * Build-time recap generator:
- * - reads src/data/nfl/seahawks.json
- * - fetches BDL per-game stats
- * - (optionally) fetches play-by-play IF your tier allows it (401-safe)
- * - calls OpenAI (Responses API) to produce structured recap segments
- * - writes src/data/nfl/gameRecaps.json
- *
- * ENV:
- * - BALLDONTLIE_API_KEY
- * - OPENAI_API_KEY
- *
- * Output:
- * - src/data/nfl/gameRecaps.json  { season, updatedAt, recaps: { [gameId]: {segments, bullets, ...} } }
- */
-
+// Generate missing Seahawks recaps in the current (or staged Airflow) workspace.
+// Existing complete prose is retained; publishing to the website is a separate import.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createNflApiClient } from "./nfl-api-client.mjs";
+import { schedulePhase, scheduleState } from "../src/lib/schedule.mjs";
+import { atomicWriteJson, isCompleteRecap, validateGeneratedRecap } from "../src/lib/recap-artifacts.mjs";
 
-const BDL_BASE = "https://api.balldontlie.io/nfl/v1";
-const OPENAI_BASE = "https://api.openai.com/v1";
-
-const BDL_KEY = process.env.BALLDONTLIE_API_KEY;
-if (!BDL_KEY) {
-  console.error("Missing BALLDONTLIE_API_KEY env var.");
-  process.exit(1);
-}
-
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_KEY) {
-  console.error("Missing OPENAI_API_KEY env var.");
-  process.exit(1);
-}
-
-const projectRoot = process.cwd();
-const seahawksPath = path.join(projectRoot, "src", "data", "nfl", "seahawks.json");
-const outPath = path.join(projectRoot, "src", "data", "nfl", "gameRecaps.json");
-
-function readJson(p) {
-  return JSON.parse(fs.readFileSync(p, "utf8"));
-}
-function writeJson(p, obj) {
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(obj, null, 2) + "\n");
-}
-function authHeaderValue(apiKey) {
-  const s = String(apiKey || "");
-  if (s.toLowerCase().startsWith("bearer ")) return s;
-  return s;
-}
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function bdlGet(endpoint, params = {}) {
-  const url = new URL(BDL_BASE + endpoint);
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null) continue;
-    if (Array.isArray(v)) for (const item of v) url.searchParams.append(k, String(item));
-    else url.searchParams.set(k, String(v));
-  }
-
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: authHeaderValue(BDL_KEY) },
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const err = new Error(`BDL HTTP ${res.status} ${res.statusText} for ${url}\n${body}`);
-    err.status = res.status;
-    throw err;
-  }
-  return res.json();
-}
-
-async function bdlPaged(endpoint, baseParams = {}) {
-  const all = [];
-  let cursor = null;
-
-  for (;;) {
-    const params = { ...baseParams };
-    if (cursor) params.cursor = cursor;
-
-    const json = await bdlGet(endpoint, { ...params, per_page: 100 });
-    const data = Array.isArray(json?.data) ? json.data : [];
-    all.push(...data);
-
-    const next = json?.meta?.next_cursor || null;
-    if (!next) break;
-    cursor = next;
-
-    // small politeness delay
-    await sleep(120);
-  }
-
-  return all;
-}
-
-async function bdlTryPlays(gameId) {
-  try {
-    return await bdlPaged("/plays", { game_id: Number(gameId) });
-  } catch (e) {
-    const msg = String(e?.message || "");
-    if (e?.status === 401 || msg.includes("401 Unauthorized")) {
-      console.warn(`BDL plays not available for game ${gameId} (401). Falling back to stats-only recap.`);
-      return [];
-    }
-    throw e;
-  }
-}
-
-/* =======================
-   Domain helpers
-   ======================= */
-
-function isFinal(game) {
-  return String(game?.status || "").toLowerCase().includes("final");
-}
-
-function gameKey(g, idx) {
-  return String(g?.id ?? g?.game_id ?? idx);
-}
-
-function teamAbbr(teamObj, fallback = "") {
-  return String(teamObj?.abbreviation || fallback).toUpperCase();
-}
-
-function oppAbbr(game) {
-  const home = teamAbbr(game?.home_team);
-  const away = teamAbbr(game?.visitor_team);
-  return home === "SEA" ? away : home;
-}
-
-function seaIsHome(game) {
-  return teamAbbr(game?.home_team) === "SEA";
-}
-
-function isPlayoffGame(game) {
-  const type = String(game?.season_type ?? game?.seasonType ?? "").toLowerCase();
-  return game?.postseason === true || game?.is_postseason === true || type.includes("post") || type.includes("playoff");
-}
+const MODEL = "gpt-4o-mini";
+const readJson = (filename) => JSON.parse(fs.readFileSync(filename, "utf8"));
+const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const teamAbbr = (team, fallback = "") => String(team?.abbreviation || team?.abbr || fallback).toUpperCase();
+const seaIsHome = (game) => teamAbbr(game?.home_team) === "SEA";
+const oppAbbr = (game) => seaIsHome(game) ? teamAbbr(game?.visitor_team) : teamAbbr(game?.home_team);
 
 function pickKeyPlays(plays, limit = 10) {
-  if (!Array.isArray(plays) || plays.length === 0) return [];
-  const scoring = plays.filter((p) => p?.scoring_play === true);
-  const picked = scoring.slice(0, limit);
-
-  if (picked.length < limit) {
-    for (const p of plays) {
-      if (picked.length >= limit) break;
-      if (!picked.some((x) => x?.id === p?.id)) picked.push(p);
-    }
+  const picked = plays.filter((play) => play?.scoring_play === true).slice(0, limit);
+  for (const play of plays) {
+    if (picked.length >= limit) break;
+    if (!picked.includes(play)) picked.push(play);
   }
   return picked;
 }
 
-/* =======================
-   OpenAI (Responses API)
-   ======================= */
-
-async function openaiStructuredRecap(input) {
-  // Strict JSON schema: "required" must include every key in properties.
-  // We *require* id/name, but allow nulls for non-player segments.
-  const schema = {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      segments: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            t: { type: "string", enum: ["text", "player"] },
-            v: { type: "string" },
-            id: { type: ["integer", "string", "null"] },
-            name: { type: ["string", "null"] },
-          },
-          required: ["t", "v", "id", "name"],
-        },
-      },
-      bullets: { type: "array", items: { type: "string" } },
-    },
-    required: ["segments", "bullets"],
-  };
-
-  const res = await fetch(`${OPENAI_BASE}/responses`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      // Use a widely-available model that supports json_schema Structured Outputs well
-      model: "gpt-4o-mini",
-      input,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "game_recap",
-          strict: true,
-          schema,
-        },
-      },
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`OpenAI HTTP ${res.status} ${res.statusText}\n${body}`);
+function selectedGames(schedule) {
+  const games = new Map();
+  // Empty phase arrays must not hide a populated legacy `games` array.
+  const records = [
+    ...(Array.isArray(schedule.games) ? schedule.games : []),
+    ...(schedule.gamesRegular || []).map((game) => ({ phase: "regular", ...game })),
+    ...(schedule.gamesPostseason || []).map((game) => ({ phase: "postseason", ...game })),
+  ];
+  for (const game of records) {
+    if (!object(game)) throw new Error("Invalid game in recap schedule");
+    const id = String(game.id ?? game.game_id ?? "");
+    const phase = schedulePhase(game);
+    if (!["regular", "postseason"].includes(phase)) continue;
+    if (![game.home_team, game.visitor_team].some((team) => teamAbbr(team) === "SEA")) continue;
+    if (!/^\d+$/.test(id)) throw new Error("Recap schedule game has no valid API game ID");
+    if (game.season != null && game.season !== schedule.season) continue;
+    games.set(id, game);
   }
+  return games;
+}
 
-  const json = await res.json();
-
-  // Responses API usually provides `output_text`; keep fallback for older shapes.
-  const outText =
-    json?.output_text ||
-    json?.output?.[0]?.content?.find?.((c) => c?.type === "output_text")?.text;
-
-  if (!outText) throw new Error("OpenAI response missing output_text");
-  return JSON.parse(outText);
+async function openaiStructuredRecap(input, { fetchImpl, apiKey }) {
+  const schema = {
+    type: "object", additionalProperties: false,
+    properties: {
+      segments: { type: "array", minItems: 1, items: {
+        type: "object", additionalProperties: false,
+        properties: {
+          t: { type: "string", enum: ["text", "player"] },
+          v: { type: "string" },
+          id: { type: ["integer", "string", "null"] },
+          name: { type: ["string", "null"] },
+        }, required: ["t", "v", "id", "name"],
+      } },
+      bullets: { type: "array", minItems: 3, maxItems: 3, items: { type: "string" } },
+    }, required: ["segments", "bullets"],
+  };
+  let response;
+  try {
+    response = await fetchImpl("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(90000),
+      body: JSON.stringify({ model: MODEL, input, text: { format: { type: "json_schema", name: "game_recap", strict: true, schema } } }),
+    });
+  } catch { throw new Error("OpenAI recap request failed or timed out"); }
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error(`OpenAI recap HTTP ${response.status}`);
+  }
+  let payload;
+  try { payload = await response.json(); }
+  catch { throw new Error("OpenAI recap response is not valid JSON"); }
+  if (payload?.status !== "completed") throw new Error("OpenAI recap response was not completed");
+  const content = (payload.output || []).flatMap((item) => item?.content || []);
+  if (content.some((item) => item?.type === "refusal")) throw new Error("OpenAI declined to generate this recap");
+  const text = payload.output_text || content.filter((item) => item?.type === "output_text").map((item) => item.text).join("");
+  let result;
+  try { result = JSON.parse(text); }
+  catch { throw new Error("OpenAI recap output is not valid structured JSON"); }
+  if (!object(result) || Object.keys(result).length !== 2 || !Object.hasOwn(result, "segments") || !Object.hasOwn(result, "bullets")) throw new Error("Invalid OpenAI recap object schema");
+  validateGeneratedRecap(result);
+  return result;
 }
 
 function buildPrompt({ game, stats, plays }) {
@@ -312,99 +179,86 @@ function buildPrompt({ game, stats, plays }) {
   ];
 }
 
-/* =======================
-   Main
-   ======================= */
-
-async function main() {
-  const seahawks = readJson(seahawksPath);
-  const season = seahawks?.season ?? null;
-
-  const rawGames =
-    Array.isArray(seahawks?.gamesRegular) || Array.isArray(seahawks?.gamesPostseason)
-      ? [...(seahawks.gamesRegular || []), ...(seahawks.gamesPostseason || [])]
-      : Array.isArray(seahawks?.games)
-        ? seahawks.games
-        : [];
-
-  const existing = fs.existsSync(outPath)
-    ? readJson(outPath)
-    : { season, updatedAt: null, recaps: {} };
-
-  const recaps = existing?.recaps && typeof existing.recaps === "object" ? existing.recaps : {};
-  let wrote = 0;
-
-  // Backfill the editorial fields on existing entries without replacing authored content.
-  for (let i = 0; i < rawGames.length; i++) {
-    const game = rawGames[i];
-    const id = gameKey(game, i);
+export async function generateGameRecaps({
+  projectRoot = process.cwd(),
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  now = () => Date.now(),
+} = {}) {
+  const sourcePath = path.join(projectRoot, "src/data/nfl/seahawks.json");
+  const outPath = path.join(projectRoot, "src/data/nfl/gameRecaps.json");
+  const schedule = readJson(sourcePath);
+  if (!object(schedule) || !Number.isInteger(schedule.season)) throw new Error("Invalid recap source schedule");
+  const season = schedule.season;
+  const existing = fs.existsSync(outPath) ? readJson(outPath) : { season, recaps: {} };
+  if (!object(existing) || !object(existing.recaps)) throw new Error("Invalid existing recap map");
+  const recaps = { ...existing.recaps };
+  const games = selectedGames(schedule);
+  const pending = [...games].filter(([id, game]) => scheduleState(game) === "completed" && !isCompleteRecap(recaps[id]));
+  if (pending.length && !env.BALLDONTLIE_API_KEY) throw new Error("Missing BALLDONTLIE_API_KEY env var.");
+  if (pending.length && !env.OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY env var.");
+  const api = createNflApiClient({
+    apiKey: env.BALLDONTLIE_API_KEY,
+    intervalMs: env.NFL_REQUEST_INTERVAL_MS === undefined ? 15000 : Number(env.NFL_REQUEST_INTERVAL_MS),
+    fetchImpl, sleep, now,
+  });
+  let openaiRequestCount = 0;
+  const generatedGameIds = [];
+  for (const [id, game] of games) {
     const current = recaps[id];
     if (!current) continue;
-    const firstPublished = current.publishedAt ?? current.createdAt ?? existing?.updatedAt ?? null;
+    if (!object(current)) throw new Error(`Invalid existing recap: ${id}`);
+    const firstPublished = current.publishedAt ?? current.createdAt ?? existing.updatedAt ?? null;
     recaps[id] = {
+      ...current,
+      gameId: current.gameId ?? id,
       season: current.season ?? season,
-      week: current.week ?? game?.week ?? null,
-      phase: current.phase ?? (isPlayoffGame(game) ? "Postseason" : "Regular season"),
+      week: current.week ?? game.week ?? null,
+      phase: current.phase ?? (schedulePhase(game) === "postseason" ? "Postseason" : "Regular season"),
       category: current.category ?? "Recap",
       publishedAt: firstPublished,
       updatedAt: current.updatedAt ?? firstPublished,
       game: current.game ?? game,
-      ...current,
     };
   }
-
-  for (let i = 0; i < rawGames.length; i++) {
-    const g = rawGames[i];
-    const id = gameKey(g, i);
-
-    // Only generate for Final games
-    if (!isFinal(g)) continue;
-
-    // Skip if already exists
-    if (recaps[id]?.segments?.length && recaps[id]?.bullets?.length) continue;
-
-    console.log(`Generating recap for game ${id} (week ${g?.week})...`);
-
-    // Stats (game_ids[] is supported)
-    const statsResp = await bdlGet("/stats", { "game_ids[]": [Number(g?.id)] });
-    const stats = Array.isArray(statsResp?.data) ? statsResp.data : [];
-
-    // Plays (optional; 401-safe)
-    const plays = await bdlTryPlays(g?.id);
-
-    const prompt = buildPrompt({ game: g, stats, plays });
-    const recap = await openaiStructuredRecap(prompt);
-
+  for (const [id, game] of pending) {
+    console.log(`Generating recap for game ${id} (week ${game.week})...`);
+    const stats = await api.pagedGet("/stats", { "game_ids[]": [Number(id)] });
+    let plays;
+    try { plays = await api.pagedGet("/plays", { game_id: Number(id) }); }
+    catch (error) {
+      if (!String(error.message).startsWith("NFL HTTP 401:")) throw error;
+      console.warn(`BDL plays not available for game ${id} (401). Falling back to stats-only recap.`);
+      plays = [];
+    }
+    openaiRequestCount++;
+    const recap = await openaiStructuredRecap(buildPrompt({ game, stats, plays }), { fetchImpl, apiKey: env.OPENAI_API_KEY });
+    const timestamp = new Date(now()).toISOString();
     recaps[id] = {
-      gameId: id,
-      season,
-      week: g?.week ?? null,
-      phase: isPlayoffGame(g) ? "Postseason" : "Regular season",
-      category: "Recap",
-      publishedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      game: g,
-      ...recap,
+      ...recaps[id], gameId: id, season, week: game.week ?? null,
+      phase: schedulePhase(game) === "postseason" ? "Postseason" : "Regular season", category: "Recap",
+      publishedAt: recaps[id]?.publishedAt ?? timestamp, updatedAt: timestamp,
+      createdAt: recaps[id]?.createdAt ?? timestamp, game, ...recap,
     };
-
-    wrote++;
-
-    // tiny delay so we don't slam OpenAI if you generate a bunch
-    await sleep(250);
+    generatedGameIds.push(id);
   }
-
-  const out = {
-    season,
-    updatedAt: new Date().toISOString(),
-    recaps,
+  const updatedAt = new Date(now()).toISOString();
+  const report = {
+    schema_version: 1, status: "success", season, updatedAt,
+    generatedCount: generatedGameIds.length, generatedGameIds,
+    requestCount: api.requestCount, openaiRequestCount, model: MODEL,
   };
-
-  writeJson(outPath, out);
-  console.log(`wrote ${path.relative(process.cwd(), outPath)} (new recaps: ${wrote})`);
+  // Publish only after every requested recap has completed and validated.
+  atomicWriteJson(outPath, { ...existing, season, updatedAt, recaps });
+  if (env.RECAP_GENERATION_REPORT) atomicWriteJson(env.RECAP_GENERATION_REPORT, report);
+  console.log(JSON.stringify(report));
+  return report;
 }
 
-main().catch((err) => {
-  console.error(err?.stack || String(err));
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  generateGameRecaps().catch((error) => {
+    console.error(`Recap generation failed: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
