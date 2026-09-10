@@ -73,7 +73,8 @@ export function aggregateStandings(games, teams, phase) {
 export function buildPhasedStandings({ season, updatedAt, games, teams }) {
   const phases = Object.fromEntries(STANDINGS_PHASES.map((phase) => [phase, { phase, officialRank: false, rows: aggregateStandings(games, teams, phase) }]));
   const payload = { season: Number(season), sourceSeason: Number(season), updatedAt, refreshedDuringBuild: true, phases };
-  validateStandings(payload, games);
+  validateStandings(payload);
+  reconcileStandings(payload, games);
   return payload;
 }
 
@@ -85,9 +86,26 @@ export function activeStandingsPhase(games) {
   return "regular";
 }
 
-export function validateStandings(payload, games = []) {
+export function validateStandings(payload) {
+  const errors = [];
+  for (const phase of STANDINGS_PHASES) {
+    const bucket = payload?.phases?.[phase];
+    if (!bucket || bucket.phase !== phase) { errors.push(`missing or mismatched ${phase} standings bucket`); continue; }
+    for (const row of bucket.rows) {
+      if (![row.wins, row.losses, row.ties].every((value) => Number.isInteger(value) && value >= 0)) errors.push(`${phase} ${row.abbreviation} record is missing or invalid`);
+      if (row.gamesPlayed !== row.wins + row.losses + row.ties) errors.push(`${phase} ${row.abbreviation} games-played mismatch`);
+      if (row.percentage !== formatWinningPercentage(row.wins, row.losses, row.ties)) errors.push(`${phase} ${row.abbreviation} percentage mismatch`);
+      if (row.differential !== row.pointsFor - row.pointsAgainst) errors.push(`${phase} ${row.abbreviation} point differential mismatch`);
+    }
+  }
+  if (errors.length) throw new Error(`Standings validation failed:\n- ${errors.join("\n- ")}`);
+  return true;
+}
+
+export function reconcileStandings(payload, games = [], teams = null) {
   const errors = [];
   const ids = new Set();
+  const teamFilter = teams == null ? null : new Set(teams.map((team) => abbr(typeof team === "string" ? { abbreviation: team } : team)));
   for (const game of games) {
     const phase = schedulePhase(game);
     if (!STANDINGS_PHASES.includes(phase)) errors.push(`invalid or missing season type: ${game?.id ?? "unknown game"}`);
@@ -96,18 +114,15 @@ export function validateStandings(payload, games = []) {
   }
   for (const phase of STANDINGS_PHASES) {
     const bucket = payload?.phases?.[phase];
-    if (!bucket || bucket.phase !== phase) { errors.push(`missing or mismatched ${phase} standings bucket`); continue; }
+    if (!bucket || bucket.phase !== phase) continue;
     const gameTeams = games.flatMap((game) => [game?.home_team ?? game?.homeTeam, game?.visitor_team ?? game?.away_team ?? game?.awayTeam]).filter(Boolean);
     const expected = aggregateStandings(games, [...gameTeams, ...bucket.rows.map((row) => ({ abbreviation: row.abbreviation, full_name: row.name, conference: row.conference }))], phase);
     for (const row of bucket.rows) {
+      if (teamFilter && !teamFilter.has(abbr(row))) continue;
       const source = expected.find((item) => item.abbreviation === row.abbreviation);
       if (bucket.recordAuthority !== "official" && (!source || row.wins !== source.wins || row.losses !== source.losses || row.ties !== source.ties)) errors.push(`${phase} ${row.abbreviation} record does not match filtered games`);
-      if (![row.wins, row.losses, row.ties].every((value) => Number.isInteger(value) && value >= 0)) errors.push(`${phase} ${row.abbreviation} record is missing or invalid`);
-      if (row.gamesPlayed !== row.wins + row.losses + row.ties) errors.push(`${phase} ${row.abbreviation} games-played mismatch`);
-      if (row.percentage !== formatWinningPercentage(row.wins, row.losses, row.ties)) errors.push(`${phase} ${row.abbreviation} percentage mismatch`);
-      if (row.differential !== row.pointsFor - row.pointsAgainst) errors.push(`${phase} ${row.abbreviation} point differential mismatch`);
     }
   }
-  if (errors.length) throw new Error(`Standings validation failed:\n- ${errors.join("\n- ")}`);
+  if (errors.length) throw new Error(`Standings reconciliation failed:\n- ${errors.join("\n- ")}`);
   return true;
 }
