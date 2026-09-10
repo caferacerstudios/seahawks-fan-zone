@@ -109,7 +109,7 @@ const hasMeaningfulStandings = views.some((view) => view.hasGames);
 >
   <nav class="phase-tabs" aria-label="Standings phase">{views.map((view) => <a href={`?phase=${view.phase}`} data-phase-control={view.phase} aria-current={view.phase === defaultPhase ? "page" : undefined}>{view.label}</a>)}</nav>
   {views.map((view) => <div data-phase-panel={view.phase} hidden={view.phase !== defaultPhase}>
-  <div class="data-context"><strong>{season} {view.label}</strong><span>Data through: {formatPacificTime(standingsData.updatedAt)} (Pacific Time)</span><span>Refreshed during builds; includes every final {view.label.toLowerCase()} game available at that time.</span></div>
+  <div class="data-context"><strong>{season} {view.label}</strong><span>Data through: {formatPacificTime(standingsData.updatedAt)} (Pacific Time)</span><span>Includes every final {view.label.toLowerCase()} game recorded as of the data timestamp above.</span></div>
   <header class="race-header">
     <p class="eyebrow">NFC West {view.phase === "regular" ? "standings" : `${view.label.toLowerCase()} records`}</p>
     <h2>{season} {view.label} {view.phase === "regular" ? "standings" : "records"}</h2>
