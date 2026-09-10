@@ -1,7 +1,6 @@
 ---
 const { game, matchup } = Astro.props;
 const editorial = game?.editorial ?? {};
-const recap = game?.completed ? game?.recap : null;
 const modules = [
   ["Matchup overview", editorial.matchupOverview],
   ["Three things to watch", editorial.thingsToWatch],
@@ -23,16 +22,6 @@ const hasContent = (value) => typeof value === "string" ? Boolean(value.trim()) 
     </section>
   ))}
 
-  {recap?.text && (
-    <section class="detail-panel editorial-panel recap-panel" id="recap">
-      <h2>Final result and recap</h2>
-      {game.seaScore != null && game.opponentScore != null && <p class="final-score"><strong>Final: Seattle Seahawks {game.seaScore}, {game.opponentName} {game.opponentScore}</strong></p>}
-      <p>{recap.text}</p>
-      {recap.bullets?.length ? <ul>{recap.bullets.map((item) => <li>{item}</li>)}</ul> : null}
-      {recap.url && <p><a href={recap.url}>Read the associated recap</a></p>}
-    </section>
-  )}
-
   <nav class="context-links" aria-label={`${matchup} related coverage`}>
     <h2>Related Seahawks coverage</h2>
     <a href="/schedule">Full schedule</a>
@@ -42,7 +31,7 @@ const hasContent = (value) => typeof value === "string" ? Boolean(value.trim()) 
     {!game.completed && <a href="/tickets">Seattle ticket guide</a>}
     {editorial.preview?.url && editorial.preview?.label && <a href={editorial.preview.url}>{editorial.preview.label}</a>}
     {editorial.players?.filter((player) => player?.url && player?.name).map((player) => <a href={player.url}>{player.name}</a>)}
-    {game.completed && recap?.url && <a href={recap.url}>Associated recap</a>}
+    {game.completed && game?.recap?.url && <a href={game.recap.url}>Associated recap</a>}
   </nav>
 </div>
 
