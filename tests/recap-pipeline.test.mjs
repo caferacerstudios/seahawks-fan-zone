@@ -150,6 +150,15 @@ test("importer verifies checksums and check-only leaves existing prose untouched
   assert.deepEqual(fs.readFileSync(target), before);
 });
 
+test("an unavailable optional recap snapshot retains validated repository data", (t) => {
+  const { root, target } = workspace(t);
+  const before = fs.readFileSync(target);
+  const result = importRecapSnapshot({ projectRoot: root, snapshotDir: path.join(root, "missing/current"), ifAvailable: true });
+  assert.equal(result.status, "unavailable");
+  assert.deepEqual(fs.readFileSync(target), before);
+  assert.throws(() => importRecapSnapshot({ projectRoot: root, snapshotDir: path.join(root, "src/missing"), ifAvailable: true }), /ENOENT/);
+});
+
 test("importer keeps local edited recaps and historical seasons while adding generated content", (t) => {
   const local = { ...prose, segments: [text("Laura's edited version.")] };
   const history = { body: "Legacy 2025 article", season: 2025 };

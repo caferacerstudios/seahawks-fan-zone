@@ -133,6 +133,15 @@ test("all snapshot failures occur before replacing any local data", (t) => {
   assert.throws(() => importNflSnapshot({ ...setup.options, maxAgeHours: 24, now: Date.parse(stamp) + 25 * 3600000 }), /stale/);
   assert.deepEqual(setup.before(), before);
   assert.throws(() => importNflSnapshot({ ...setup.options, snapshotDir: path.join(setup.selected, "missing") }), /ENOENT/);
+  assert.throws(() => importNflSnapshot({ ...setup.options, snapshotDir: path.join(setup.selected, "missing"), ifAvailable: true }), /ENOENT/);
+  assert.deepEqual(setup.before(), before);
+});
+
+test("an unavailable optional snapshot retains validated repository data", (t) => {
+  const setup = snapshot(t);
+  const before = setup.before();
+  const result = importNflSnapshot({ ...setup.options, snapshotDir: path.join(path.dirname(setup.selected), "missing-parent/current"), ifAvailable: true });
+  assert.equal(result.status, "unavailable");
   assert.deepEqual(setup.before(), before);
 });
 

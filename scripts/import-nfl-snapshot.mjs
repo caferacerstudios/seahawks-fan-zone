@@ -61,8 +61,15 @@ export function importNflSnapshot({
   maxAgeHours = process.env.NFL_SNAPSHOT_MAX_AGE_HOURS === undefined ? null : Number(process.env.NFL_SNAPSHOT_MAX_AGE_HOURS),
   now = Date.now(),
   checkOnly = false,
+  ifAvailable = false,
 } = {}) {
   if (maxAgeHours !== null && (!Number.isFinite(maxAgeHours) || maxAgeHours <= 0)) throw new Error("Invalid NFL_SNAPSHOT_MAX_AGE_HOURS");
+  if (ifAvailable && !fs.existsSync(path.dirname(snapshotDir))) {
+    const schedule = read(path.join(projectRoot, "src/data/nfl/seahawks.json"));
+    validateProductionSchedule(schedule);
+    console.warn(`NFL snapshot is unavailable at ${snapshotDir}; retaining validated repository data.`);
+    return { status: "unavailable", snapshotDir, checkOnly };
+  }
   const selected = fs.realpathSync(snapshotDir);
   const manifest = read(path.join(selected, "manifest.json"));
   if (manifest.schema_version !== 1 || !object(manifest.files) || !Number.isInteger(manifest.season)) throw new Error("Invalid NFL snapshot manifest");
@@ -129,8 +136,8 @@ export function importNflSnapshot({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const options = process.argv.slice(2);
-    if (options.some((value) => value !== "--check-only")) throw new Error("Usage: node scripts/import-nfl-snapshot.mjs [--check-only]");
-    console.log(JSON.stringify(importNflSnapshot({ checkOnly: options.includes("--check-only") })));
+    if (options.some((value) => !["--check-only", "--if-available"].includes(value))) throw new Error("Usage: node scripts/import-nfl-snapshot.mjs [--check-only] [--if-available]");
+    console.log(JSON.stringify(importNflSnapshot({ checkOnly: options.includes("--check-only"), ifAvailable: options.includes("--if-available") })));
   } catch (error) {
     console.error(`NFL snapshot import failed: ${error.message}`);
     process.exitCode = 1;

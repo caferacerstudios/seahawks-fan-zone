@@ -33,7 +33,14 @@ export function importRecapSnapshot({
   snapshotDir = process.env.RECAP_SNAPSHOT_DIR || "/var/lib/sfz-recaps/current",
   now = Date.now(),
   checkOnly = false,
+  ifAvailable = false,
 } = {}) {
+  if (ifAvailable && !fs.existsSync(path.dirname(snapshotDir))) {
+    const existing = read(path.join(projectRoot, "src/data/nfl/gameRecaps.json"));
+    if (!object(existing) || !object(existing.recaps)) throw new Error("Current gameRecaps.json has an invalid recap map");
+    console.warn(`Recap snapshot is unavailable at ${snapshotDir}; retaining validated repository data.`);
+    return { status: "unavailable", snapshotDir, checkOnly };
+  }
   const selected = fs.realpathSync(snapshotDir);
   const manifestPath = path.join(selected, "manifest.json");
   if (!fs.lstatSync(manifestPath).isFile()) throw new Error("Recap manifest must be a regular file");
@@ -79,8 +86,8 @@ export function importRecapSnapshot({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = process.argv.slice(2);
-    if (args.some((arg) => arg !== "--check-only")) throw new Error("Usage: node scripts/import-recap-snapshot.mjs [--check-only]");
-    console.log(JSON.stringify(importRecapSnapshot({ checkOnly: args.includes("--check-only") })));
+    if (args.some((arg) => !["--check-only", "--if-available"].includes(arg))) throw new Error("Usage: node scripts/import-recap-snapshot.mjs [--check-only] [--if-available]");
+    console.log(JSON.stringify(importRecapSnapshot({ checkOnly: args.includes("--check-only"), ifAvailable: args.includes("--if-available") })));
   } catch (error) {
     console.error(`Recap snapshot import failed: ${error.message}`);
     process.exitCode = 1;
