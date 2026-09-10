@@ -5,7 +5,8 @@ Astro site for independent Seattle football coverage. These controls do not impl
 ## Commands
 
 - `npm run dev` starts Astro locally.
-- `npm run build` refreshes NFL data and builds the site; the refresh scripts contact their configured upstream services.
+- `npm run build` imports the latest validated Airflow NFL snapshot and builds the site. Roster refresh and recap/profile generation remain in the build and may contact their configured upstream services.
+- NFL snapshots default to `/var/lib/sfz-nfl/current`. Build containers need the parent `/var/lib/sfz-nfl` mounted read-only. See [the NFL Airflow rollout](docs/nfl-airflow-migration.md) for installation, validation, and rollback.
 - `npx astro build` builds from repository data without running the refresh scripts.
 - `npm run refresh-team-roster` refreshes the canonical roster from the official Seahawks roster page. Failed or suspicious responses preserve the checked-in last-known-good roster and print a warning; use `-- --allow-large-change` only after verifying a legitimate cutdown or expansion.
 
