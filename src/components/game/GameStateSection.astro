@@ -20,9 +20,7 @@ const roster = Array.isArray(rosterData?.playerSeasonStats) ? rosterData.playerS
 const profiles = readPlayerProfiles().data?.profiles ?? {};
 const profileRecords = Object.entries(profiles).map(([id, profile]) => ({ id, name:profile?.name ?? profile?.full_name }));
 const playerRegistry = playerRouteRegistry([...(currentRosterData?.players ?? []), ...roster, ...(seasonData?.playerSeasonStats ?? []), ...profileRecords]);
-const renderParts = (value) => recapRenderParts(value, playerRegistry).map((part) => part.href
-  ? <a href={part.href}>{part.text}</a>
-  : part.text);
+const renderParts = (value) => recapRenderParts(value, playerRegistry);
 ---
 
 <section class={`game-state-panel game-state-${presentation.state}`} aria-labelledby="game-state-heading">
@@ -41,9 +39,9 @@ const renderParts = (value) => recapRenderParts(value, playerRegistry).map((part
   )}
 
   {presentation.state === "completed" && (hasRecap ? <div class="recap-content" id="recap">
-    {recapText && <p>{renderParts(recapText)}</p>}
-    {segments.length > 0 && <p>{renderParts(segments)}</p>}
-    {bullets.length > 0 && <ul>{bullets.map((item) => <li>{renderParts(typeof item === "string" ? item : item?.text)}</li>)}</ul>}
+    {recapText && <p>{renderParts(recapText).map((part) => part.href ? <a href={part.href}>{part.text}</a> : part.text)}</p>}
+    {segments.length > 0 && <p>{renderParts(segments).map((part) => part.href ? <a href={part.href}>{part.text}</a> : part.text)}</p>}
+    {bullets.length > 0 && <ul>{bullets.map((item) => <li>{renderParts(typeof item === "string" ? item : item?.text).map((part) => part.href ? <a href={part.href}>{part.text}</a> : part.text)}</li>)}</ul>}
     {recap?.url && <p><a href={recap.url}>Read the associated recap</a></p>}
   </div> : <p>Recap coming soon</p>)}
 </section>
