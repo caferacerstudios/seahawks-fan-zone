@@ -804,10 +804,22 @@
       "sourcePublisher": "Seattle Seahawks",
       "sourceUrl": "https://www.seahawks.com/team/transactions/2026",
       "updateStatus": "Official"
+    },
+    {
+      "timestamp": "2026-09-09T18:00:00-07:00",
+      "playerId": "aj-finley",
+      "playerName": "AJ Finley",
+      "transactionType": "Signed",
+      "previousStatus": "Practice Squad",
+      "newStatus": "Active",
+      "description": "Seattle signed safety AJ Finley from the practice squad to the active roster.",
+      "sourcePublisher": "Seattle Seahawks",
+      "sourceUrl": "https://www.seahawks.com/team/transactions/2026",
+      "updateStatus": "Official"
     }
   ],
-  "asOf": "2026-09-05T16:19:01-07:00",
+  "asOf": "2026-09-09T18:00:00-07:00",
   "sourcePublisher": "Seattle Seahawks",
   "sourceUrl": "https://www.seahawks.com/team/transactions/2026",
-  "sourceNote": "Official Seahawks transaction log verified through September 5, 2026; records are event-based and may include multiple moves for one player."
+  "sourceNote": "Official Seahawks transaction log verified through September 9, 2026; records are event-based and may include multiple moves for one player."
 }

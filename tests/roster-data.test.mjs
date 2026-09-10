@@ -11,9 +11,9 @@ const transactions = read("../src/data/team/transactions.json");
 const injuries = read("../src/data/team/injuries.json");
 
 test("official roster snapshot count excludes reserve and historical records", () => {
-  assert.equal(rosterCount(roster), 53);
-  assert.equal(currentRosterPlayers(roster).length, 53);
-  assert.equal(practiceSquadPlayers(roster).length, 17);
+  assert.equal(rosterCount(roster), 54);
+  assert.equal(currentRosterPlayers(roster).length, 54);
+  assert.equal(practiceSquadPlayers(roster).length, 16);
   assert.equal(filterRosterByStatus(roster, "Reserve/Injured").length, 9);
   assert.equal(reserveRosterPlayers(roster).length, 11);
   assert.equal(currentRosterDirectoryCount(roster), 81);
@@ -36,7 +36,7 @@ test("current roster has no duplicate player identities", () => {
 
 test("status filtering does not treat historical records as current", () => {
   const fixture = { players: [...roster.players, { id: "old", status: "Historical" }] };
-  assert.equal(rosterCount(fixture), 53);
+  assert.equal(rosterCount(fixture), 54);
   assert.equal(filterRosterByStatus(fixture, "Historical").length, 1);
 });
 
@@ -78,13 +78,14 @@ test("latest meaningful transactions reconcile with current roster statuses", ()
   assert.equal(latest.get("irv-charles").newStatus, "Reserve/Injured");
   assert.equal(latest.get("bobby-hart").newStatus, "Practice Squad");
   assert.equal(latest.get("danthony-bell").newStatus, "Practice Squad");
+  assert.equal(latest.get("aj-finley").newStatus, "Active");
   assert.equal(latest.get("uso-seumalo").newStatus, "Released");
   assert.equal(latest.get("marvin-jones-jr").newStatus, "Released");
 });
 
 test("transaction freshness becomes explicit when the verified snapshot ages", () => {
   assert.equal(transactionFreshness(transactions, new Date("2026-09-03T12:00:00-07:00")).stale, false);
-  const stale = transactionFreshness(transactions, new Date("2026-09-09T12:00:00-07:00"));
+  const stale = transactionFreshness(transactions, new Date("2026-09-13T12:00:00-07:00"));
   assert.equal(stale.stale, true);
   assert.match(stale.message, /not a complete current record/);
 });

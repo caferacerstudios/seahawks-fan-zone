@@ -89,6 +89,19 @@ test("official guide restores missing kickoff and venue on completed provider ga
   assert.match(formatKickoff(restored), /5:00 PM PT$/);
 });
 
+test("shifted provider preseason weeks reconcile by game identity without duplication", () => {
+  const provider = JSON.parse(readFileSync(new URL("fixtures/shifted-preseason-provider.json", import.meta.url), "utf8"));
+  const guide = JSON.parse(readFileSync(new URL("../src/data/nfl/watch-guide-2026.json", import.meta.url), "utf8"));
+  const schedule = normalizeSchedule({ season: 2026, games: reconcileOfficialSchedule(provider, guide) });
+  assert.equal(schedule.gamesPreseason.length, 3);
+  assert.deepEqual(schedule.gamesPreseason.map((row) => [row.id, row.week, row.opponent.abbreviation, row.date, row.timeConfirmed]), [
+    ["provider-dallas", 1, "DAL", "2026-08-15", true],
+    ["provider-tennessee", 2, "TEN", "2026-08-23", true],
+    ["provider-kansas-city", 3, "KC", "2026-08-28", true],
+  ]);
+  assert.deepEqual(schedule.gamesPreseason.map((row) => [row.visitor_team_score, row.home_team_score]), [[17, 7], [16, 19], [9, 9]]);
+});
+
 test("Pacific local parsing accepts dotted and plain meridiems with ordinary variations", () => {
   for (const [kickoff_time, expected] of [
     ["5:20 p.m. PDT", "5:20 PM PT"],

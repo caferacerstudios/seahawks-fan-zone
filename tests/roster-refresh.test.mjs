@@ -99,6 +99,13 @@ test("latest applicable player update is stable when record order is shuffled", 
   assert.equal(latestPlayerUpdates([game, practice, placeholder]).get("player"), game);
 });
 
+test("newer canonical roster status suppresses an older conflicting transaction", () => {
+  const practice = { timestamp:"2026-08-31T14:01:04-07:00", playerId:"aj-finley", transactionType:"Practice Squad", newStatus:"Practice Squad" };
+  const roster = { asOf:"2026-09-09T18:00:00-07:00", players:[{ id:"aj-finley", name:"AJ Finley", status:"Active" }] };
+  assert.equal(latestPlayerUpdates([practice], roster).has("aj-finley"), false);
+  assert.equal(latestPlayerUpdates([practice], { ...roster, asOf:"2026-08-30T00:00:00Z" }).get("aj-finley"), practice);
+});
+
 test("plain and encoded apostrophes resolve to one roster identity", () => {
   assert.equal(identityKey("D'Anthony Bell"), identityKey("D&#39;Anthony Bell"));
   assert.equal(identityKey("D'Anthony Bell"), identityKey("D&#x27;Anthony Bell"));
@@ -114,6 +121,14 @@ test("refreshing an encoded roster name preserves the canonical ID and transacti
   const transaction = { playerId:"danthony-bell", timestamp:"2026-09-05T12:00:00Z", transactionType:"Practice Squad" };
   assert.deepEqual({ id:bell.id, name:bell.name, status:bell.status, profile:bell.profile }, { id:"danthony-bell", name:"D'Anthony Bell", status:"Practice Squad", profile:"existing" });
   assert.equal(latestPlayerUpdates([transaction]).get(bell.id), transaction);
+});
+
+test("unambiguous legacy x27 roster IDs migrate and remain redirect aliases", () => {
+  const prior = { players:[{ id:"d-x27-anthony-bell", name:"D'Anthony Bell", position:"S", number:23, status:"Practice Squad" }] };
+  const fetched = parseOfficialRoster(source([{ name:"D&#x27;Anthony Bell", position:"S", number:23, status:"Practice Squad" }]), "application/json");
+  const bell = reconcileRoster(prior, fetched).players[0];
+  assert.deepEqual({ id:bell.id, legacyIds:bell.legacyIds }, { id:"danthony-bell", legacyIds:["d-x27-anthony-bell"] });
+  assert.equal(reconcileRoster(prior, fetched).players.length, 1);
 });
 
 test("duplicate source identities cannot create duplicate current players", () => {

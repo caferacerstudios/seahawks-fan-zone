@@ -36,15 +36,17 @@ export function buildPlayerRouteRegistry(records = []) {
     const name = text(record?.name ?? record?.full_name ?? record?.player?.full_name ?? `${record?.first_name ?? record?.player?.first_name ?? ""} ${record?.last_name ?? record?.player?.last_name ?? ""}`);
     const key = normalizedName(name);
     if (!id || !key) continue;
-    const entry = identities.get(key) ?? { name, ids:new Set() };
-    entry.ids.add(id); identities.set(key, entry);
+    const entry = identities.get(key) ?? { name, ids:new Set(), legacyIds:new Set() };
+    entry.ids.add(id);
+    for (const legacyId of record?.legacyIds || []) if (text(String(legacyId))) entry.legacyIds.add(String(legacyId));
+    identities.set(key, entry);
   }
   const routes = new Map(), aliases = [];
   for (const entry of identities.values()) {
     const ids = [...entry.ids], preferredSourceId = ids.find((id)=>!/^\d+$/.test(id)) ?? ids[0];
     const canonicalId = preferredPlayerId(preferredSourceId, entry.name);
     routes.set(canonicalId, { canonicalId, dataIds:[...entry.ids], name:entry.name, alias:false });
-    for (const id of entry.ids) if (id !== canonicalId) {
+    for (const id of new Set([...entry.ids, ...entry.legacyIds])) if (id !== canonicalId) {
       routes.set(id, { canonicalId, dataIds:[...entry.ids], name:entry.name, alias:true });
       aliases.push({ alias:id, target:canonicalId, name:entry.name });
     }

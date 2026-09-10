@@ -33,6 +33,7 @@ function slug(name) {
   return htmlText(name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
+const resolvedLegacyApostropheId = (id) => String(id ?? "").includes("-x27-") ? String(id).replaceAll("-x27-", "") : null;
 function htmlText(value) {
   return clean(decodeText(String(value ?? "").replace(/<[^>]*>/g, " ")));
 }
@@ -112,13 +113,17 @@ export function reconcileRoster(previous, fetched, { now = new Date(), sourceUrl
   const usedIds = new Set();
   const incoming = fetched.map((row) => {
     const old = (row.sourceId && bySourceId.get(String(row.sourceId))) || byIdentity.get(identityKey(row.name));
-    let id = old?.id || slug(row.name);
+    const canonicalSlug = slug(row.name);
+    const resolvedLegacyId = resolvedLegacyApostropheId(old?.id);
+    let id = resolvedLegacyId === canonicalSlug ? canonicalSlug : old?.id || canonicalSlug;
     if (usedIds.has(id)) throw new Error(`Duplicate current ID produced by source records: ${id}`);
     usedIds.add(id);
-    return { ...(old || {}), id, name: row.name, position: row.position, number: Number.isFinite(row.number) ? row.number : null, status: row.status, ...(row.sourceId ? { sourceId: row.sourceId } : {}) };
+    const legacyIds = [...new Set([...(old?.legacyIds || []), ...(resolvedLegacyId === canonicalSlug ? [old.id] : [])])];
+    return { ...(old || {}), id, ...(legacyIds.length ? { legacyIds } : {}), name: row.name, position: row.position, number: Number.isFinite(row.number) ? row.number : null, status: row.status, ...(row.sourceId ? { sourceId: row.sourceId } : {}) };
   });
   const present = new Set(incoming.map((player) => player.id));
-  const removed = oldPlayers.filter((player) => !present.has(player.id)).map((player) => isCurrentRosterPlayer(player) ? { ...player, status: "Historical" } : player);
+  const presentIdentities = new Set(incoming.map((player) => identityKey(player.name)));
+  const removed = oldPlayers.filter((player) => !present.has(player.id) && !presentIdentities.has(identityKey(player.name))).map((player) => isCurrentRosterPlayer(player) ? { ...player, status: "Historical" } : player);
   const season = now.getUTCMonth() <= 1 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
   return { ...previous, schemaVersion: previous?.schemaVersion ?? 1, season, asOf: now.toISOString(), sourceUrl, sourceNote: "Automatically refreshed from the official Seattle Seahawks roster page.", players: [...incoming, ...removed] };
 }
