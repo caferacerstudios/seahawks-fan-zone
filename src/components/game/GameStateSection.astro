@@ -1,4 +1,9 @@
 ---
+import rosterData from "../../data/nfl/players.json";
+import currentRosterData from "../../data/team/roster.json";
+import seasonData from "../../data/nfl/seahawks.json";
+import { readPlayerProfiles } from "../../lib/player-profiles.mjs";
+import { playerRouteRegistry, recapRenderParts } from "../../lib/recap-player-links.mjs";
 const { game, presentation } = Astro.props;
 const recap = game?.recap ?? null;
 const recapText = recap?.text ?? recap?.summary ?? recap?.excerpt ?? null;
@@ -8,7 +13,14 @@ const hasRecap = Boolean(String(recapText ?? "").trim() || segments.length || bu
 const score = presentation.seahawksScore != null && presentation.opponentScore != null
   ? `Seattle Seahawks ${presentation.seahawksScore}, ${game.opponentName} ${presentation.opponentScore}` : "Score unavailable";
 const gameClock = [presentation.quarter, presentation.clock].filter(Boolean).join(" · ");
-const segmentText = (segment) => typeof segment === "string" ? segment : segment?.v ?? segment?.text ?? "";
+const roster = Array.isArray(rosterData?.playerSeasonStats) ? rosterData.playerSeasonStats
+  : Array.isArray(rosterData?.data) ? rosterData.data
+  : Array.isArray(rosterData?.players) ? rosterData.players
+  : [];
+const profiles = readPlayerProfiles().data?.profiles ?? {};
+const profileRecords = Object.entries(profiles).map(([id, profile]) => ({ id, name:profile?.name ?? profile?.full_name }));
+const playerRegistry = playerRouteRegistry([...(currentRosterData?.players ?? []), ...roster, ...(seasonData?.playerSeasonStats ?? []), ...profileRecords]);
+const renderParts = (value) => recapRenderParts(value, playerRegistry);
 ---
 
 <section class={`game-state-panel game-state-${presentation.state}`} aria-labelledby="game-state-heading">
@@ -27,11 +39,9 @@ const segmentText = (segment) => typeof segment === "string" ? segment : segment
   )}
 
   {presentation.state === "completed" && (hasRecap ? <div class="recap-content" id="recap">
-    {recapText && <p>{recapText}</p>}
-    {segments.length > 0 && <p>{segments.map((segment) => segment?.t === "player" && segment?.id
-      ? <a href={`/players/${encodeURIComponent(String(segment.id))}`}>{segmentText(segment)}</a>
-      : segmentText(segment))}</p>}
-    {bullets.length > 0 && <ul>{bullets.map((item) => <li>{typeof item === "string" ? item : item?.text}</li>)}</ul>}
+    {recapText && <p>{renderParts(recapText).map((part) => part.href ? <a href={part.href}>{part.text}</a> : part.text)}</p>}
+    {segments.length > 0 && <p>{renderParts(segments).map((part) => part.href ? <a href={part.href}>{part.text}</a> : part.text)}</p>}
+    {bullets.length > 0 && <ul>{bullets.map((item) => <li>{renderParts(typeof item === "string" ? item : item?.text).map((part) => part.href ? <a href={part.href}>{part.text}</a> : part.text)}</li>)}</ul>}
     {recap?.url && <p><a href={recap.url}>Read the associated recap</a></p>}
   </div> : <p>Recap coming soon</p>)}
 </section>
