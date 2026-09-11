@@ -2,6 +2,8 @@
 import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import ArticleCard from "../../components/ArticleCard.astro";
 import AdSlot from "../../components/AdSlot.astro";
+import PhotoCaption from "../../components/PhotoCaption.astro";
+import { photoAssetForSrc } from "../../lib/photo-assets.mjs";
 import { absoluteUrl, SITE_NAME } from "../../lib/seo";
 import { articleReadingMinutes, categorySlug, coverageArticles, formatArticleDate, materiallyUpdated, publishedArticles, type NewsArticle } from "../../lib/news";
 
@@ -12,6 +14,7 @@ const related = coverageArticles.filter((candidate) => candidate.slug !== articl
 const canonicalPath = `/news/${article.slug}`;
 const readingMinutes = articleReadingMinutes(article);
 const showUpdatedDate = materiallyUpdated(article);
+const heroPhoto = photoAssetForSrc(article.hero.src);
 const authorUrl = "/about#editorial-responsibility";
 const seo = { title: `${article.headline} | Seahawks Fan Zone`, description: article.dek, canonicalPath, openGraphTitle: article.headline, openGraphDescription: article.dek, openGraphImage: article.hero.src, openGraphImageAlt: article.hero.alt, article: { headline: article.headline, author: article.author, publishedTime: article.publishedAt, modifiedTime: article.updatedAt, image: article.hero.src, section: article.category } };
 const structuredData = { "@context":"https://schema.org", "@type":"NewsArticle", headline:article.headline, description:article.dek, datePublished:article.publishedAt, dateModified:article.updatedAt, mainEntityOfPage:{"@type":"WebPage","@id":absoluteUrl(canonicalPath)}, articleSection:article.category, keywords:article.tags.join(", "), author:{"@type":"Organization",name:article.author,url:absoluteUrl(authorUrl)}, publisher:{"@type":"Organization",name:SITE_NAME,url:absoluteUrl("/"),logo:{"@type":"ImageObject",url:absoluteUrl("/favicon.svg")}}, image:[absoluteUrl(article.hero.src)], isAccessibleForFree:true };
@@ -22,7 +25,7 @@ const structuredData = { "@context":"https://schema.org", "@type":"NewsArticle",
     <h1>{article.headline}</h1><p class="article-dek">{article.dek}</p>
     <div class="article-meta"><span>By <a rel="author" href={authorUrl}>{article.author}</a></span><span>Published <time datetime={article.publishedAt}>{formatArticleDate(article.publishedAt)}</time></span>{showUpdatedDate && <span>Last updated <time datetime={article.updatedAt}>{formatArticleDate(article.updatedAt)}</time></span>}<span>{readingMinutes} min read</span><span>Category: <a href={`/news/category/${categorySlug(article.category)}/`}>{article.category}</a></span></div>
   </header>
-  <figure class="article-hero"><img src={article.hero.src} alt={article.hero.alt} width={article.hero.width} height={article.hero.height} fetchpriority="high" decoding="async" /><figcaption>{article.hero.caption ?? "Original Seahawks Fan Zone illustration."}</figcaption></figure>
+  <figure class="article-hero"><img src={article.hero.src} alt={heroPhoto?.alt ?? article.hero.alt} width={article.hero.width} height={article.hero.height} fetchpriority="high" decoding="async" /><PhotoCaption src={article.hero.src} fallback={article.hero.caption ?? "Original Seahawks Fan Zone illustration."} /></figure>
   <div class="article-body">{article.body.map((block, index) => <>
     {(() => {
     if (typeof block === "string") return <p>{block}</p>;

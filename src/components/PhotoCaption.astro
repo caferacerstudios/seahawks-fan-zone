@@ -1,0 +1,8 @@
+---
+import { photoCaptionForSrc } from "../lib/photo-assets.mjs";
+
+interface Props { src: string; fallback?: string | null; class?: string; }
+const { src, fallback = null, class: className } = Astro.props;
+const caption = photoCaptionForSrc(src, fallback);
+---
+{caption && <figcaption class={className}>{caption}</figcaption>}
