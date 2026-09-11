@@ -391,6 +391,7 @@ for (const article of articles) {
 export const authoredArticles = articles;
 const generatedArticles = validateGeneratedCollection(generatedNews).articles;
 export const publishedArticles: NewsArticle[] = mergePublishedArticles(articles, generatedArticles);
+export const leadArticle = publishedArticles.find((article) => article.featured) ?? publishedArticles[0];
 
 export const NEWS_PAGE_SIZE = 6;
 export const populatedNewsCategories = NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category));
