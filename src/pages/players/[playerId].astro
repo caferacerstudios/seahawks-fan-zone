@@ -15,7 +15,7 @@ import editorialFactsData from "../../data/team/player-profile-editorial-facts.j
 import { readPlayerProfiles } from "../../lib/player-profiles.mjs";
 import { formatUpdateDate, injuryStatuses, transactions } from "../../lib/team-updates";
 import { buildPlayerRouteRegistry, latestMaterialDate, pageRobots, playerIndexability, preferredPlayerId } from "../../lib/indexability.mjs";
-import { publishedArticles } from "../../lib/news";
+import { coverageArticles } from "../../lib/news";
 import gameRecapsData from "../../data/nfl/gameRecaps.json";
 
 /* =======================
@@ -472,7 +472,7 @@ const playerDecision = playerIndexability({
   statisticsLabelValid:Boolean(!statRow || Number.isFinite(statisticsSeason)), verifiedResolved:Boolean(rosterPlayer || statRow || rawProfile),
 });
 const robots = pageRobots(playerDecision);
-const relatedArticles = publishedArticles.filter((article)=>JSON.stringify(article).toLowerCase().includes(displayName.toLowerCase())).slice(0,4);
+const relatedArticles = coverageArticles.filter((article)=>JSON.stringify(article).toLowerCase().includes(displayName.toLowerCase())).slice(0,4);
 const relatedGames = Object.entries(gameRecapsData?.recaps || {}).filter(([,recap])=>JSON.stringify(recap).toLowerCase().includes(displayName.toLowerCase())).slice(0,4);
 const personStructuredData = playerDecision.indexable ? { "@context":"https://schema.org", "@type":"Person", name:displayName, jobTitle:String(position).toUpperCase(), affiliation:{ "@type":"SportsTeam", name:"Seattle Seahawks" }, url:new URL(canonicalPath, Astro.site ?? Astro.url).toString() } : undefined;
 ---
@@ -480,7 +480,7 @@ const personStructuredData = playerDecision.indexable ? { "@context":"https://sc
 <SeahawksLayout title={pageTitle} pageTitle={pageH1} description={pageDescription} seo={{title:`${pageTitle} | Seahawks Fan Zone`,description:pageDescription,canonicalPath,robots}} structuredData={personStructuredData} activePath="/players" pageType="player" season={seasonContext.seasonYear} monetizationEligible={playerDecision.indexable} breadcrumbs={[{ name: "Home", href: "/" }, { name: "Roster", href: "/players" }, { name: displayName, href: canonicalPath }]}>
   <div class="profile-contexts">
     <div><span>Current roster</span><strong>{currentRosterData?.season}</strong><small>{currentRosterRecord?.status || "Not listed on current roster"}</small></div>
-    <div><span>Performance shown</span><strong>{playerStatisticsContext.label}</strong><small>Historical season totals</small></div>
+    <div><span>Performance shown</span><strong>{playerStatisticsContext.label}</strong><small>{playerStatisticsContext.seasonStatus === "active" ? "Current season totals" : "Historical season totals"}</small></div>
   </div>
   <SeasonContextView context={{ ...playerStatisticsContext, updatedAt: updatedAtForPage }} options={[playerStatisticsContext]} prefix="Data through" />
   <TopicChips topics={["Roster", "Position Groups", ...(injuryMatches.length ? ["Injuries"] : [])]} />

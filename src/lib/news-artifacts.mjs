@@ -7,6 +7,48 @@ const text = (value, max = 10000) => typeof value === 'string' && value.trim() &
 const timestamp = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
 const decodeAttribute = (value) => value.replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&#x27;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>');
 
+function normalizeParagraphCitations(value, sources, slug) {
+  if (typeof value !== 'string') return value;
+  return value.replace(/(?:\[S(\d+)\]\s*)+/g, (markers, _last, offset) => {
+    const ids = [...markers.matchAll(/\[S(\d+)\]/g)].map((match) => Number(match[1]));
+    for (const id of ids) {
+      const source = sources[id - 1];
+      if (!source) throw new Error(`Unknown source identifier S${id} in generated article: ${slug}`);
+      const remainder = value.slice(offset + markers.length);
+      const escapedUrl = source.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!new RegExp(`<a href="${escapedUrl}">\\[${id}\\]</a>`).test(remainder)) {
+        throw new Error(`Source identifier S${id} does not resolve to citation ${id} in generated article: ${slug}`);
+      }
+    }
+    return '';
+  });
+}
+
+/** Convert supported producer markers to the already-rendered numbered links. Safe to call repeatedly. */
+export function normalizeGeneratedCitations(document) {
+  if (!object(document) || !Array.isArray(document.articles)) return document;
+  return { ...document, articles: document.articles.map((article) => ({
+    ...article,
+    body: Array.isArray(article.body) ? article.body.map((block) => block?.type === 'paragraph'
+      ? { ...block, html: normalizeParagraphCitations(block.html, article.sources ?? [], article.slug ?? 'unknown') }
+      : block) : article.body,
+  })) };
+}
+
+export function applyGeneratedCorrections(document, corrections = {}) {
+  if (!object(corrections) || !object(corrections.articles)) throw new Error('Invalid generated-news corrections');
+  const found = new Set();
+  const result = { ...document, articles: document.articles.map((article) => {
+    const correction = corrections.articles[article.slug];
+    if (!correction) return article;
+    found.add(article.slug);
+    if (!timestamp(correction.updatedAt) || Date.parse(correction.updatedAt) < Date.parse(article.publishedAt) || !Array.isArray(correction.body) || !correction.body.length || !Array.isArray(correction.sourceUrls)) throw new Error(`Invalid generated-news correction: ${article.slug}`);
+    if (correction.sourceUrls.length !== article.sources?.length || correction.sourceUrls.some((url, index) => url !== article.sources[index]?.url)) throw new Error(`Generated-news correction source order changed: ${article.slug}`);
+    return { ...article, body: correction.body, updatedAt: correction.updatedAt };
+  }) };
+  return result;
+}
+
 function validSource(url) {
   try {
     const parsed = new URL(url);
@@ -33,6 +75,7 @@ function validateParagraph(value, sources) {
     }
   }
   if (open || !citations) throw new Error('Generated paragraph needs a completed source citation');
+  if (/\[S\d+\]/.test(value)) throw new Error('Unnormalized generated source marker');
 }
 
 export function validateGeneratedCollection(document) {
@@ -52,6 +95,7 @@ export function validateGeneratedCollection(document) {
     if (sources.size < 2 || !Array.isArray(a.body) || !a.body.length) fail();
     for (const block of a.body) {
       if (!object(block)) fail();
+      if (/\[S\d+\]/.test(JSON.stringify(block))) throw new Error(`Unnormalized source marker in generated article: ${a.slug}`);
       if (block.type === 'heading') { if (!text(block.heading, 150)) fail(); }
       else if (block.type === 'paragraph') validateParagraph(block.html, sources);
       else fail();

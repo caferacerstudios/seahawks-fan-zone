@@ -97,6 +97,10 @@ test("the homepage and news route render the newest article first and the next s
   const homepageHtml = renderedHomepage(project);
   assert.match(newsroomHtml, /<h1[^>]*>Seattle Seahawks News and Analysis<\/h1>/i);
   assert.doesNotMatch(newsroomHtml, /Trending Now/i);
+  for (const introductorySlug of ["welcome-to-the-seahawks-fan-zone-newsroom", "how-we-add-context-to-seahawks-roster-moves", "a-better-way-to-read-seahawks-game-week"]) {
+    assert.doesNotMatch(newsroomHtml, new RegExp(`news/${introductorySlug}/`), "publication information must not appear in newsroom recommendations");
+    assert.doesNotMatch(homepageHtml, new RegExp(`news/${introductorySlug}/`), "publication information must not appear in homepage recommendations");
+  }
   const newsLeadHref = newsroomHtml.match(/aria-labelledby="lead-story"[\s\S]*?href="(\/news\/[^"#?]+\/?)"/)?.[1];
   const homepageLead = leadDetails(homepageHtml);
   assert.equal(newsLeadHref, expectedHref, "the /news lead should be the expected September 10 article");

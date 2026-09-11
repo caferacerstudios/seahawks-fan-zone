@@ -42,3 +42,19 @@ test("mixed-season and non-regular games cannot contaminate scoring", () => {
   assert.equal(result.gamesPlayed, 1);
   assert.equal(result.pointsScored, 24);
 });
+
+test("canonical schedule phase and state produce the reviewed opener result without offense totals", () => {
+  const opener = {
+    id: 1392216, season: 2026, phase: "regular", state: "completed",
+    homeTeam: { id: 2, abbreviation: "NE" }, awayTeam: SEA,
+    home_team_score: 10, visitor_team_score: 13,
+  };
+  const result = buildTeamStats({ season: 2026, team: SEA, games: [opener] });
+  assert.deepEqual(result, { season: 2026, gamesPlayed: 1, record: "1-0", pointsScored: 13, pointsAllowed: 10, pointsPerGame: 13, teamTotals: null });
+});
+
+test("conflicting duplicates are rejected and wrong-season canonical games stay excluded", () => {
+  const base = { id: "same", season: 2026, phase: "regular", state: "completed", homeTeam: SEA, awayTeam: SF, home_team_score: 20, visitor_team_score: 10 };
+  const result = buildTeamStats({ season: 2026, team: SEA, games: [base, {...base, home_team_score: 21}, {...base, id:"old", season:2025}] });
+  assert.deepEqual({ games:result.gamesPlayed, record:result.record, scored:result.pointsScored, allowed:result.pointsAllowed }, { games:0, record:null, scored:null, allowed:null });
+});

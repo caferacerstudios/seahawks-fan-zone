@@ -1,11 +1,11 @@
 ---
-import { formatArticleDate, leadArticle, publishedArticles } from "../lib/news";
+import { coverageArticles, formatArticleDate, leadArticle } from "../lib/news";
 import { DEFAULT_HOMEPAGE_FRESHNESS_DAYS, selectHomepageStories } from "../lib/homepage-feed";
 const configuredDays = Number(import.meta.env.HOMEPAGE_STORY_FRESHNESS_DAYS);
 const freshnessDays = Number.isFinite(configuredDays) && configuredDays > 0 ? configuredDays : DEFAULT_HOMEPAGE_FRESHNESS_DAYS;
 const configuredNow = import.meta.env.HOMEPAGE_FEED_NOW;
 const now = configuredNow && Number.isFinite(Date.parse(configuredNow)) ? new Date(configuredNow) : new Date();
-const { stories, heading, hasRecentStories } = selectHomepageStories(publishedArticles, { now, freshnessDays, leadArticle });
+const { stories, heading, hasRecentStories } = selectHomepageStories(coverageArticles, { now, freshnessDays, leadArticle });
 const [lead, ...secondary] = stories;
 const metadata = (story: (typeof stories)[number]) => [`${story.dateLabel} ${formatArticleDate(story.date)}`, story.external ? `Source: ${story.byline}` : `By ${story.byline}`, story.readMinutes ? `${story.readMinutes} min read` : null].filter(Boolean);
 ---

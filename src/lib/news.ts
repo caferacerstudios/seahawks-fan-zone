@@ -35,6 +35,7 @@ export interface NewsArticle {
   hero: HeroAsset;
   featured: boolean;
   status: PublicationStatus;
+  contentKind?: "coverage" | "publication-info";
   generation?: { kind: "ai"; publicationDay: string; model: string; promptVersion?: string };
 }
 
@@ -140,7 +141,7 @@ const articles: NewsArticle[] = [
     headline: "The price of keeping a champion: How Seattle is building around its core",
     dek: "Four extensions reveal a deliberate split: buy the prime years of drafted stars early, then pay selectively to keep the veteran who makes the defensive structure work.",
     publishedAt: "2026-08-28",
-    updatedAt: "2026-08-28",
+    updatedAt: "2026-09-11T03:45:42Z",
     author: "Seahawks Fan Zone Editorial Team",
     category: "Contract Strategy",
     tags: ["Contracts", "Roster building", "Salary cap", "Jaxon Smith-Njigba", "Devon Witherspoon", "Derick Hall", "Leonard Williams"],
@@ -162,7 +163,7 @@ const articles: NewsArticle[] = [
       { type: "paragraph", html: "The difference is visible in 2026. Over the Cap lists cap charges of $10.371 million for Smith-Njigba, $6.247 million for Hall and $15.338 million for Witherspoon. Against the $314.1 million league cap reflected in OTC’s percentages, those equal 3.30%, 1.99% and 4.88%. Together they are $31.956 million, or 10.17% of the cap. Their combined new-money AAV is $89.15 million. Comparing the two totals as if they were interchangeable would overstate the present burden by $57.194 million. Williams’ pre-extension 2026 charge was listed at $29.636 million, but a reliable post-extension year-by-year structure was not available at publication, so it is excluded from this calculation." },
 
       { type: "heading", heading: "The four commitments, and the risk in each" },
-      { type: "paragraph", html: "<strong>Smith-Njigba buys the offense a passing-game center.</strong> His 119 receptions and league-leading 1,793 receiving yards in the 2025 regular season demonstrate both volume and efficiency of role, while 10 touchdowns show that the production extended into scoring plays. Those totals do not prove every aspect of receiver play, but the AP Offensive Player of the Year award and first-team All-Pro selection add independent recognition. In Macdonald’s program, offensive coordinator Klint Kubiak can build route combinations around a receiver who wins from multiple alignments rather than searching annually for a true first option. Elite receivers are expensive to acquire and uncertain to draft. Seattle bought ages 26 through 29 as new years, after two lower-cost seasons. The risk is concentration: injury, coverage adaptation or quarterback instability would leave a large future allocation attached to one target." },
+      { type: "paragraph", html: "<strong>Smith-Njigba buys the offense a passing-game center.</strong> His 119 receptions and league-leading 1,793 receiving yards in the 2025 regular season demonstrate both volume and efficiency of role, while 10 touchdowns show that the production extended into scoring plays. Those totals do not prove every aspect of receiver play, but the AP Offensive Player of the Year award and first-team All-Pro selection add independent recognition. Brian Fleury, named Seattle’s offensive coordinator in February 2026, can build route combinations around a receiver who wins from multiple alignments rather than searching annually for a true first option. Elite receivers are expensive to acquire and uncertain to draft. Seattle bought ages 26 through 29 as new years, after two lower-cost seasons. The risk is concentration: injury, coverage adaptation or quarterback instability would leave a large future allocation attached to one target. <a href=\"https://www.seahawks.com/news/seattle-seahawks-finalize-2026-coaching-staff\">Seattle’s 2026 coaching-staff announcement</a> confirms Fleury’s current role." },
       { type: "paragraph", html: "<strong>Hall is a bet on role value before sack totals catch up.</strong> He played 37.2% of defensive snaps in 14 regular-season games, recording two sacks and 13 quarterback hits. The contract is not justified by two sacks alone. Hall sets an edge in the run structure, can rotate with veteran rushers and produced two sacks plus a forced fumble in the Super Bowl. Macdonald’s fronts depend on fresh, interchangeable rushers who can threaten different gaps without announcing the pressure. The deal buys Hall’s age-26 through age-28 seasons at a $14 million new-money AAV, far below the top edge market. The clearest risk is projection: Seattle paid for a larger future role after a season in which Hall’s snap share and headline production fell. Incentives that can lift the value to $46.5 million appropriately separate some upside from the base amount." },
       { type: "paragraph", html: "<strong>Witherspoon preserves the defense’s disguise.</strong> Seattle used nickel or dime personnel at the NFL’s highest rate in 2025 while allowing a league-low 3.7 yards per rush, according to the team’s season review. Witherspoon’s ability to play outside, cover the slot, pressure and tackle lets Macdonald change the call without changing the people. He started all 12 games he played, made second-team All-Pro and added a sack and three quarterback hits in Super Bowl LX. Tackles and interceptions cannot capture coverage responsibility, which is why role and recognition matter alongside his 72 tackles, seven passes defensed and one interception. The extension buys prime ages and keeps him through 31. The risk is durability and physical style: he missed five regular-season games in 2025, and a versatile corner who plays near the line absorbs contact that a boundary-only player can avoid." },
       { type: "paragraph", html: "<strong>Williams is the bridge, not the template.</strong> Interior defenders who can defeat a guard, hold up against the run and create pressure without a blitz are scarce. Williams’ second straight Pro Bowl and 2025 second-team All-Pro selection support the decision better than one box-score total. Seattle’s official account says his 2025 Pro Football Reference approximate value was 17, tied for the team lead, and that he has 22 sacks and 61 quarterback hits in two and a half Seattle seasons. Keeping him also preserves the front that helped Hall and Byron Murphy II operate. Unlike the other deals, this extension covers late-career seasons, ages 33 through 35. The standard is therefore not future growth. It is whether elite current play lasts. Age-related decline and injury are the clearest risks, particularly before the full guarantee schedule and exit points are public." },
@@ -195,6 +196,7 @@ const articles: NewsArticle[] = [
       { label: "Over the Cap: Hall contract details", url: "https://overthecap.com/player/derick-hall/10861" },
       { label: "Over the Cap: Witherspoon contract details", url: "https://overthecap.com/player/devon-witherspoon/10829" },
       { label: "Seattle Seahawks: 2025 season honors and personnel context", url: "https://www.seahawks.com/news/seahawks-2025-season-honors" },
+      { label: "Seattle Seahawks: 2026 coaching staff", url: "https://www.seahawks.com/news/seattle-seahawks-finalize-2026-coaching-staff" },
       { label: "Seahawks Fan Zone methodology", url: "/methodology" }
     ],
     hero: sharedHero,
@@ -315,6 +317,7 @@ const articles: NewsArticle[] = [
     ],
     hero: sharedHero,
     featured: true,
+    contentKind: "publication-info",
     status: "published",
   },
   {
@@ -340,6 +343,7 @@ const articles: NewsArticle[] = [
     ],
     hero: sharedHero,
     featured: false,
+    contentKind: "publication-info",
     status: "published",
   },
   {
@@ -365,6 +369,7 @@ const articles: NewsArticle[] = [
     ],
     hero: sharedHero,
     featured: false,
+    contentKind: "publication-info",
     status: "published",
   },
 ];
@@ -391,10 +396,11 @@ for (const article of articles) {
 export const authoredArticles = articles;
 const generatedArticles = validateGeneratedCollection(generatedNews).articles;
 export const publishedArticles: NewsArticle[] = mergePublishedArticles(articles, generatedArticles);
-export const leadArticle = publishedArticles[0];
+export const coverageArticles = publishedArticles.filter((article) => article.contentKind !== "publication-info");
+export const leadArticle = coverageArticles[0];
 
 export const NEWS_PAGE_SIZE = 6;
-export const populatedNewsCategories = NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category));
+export const populatedNewsCategories = NEWS_CATEGORIES.filter((category) => coverageArticles.some((article) => article.category === category));
 export const categorySlug = (category: NewsCategory) => category.toLowerCase().replaceAll(" ", "-");
 export const formatArticleDate = (value: string) => new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(value));
 export const materiallyUpdated = (article: NewsArticle) => new Date(article.updatedAt).getTime() - new Date(article.publishedAt).getTime() >= 60 * 60 * 1000;

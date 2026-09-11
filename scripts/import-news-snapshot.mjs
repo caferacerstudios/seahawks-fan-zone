@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash, randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {GENERATED_IMAGE, validateGeneratedCollection} from '../src/lib/news-artifacts.mjs';
+import {applyGeneratedCorrections, GENERATED_IMAGE, normalizeGeneratedCitations, validateGeneratedCollection} from '../src/lib/news-artifacts.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const read = filename => JSON.parse(fs.readFileSync(filename, 'utf8'));
@@ -22,7 +22,10 @@ function writeAtomic(filename, bytes) {
 
 export function importNewsSnapshot({projectRoot = root, snapshotDir = process.env.NEWS_SNAPSHOT_DIR || '/var/lib/sfz-news/current', checkOnly = false, ifAvailable = false, now = Date.now()} = {}) {
   const target = path.join(projectRoot, 'src/data/news/generated-articles.json');
-  const existing = validateGeneratedCollection(read(target));
+  const correctionsFile = path.join(projectRoot, 'src/data/news/generated-corrections.json');
+  const corrections = fs.existsSync(correctionsFile) ? read(correctionsFile) : {articles:{}};
+  const stored = read(target);
+  const existing = validateGeneratedCollection(applyGeneratedCorrections(normalizeGeneratedCitations(stored), corrections));
   let present = true;
   try { fs.lstatSync(snapshotDir); } catch (error) { if (error.code === 'ENOENT') present = false; else throw error; }
   if (!present && ifAvailable) {
@@ -33,6 +36,7 @@ export function importNewsSnapshot({projectRoot = root, snapshotDir = process.en
         if (!fs.existsSync(file) || hash(fs.readFileSync(file)) !== match[1].split('.')[0]) throw new Error('Existing news data is missing its retained image');
       }
     }
+    if (!checkOnly && JSON.stringify(existing) !== JSON.stringify(stored)) writeAtomic(target, Buffer.from(`${JSON.stringify(existing, null, 2)}\n`));
     console.warn(`News snapshot unavailable at ${snapshotDir}; retained existing news.`);
     return {status: 'unavailable', articleCount: existing.articles.length};
   }
@@ -48,7 +52,9 @@ export function importNewsSnapshot({projectRoot = root, snapshotDir = process.en
     if (!/^[a-f0-9]{64}$/.test(checksum) || hash(bytes) !== checksum) throw new Error(`News checksum mismatch: ${name}`);
     files.set(name, bytes);
   }
-  const document = validateGeneratedCollection(JSON.parse(files.get('articles.json').toString('utf8')));
+  const normalized = normalizeGeneratedCitations(JSON.parse(files.get('articles.json').toString('utf8')));
+  const corrected = applyGeneratedCorrections(normalized, corrections);
+  const document = validateGeneratedCollection(corrected);
   if (document.articles.length !== manifest.articleCount) throw new Error('News manifest count mismatch');
   const incomingSlugs = new Set(document.articles.map(a => a.slug));
   if (existing.articles.some(a => !incomingSlugs.has(a.slug))) throw new Error('News snapshot would remove stored history; import stopped');
@@ -69,7 +75,8 @@ export function importNewsSnapshot({projectRoot = root, snapshotDir = process.en
       const dest = path.join(projectRoot, 'public/images/news/generated', path.basename(name));
       if (!fs.existsSync(dest) || hash(fs.readFileSync(dest)) !== hash(files.get(name))) writeAtomic(dest, files.get(name));
     }
-    if (!fs.readFileSync(target).equals(files.get('articles.json'))) writeAtomic(target, files.get('articles.json'));
+    const acceptedBytes = Buffer.from(`${JSON.stringify(document, null, 2)}\n`);
+    if (!fs.readFileSync(target).equals(acceptedBytes)) writeAtomic(target, acceptedBytes);
   }
   return {status: 'success', articleCount: document.articles.length, snapshotDir: selected, updatedAt: manifest.updatedAt, checkOnly};
 }

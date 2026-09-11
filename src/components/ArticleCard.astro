@@ -1,11 +1,12 @@
 ---
 import type { NewsArticle } from "../lib/news";
 import ResponsiveImage from "./ResponsiveImage.astro";
-import { articleReadingMinutes, categorySlug, formatArticleDate } from "../lib/news";
+import { articleReadingMinutes, categorySlug, formatArticleDate, materiallyUpdated } from "../lib/news";
 
 interface Props { article: NewsArticle; prominent?: boolean; }
 const { article, prominent = false } = Astro.props;
 const readingMinutes = articleReadingMinutes(article);
+const updated = materiallyUpdated(article);
 ---
 <article class:list={["news-card", { "news-card--prominent": prominent }]} data-news-card data-search={`${article.headline} ${article.dek} ${article.category} ${article.tags.join(" ")}`.toLowerCase()}>
   <a class="news-card__image" href={`/news/${article.slug}/`} aria-label={`Read: ${article.headline}`} tabindex="-1">
@@ -15,7 +16,7 @@ const readingMinutes = articleReadingMinutes(article);
     <a class="news-card__category" href={`/news/category/${categorySlug(article.category)}/`}>{article.category}</a>
     <h3><a href={`/news/${article.slug}/`}>{article.headline}</a></h3>
     <p>{article.dek}</p>
-    <div class="news-card__meta"><span>{prominent && <>By {article.author} · </>}<time datetime={article.publishedAt}>{formatArticleDate(article.publishedAt)}</time></span><span>{readingMinutes} min read</span></div>
+    <div class="news-card__meta"><span>{prominent && <>By {article.author} · </>}{updated ? "Updated" : "Published"} <time datetime={updated ? article.updatedAt : article.publishedAt}>{formatArticleDate(updated ? article.updatedAt : article.publishedAt)}</time></span><span>{readingMinutes} min read</span></div>
   </div>
 </article>
 <style>
