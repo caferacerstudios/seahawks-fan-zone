@@ -3,7 +3,7 @@ import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import ArticleCard from "../../components/ArticleCard.astro";
 import AdSlot from "../../components/AdSlot.astro";
 import { absoluteUrl } from "../../lib/seo";
-import { NEWS_PAGE_SIZE, categorySlug, populatedNewsCategories, publishedArticles } from "../../lib/news";
+import { NEWS_PAGE_SIZE, categorySlug, leadArticle, populatedNewsCategories, publishedArticles } from "../../lib/news";
 
 const lead = publishedArticles[0];
 const latest = publishedArticles.slice(1, NEWS_PAGE_SIZE + 1);

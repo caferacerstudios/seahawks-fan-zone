@@ -29,7 +29,7 @@ const readingTime = (article: NewsArticle) => {
   return words ? Math.max(1, Math.ceil(words / 225)) : null;
 };
 
-export function selectHomepageStories(articles: NewsArticle[], curated: CuratedLink[], options: { now?: Date; freshnessDays?: number; limit?: number } = {}) {
+export function selectHomepageStories(articles: NewsArticle[], curated: CuratedLink[], options: { now?: Date; freshnessDays?: number; limit?: number; leadArticle?: NewsArticle } = {}) {
   const now = options.now ?? new Date();
   const freshnessDays = Math.max(1, options.freshnessDays ?? DEFAULT_HOMEPAGE_FRESHNESS_DAYS);
   const limit = Math.max(0, options.limit ?? 6);
@@ -42,7 +42,7 @@ export function selectHomepageStories(articles: NewsArticle[], curated: CuratedL
       href: `/news/${article.slug}/`, category: article.category, date: effectiveDate,
       dateLabel: updated ? "Updated" : "Published", byline: article.author, external: false,
       readMinutes: readingTime(article), editorialLabel: isRecent ? null : "Editor's pick",
-      image: article.hero, rank: article.featured && isRecent ? 1 : updated && isRecent ? 2 : isRecent ? 3 : 5,
+      image: article.hero, rank: article === options.leadArticle ? 0 : article.featured && isRecent ? 1 : updated && isRecent ? 2 : isRecent ? 3 : 5,
     };
   });
   const external: HomepageStory[] = curated.map((entry) => {
@@ -57,6 +57,6 @@ export function selectHomepageStories(articles: NewsArticle[], curated: CuratedL
   const stories = [...originals, ...external]
     .sort((a, b) => a.rank - b.rank || timestamp(b.date) - timestamp(a.date) || a.headline.localeCompare(b.headline))
     .slice(0, limit);
-  const hasRecentStories = stories.some((story) => story.rank < 5);
+  const hasRecentStories = stories.some((story) => (story.rank > 0 && story.rank < 5) || (story.rank === 0 && recent(story.date, now, freshnessDays)));
   return { stories, hasRecentStories, heading: hasRecentStories ? "What Matters Now" : "Editor’s Picks" } as const;
 }
