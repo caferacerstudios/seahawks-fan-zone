@@ -5,11 +5,11 @@ import AdSlot from "../../components/AdSlot.astro";
 import { absoluteUrl } from "../../lib/seo";
 import { NEWS_PAGE_SIZE, categorySlug, leadArticle, populatedNewsCategories, publishedArticles } from "../../lib/news";
 
-const lead = leadArticle;
-const latest = publishedArticles.filter((article) => article !== lead).slice(0, NEWS_PAGE_SIZE);
+const lead = publishedArticles[0];
+const latest = publishedArticles.slice(1, NEWS_PAGE_SIZE + 1);
 const hasMore = publishedArticles.length > NEWS_PAGE_SIZE + 1;
 const counts = new Map(populatedNewsCategories.map((category) => [category, publishedArticles.filter((article) => article.category === category).length]));
-const structuredData = { "@context":"https://schema.org", "@type":"CollectionPage", name:"Seattle Seahawks News and Analysis", description:"Original Seattle Seahawks reporting, analysis, roster context and game-week coverage from Seahawks Fan Zone.", url:absoluteUrl("/news"), mainEntity:{ "@type":"ItemList", itemListElement:publishedArticles.map((article, index) => ({ "@type":"ListItem", position:index + 1, url:absoluteUrl(`/news/${article.slug}`), name:article.headline })) } };
+const structuredData = { "@context":"https://schema.org", "@type":"CollectionPage", name:"Seattle Seahawks News and Analysis", description:"Original Seattle Seahawks reporting, analysis, roster context and game-week coverage from Seahawks Fan Zone.", url:absoluteUrl("/news"), mainEntity:{ "@type":"ItemList", itemListElement:publishedArticles.slice(0, NEWS_PAGE_SIZE + 1).map((article, index) => ({ "@type":"ListItem", position:index + 1, url:absoluteUrl(`/news/${article.slug}`), name:article.headline })) } };
 ---
 <SeahawksLayout {structuredData} activePath="/news" showPageHeader={false} pageType="news-index">
   <header class="newsroom-header"><p>Independent · Original · Accountable</p><h1>Seattle Seahawks News and Analysis</h1><span>Original reporting and analysis on Seattle's roster, injuries, games and place in the NFC West.</span></header>

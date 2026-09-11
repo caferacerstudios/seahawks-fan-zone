@@ -5,7 +5,7 @@ import AdSlot from "../../../components/AdSlot.astro";
 import { NEWS_PAGE_SIZE, leadArticle, publishedArticles, type NewsArticle } from "../../../lib/news";
 
 export function getStaticPaths() {
-  const lead = leadArticle;
+  const lead = publishedArticles[0];
   const archiveArticles = publishedArticles.filter((article) => article !== lead);
   const pageCount = Math.ceil(archiveArticles.length / NEWS_PAGE_SIZE);
   return Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) => {
