@@ -22,7 +22,7 @@ const structuredData = { "@context":"https://schema.org", "@type":"NewsArticle",
     <h1>{article.headline}</h1><p class="article-dek">{article.dek}</p>
     <div class="article-meta"><span>By <a rel="author" href={authorUrl}>{article.author}</a></span><span>Published <time datetime={article.publishedAt}>{formatArticleDate(article.publishedAt)}</time></span>{showUpdatedDate && <span>Last updated <time datetime={article.updatedAt}>{formatArticleDate(article.updatedAt)}</time></span>}<span>{readingMinutes} min read</span><span>Category: <a href={`/news/category/${categorySlug(article.category)}/`}>{article.category}</a></span></div>
   </header>
-  <figure class="article-hero"><img src={article.hero.src} alt={article.hero.alt} width={article.hero.width} height={article.hero.height} fetchpriority="high" decoding="async" /><figcaption>Original Seahawks Fan Zone illustration.</figcaption></figure>
+  <figure class="article-hero"><img src={article.hero.src} alt={article.hero.alt} width={article.hero.width} height={article.hero.height} fetchpriority="high" decoding="async" /><figcaption>{article.hero.caption ?? "Original Seahawks Fan Zone illustration."}</figcaption></figure>
   <div class="article-body">{article.body.map((block, index) => <>
     {(() => {
     if (typeof block === "string") return <p>{block}</p>;
@@ -39,7 +39,7 @@ const structuredData = { "@context":"https://schema.org", "@type":"NewsArticle",
   <aside class="article-attribution" aria-label="About this article">
     <p class="article-attribution__label">About the byline</p>
     <h2>{article.author}</h2>
-    <p>This house byline identifies work prepared and reviewed by the site’s individual owner and editor. Seahawks Fan Zone is an independent fan publication and is not affiliated with the Seattle Seahawks or NFL.</p>
+    <p>{article.generation?.kind === "ai" ? "This article was generated automatically with AI using the linked sources. Seahawks Fan Zone is an independent fan publication and is not affiliated with the Seattle Seahawks or NFL. Use the corrections link below to report an error." : "This house byline identifies work prepared and reviewed by the site’s individual owner and editor. Seahawks Fan Zone is an independent fan publication and is not affiliated with the Seattle Seahawks or NFL."}</p>
     <p><a href="/about">Editorial responsibility</a> · <a href="/methodology">Methodology</a> · <a href="/contact#corrections">Request a correction</a></p>
   </aside>
   {article.sources.length > 0 && <section class="article-sources" aria-labelledby="sources-heading"><h2 id="sources-heading">Sources and further reading</h2><p>Reporting and context used for this article:</p><ul>{article.sources.map((source) => <li><a href={source.url}>{source.label}</a></li>)}</ul></section>}

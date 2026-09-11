@@ -1,3 +1,6 @@
+// SFZ_DAILY_NEWS_V1
+import generatedNews from "../data/news/generated-articles.json" with { type: "json" };
+import { mergePublishedArticles, validateGeneratedCollection } from "./news-artifacts.mjs";
 export const NEWS_CATEGORIES = ["News", "Analysis", "Contract Strategy", "Roster", "Injuries", "Game Week", "Hard Knocks", "NFC West"] as const;
 
 export type NewsCategory = typeof NEWS_CATEGORIES[number];
@@ -13,6 +16,7 @@ export interface HeroAsset {
   alt: string;
   width: number;
   height: number;
+  caption?: string;
 }
 
 export interface NewsArticle {
@@ -31,6 +35,7 @@ export interface NewsArticle {
   hero: HeroAsset;
   featured: boolean;
   status: PublicationStatus;
+  generation?: { kind: "ai"; publicationDay: string; model: string; promptVersion?: string };
 }
 
 export type ArticleBodyBlock = string
@@ -383,9 +388,9 @@ for (const article of articles) {
   slugs.add(article.slug);
 }
 
-export const publishedArticles = articles
-  .filter((article) => article.status === "published")
-  .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+export const authoredArticles = articles;
+const generatedArticles = validateGeneratedCollection(generatedNews).articles;
+export const publishedArticles: NewsArticle[] = mergePublishedArticles(articles, generatedArticles);
 
 export const NEWS_PAGE_SIZE = 6;
 export const populatedNewsCategories = NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category));
