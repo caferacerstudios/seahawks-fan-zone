@@ -386,6 +386,7 @@ for (const article of articles) {
 export const publishedArticles = articles
   .filter((article) => article.status === "published")
   .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+export const leadArticle = publishedArticles.find((article) => article.featured) ?? publishedArticles[0];
 
 export const NEWS_PAGE_SIZE = 6;
 export const populatedNewsCategories = NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category));

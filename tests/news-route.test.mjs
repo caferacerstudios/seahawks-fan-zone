@@ -38,8 +38,13 @@ test("the canonical /news route renders links to published newsroom articles", {
     .map((entry) => entry.name);
 
   const newsroomHtml = readFileSync(path.join(newsDist, "index.html"), "utf8");
+  const homepageHtml = readFileSync(path.join(root, "dist/index.html"), "utf8");
   assert.match(newsroomHtml, /<h1[^>]*>Newsroom<\/h1>/i);
   assert.doesNotMatch(newsroomHtml, /Trending Now/i);
+  const newsLeadHref = newsroomHtml.match(/aria-labelledby="lead-story"[\s\S]*?href="(\/news\/[^"#?]+\/?)"/)?.[1];
+  const homepageLeadHref = homepageHtml.match(/<article class="lead-story">[\s\S]*?href="(\/news\/[^"#?]+\/?)"/)?.[1];
+  assert.ok(newsLeadHref, "built /news HTML should link its lead story");
+  assert.equal(homepageLeadHref, newsLeadHref, "homepage lead story should match the /news lead story");
   if (articleSlugs.length) {
     assert.ok(
       articleSlugs.some((slug) => newsroomHtml.includes(`href="/news/${slug}/"`)),
