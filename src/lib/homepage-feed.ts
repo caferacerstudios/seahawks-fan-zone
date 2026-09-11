@@ -1,6 +1,5 @@
 import type { NewsArticle } from "./news";
 import { materiallyUpdated } from "./news";
-import type { CuratedLink } from "../data/around-the-web";
 
 export const DEFAULT_HOMEPAGE_FRESHNESS_DAYS = 14;
 const DAY = 86_400_000;
@@ -29,11 +28,18 @@ const readingTime = (article: NewsArticle) => {
   return words ? Math.max(1, Math.ceil(words / 225)) : null;
 };
 
-export function selectHomepageStories(articles: NewsArticle[], curated: CuratedLink[], options: { now?: Date; freshnessDays?: number; limit?: number; leadArticle?: NewsArticle } = {}) {
+export function selectHomepageStories(articles: NewsArticle[], options: { now?: Date; freshnessDays?: number; limit?: number; leadArticle?: NewsArticle } = {}) {
   const now = options.now ?? new Date();
   const freshnessDays = Math.max(1, options.freshnessDays ?? DEFAULT_HOMEPAGE_FRESHNESS_DAYS);
-  const limit = Math.max(0, options.limit ?? 6);
-  const originals: HomepageStory[] = articles.map((article) => {
+  const limit = Math.max(0, options.limit ?? 7);
+  const lead = options.leadArticle ?? articles[0];
+  const seen = new Set<string>();
+  const orderedArticles = [lead, ...articles].filter((article): article is NewsArticle => {
+    if (!article || seen.has(article.slug)) return false;
+    seen.add(article.slug);
+    return true;
+  });
+  const stories: HomepageStory[] = orderedArticles.slice(0, limit).map((article, index) => {
     const updated = materiallyUpdated(article);
     const effectiveDate = updated ? article.updatedAt : article.publishedAt;
     const isRecent = recent(effectiveDate, now, freshnessDays);
@@ -42,21 +48,9 @@ export function selectHomepageStories(articles: NewsArticle[], curated: CuratedL
       href: `/news/${article.slug}/`, category: article.category, date: effectiveDate,
       dateLabel: updated ? "Updated" : "Published", byline: article.author, external: false,
       readMinutes: readingTime(article), editorialLabel: isRecent ? null : "Editor's pick",
-      image: article.hero, rank: article === options.leadArticle ? 0 : article.featured && isRecent ? 1 : updated && isRecent ? 2 : isRecent ? 3 : 5,
+      image: article.hero, rank: index === 0 ? 0 : isRecent ? 3 : 5,
     };
   });
-  const external: HomepageStory[] = curated.map((entry) => {
-    const isRecent = recent(entry.dateAdded, now, freshnessDays) || recent(entry.publicationDate, now, freshnessDays);
-    return {
-      id: `external:${entry.url}`, headline: entry.title, summary: entry.whyItMatters, href: entry.url,
-      category: entry.topic, date: entry.publicationDate, dateLabel: "Published", byline: entry.publisher,
-      external: true, readMinutes: null, editorialLabel: isRecent ? null : "Editor's pick", image: null,
-      rank: isRecent ? 4 : 5,
-    };
-  });
-  const stories = [...originals, ...external]
-    .sort((a, b) => a.rank - b.rank || timestamp(b.date) - timestamp(a.date) || a.headline.localeCompare(b.headline))
-    .slice(0, limit);
   const hasRecentStories = stories.some((story) => (story.rank > 0 && story.rank < 5) || (story.rank === 0 && recent(story.date, now, freshnessDays)));
   return { stories, hasRecentStories, heading: hasRecentStories ? "What Matters Now" : "Editor’s Picks" } as const;
 }
