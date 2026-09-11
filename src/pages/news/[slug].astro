@@ -3,12 +3,12 @@ import SeahawksLayout from "../../layouts/SeahawksLayout.astro";
 import ArticleCard from "../../components/ArticleCard.astro";
 import AdSlot from "../../components/AdSlot.astro";
 import { absoluteUrl, SITE_NAME } from "../../lib/seo";
-import { articleReadingMinutes, categorySlug, formatArticleDate, materiallyUpdated, publishedArticles, type NewsArticle } from "../../lib/news";
+import { articleReadingMinutes, categorySlug, coverageArticles, formatArticleDate, materiallyUpdated, publishedArticles, type NewsArticle } from "../../lib/news";
 
 export function getStaticPaths() { return publishedArticles.map((article) => ({ params: { slug: article.slug }, props: { article } })); }
 interface Props { article: NewsArticle; }
 const { article } = Astro.props;
-const related = publishedArticles.filter((candidate) => candidate.slug !== article.slug && (candidate.category === article.category || candidate.tags.some((tag) => article.tags.includes(tag)))).slice(0, 2);
+const related = coverageArticles.filter((candidate) => candidate.slug !== article.slug && (candidate.category === article.category || candidate.tags.some((tag) => article.tags.includes(tag)))).slice(0, 2);
 const canonicalPath = `/news/${article.slug}`;
 const readingMinutes = articleReadingMinutes(article);
 const showUpdatedDate = materiallyUpdated(article);

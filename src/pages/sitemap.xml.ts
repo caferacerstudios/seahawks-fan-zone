@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { absoluteUrl, PUBLIC_PAGES } from "../lib/seo";
-import { NEWS_CATEGORIES, categorySlug, publishedArticles } from "../lib/news";
+import { categorySlug, populatedNewsCategories, publishedArticles } from "../lib/news";
 import { TICKET_FEATURE } from "../lib/tickets/config";
 import { EVENTSPY_COVERAGE } from "../lib/tickets/eventspy-coverage.mjs";
 import { gameCollection, gameDayPageModel } from "../lib/game-details.mjs";
@@ -72,7 +72,7 @@ export const GET: APIRoute = async () => {
   const pages = [
     ...PUBLIC_PAGES.filter((page) => includeStatic(page.canonicalPath)).map((page) => ({ loc: page.canonicalPath, lastmod: validDate(page.lastModified) })),
     ...publishedArticles.map((article) => ({ loc: `/news/${article.slug}`, lastmod: validDate(article.updatedAt) })),
-    ...NEWS_CATEGORIES.filter((category) => publishedArticles.some((article) => article.category === category)).map((category) => ({ loc: `/news/category/${categorySlug(category)}`, lastmod: latestMaterialDate(publishedArticles.filter((article) => article.category === category).map((article) => article.updatedAt)) })),
+    ...populatedNewsCategories.map((category) => ({ loc: `/news/category/${categorySlug(category)}`, lastmod: latestMaterialDate(publishedArticles.filter((article) => article.category === category).map((article) => article.updatedAt)) })),
     ...eligibleGames.map((model: any) => ({ loc: `/games/${encodeURIComponent(model.id)}`, lastmod: validDate(recaps?.recaps?.[model.id]?.updatedAt ?? model.game?.updatedAt) })),
     ...eligiblePlayers.map(({ canonicalId, lastmod }) => ({ loc: `/players/${encodeURIComponent(canonicalId)}`, lastmod })),
   ];

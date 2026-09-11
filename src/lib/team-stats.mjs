@@ -1,3 +1,4 @@
+import { schedulePhase, scheduleState } from "./schedule.mjs";
 const SEA = "SEA";
 
 function integer(value) {
@@ -16,25 +17,24 @@ function abbreviation(team) {
 }
 
 function isFinal(game) {
-  return ["final", "finished", "complete", "completed"].includes(String(game?.status ?? "").trim().toLowerCase());
+  return scheduleState(game) === "completed";
 }
 
 function regularSeasonGames(data, season) {
   const rows = Array.isArray(data?.gamesRegular)
     ? data.gamesRegular
     : Array.isArray(data?.games)
-      ? data.games.filter((game) => !game?.postseason && !/pre/i.test(String(game?.season_type ?? game?.seasonType ?? "")))
+      ? data.games
       : [];
   return rows.filter((game) => {
-    const phase = String(game?.season_type ?? game?.seasonType ?? "").toLowerCase().replaceAll("_", " ");
-    return Number(game?.season) === season && ["regular", "regular season"].includes(phase);
+    return Number(game?.season) === season && schedulePhase(game) === "regular";
   });
 }
 
 function scoredGame(game) {
   if (!isFinal(game)) return null;
-  const home = abbreviation(game?.home_team);
-  const away = abbreviation(game?.visitor_team);
+  const home = abbreviation(game?.home_team ?? game?.homeTeam);
+  const away = abbreviation(game?.visitor_team ?? game?.away_team ?? game?.awayTeam);
   if ((home === SEA) === (away === SEA)) return null;
   const homeScore = number(game?.home_team_score);
   const awayScore = number(game?.visitor_team_score);

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
-import {validateGeneratedCollection, mergePublishedArticles} from '../src/lib/news-artifacts.mjs';
+import {applyGeneratedCorrections, validateGeneratedCollection, mergePublishedArticles, normalizeGeneratedCitations} from '../src/lib/news-artifacts.mjs';
 import {importNewsSnapshot} from '../scripts/import-news-snapshot.mjs';
 
 const source1 = 'https://www.seahawks.com/news/example-one';
@@ -51,6 +51,29 @@ test('generated HTML rejects scripts, unsafe links and malformed citations', () 
     assert.throws(()=>validateGeneratedCollection({schema_version:1,articles:[a]}));
   }
   assert.throws(()=>validateGeneratedCollection({schema_version:1,articles:[article('01'),article('01')]}));
+});
+test('producer source markers normalize exactly once and unknown or mismatched IDs fail', () => {
+  const marked = article('01');
+  marked.body[1].html = `[S1][S2] <a href="${source1}">[1]</a> <a href="${source2}">[2]</a>`;
+  const once = normalizeGeneratedCitations({schema_version:1,articles:[marked]});
+  assert.doesNotMatch(once.articles[0].body[1].html, /\[S\d+\]/);
+  assert.deepEqual(normalizeGeneratedCitations(once), once);
+  validateGeneratedCollection(once);
+  const unknown = article('01'); unknown.body[1].html = `[S3] <a href="${source1}">[1]</a>`;
+  assert.throws(() => normalizeGeneratedCitations({schema_version:1,articles:[unknown]}), /Unknown source identifier S3/);
+  const mismatched = article('01'); mismatched.body[1].html = `[S2] <a href="${source1}">[1]</a>`;
+  assert.throws(() => normalizeGeneratedCitations({schema_version:1,articles:[mismatched]}), /does not resolve/);
+});
+test('corrections preserve publication identity and remain stable across repeated application', () => {
+  const original = article('01');
+  const corrections = {articles:{[original.slug]:{updatedAt:'2026-09-11T17:00:00Z',sourceUrls:[source1,source2],body:[{type:'paragraph',html:`Corrected copy <a href="${source1}">[1]</a>`}]}}};
+  const once = applyGeneratedCorrections({schema_version:1,articles:[original]}, corrections);
+  const twice = applyGeneratedCorrections(once, corrections);
+  assert.equal(once.articles[0].slug, original.slug);
+  assert.equal(once.articles[0].publishedAt, original.publishedAt);
+  assert.equal(once.articles[0].generation.publicationDay, original.generation.publicationDay);
+  assert.deepEqual(twice, once);
+  validateGeneratedCollection(once);
 });
 test('import repeats are stable and a stale partial snapshot cannot erase history', t => {
   const f = fixture(t,[article('01'),article('02')]);

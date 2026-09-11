@@ -2,9 +2,9 @@
 import SeahawksLayout from "../../../layouts/SeahawksLayout.astro";
 import ArticleCard from "../../../components/ArticleCard.astro";
 import AdSlot from "../../../components/AdSlot.astro";
-import { categorySlug, populatedNewsCategories, publishedArticles, type NewsArticle, type NewsCategory } from "../../../lib/news";
+import { categorySlug, coverageArticles, populatedNewsCategories, type NewsArticle, type NewsCategory } from "../../../lib/news";
 
-export function getStaticPaths() { return populatedNewsCategories.map((category) => ({ params: { category: categorySlug(category) }, props: { category, articles: publishedArticles.filter((article) => article.category === category) } })); }
+export function getStaticPaths() { return populatedNewsCategories.map((category) => ({ params: { category: categorySlug(category) }, props: { category, articles: coverageArticles.filter((article) => article.category === category) } })); }
 interface Props { category: NewsCategory; articles: NewsArticle[]; }
 const { category, articles } = Astro.props;
 const hasArticles = articles.length > 0;
