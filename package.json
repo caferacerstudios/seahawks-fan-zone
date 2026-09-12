@@ -12,7 +12,7 @@
     "refresh-player-career-facts": "node scripts/refresh-player-career-facts.mjs",
     "refresh-team-roster": "node scripts/refresh-team-roster.mjs",
 
-    "prebuild": "node scripts/refresh-team-roster.mjs && node scripts/import-nfl-snapshot.mjs --if-available && node scripts/import-recap-snapshot.mjs --if-available && node scripts/import-news-snapshot.mjs --if-available && node scripts/generate-player-profiles.mjs",
+    "prebuild": "node scripts/import-nfl-snapshot.mjs --if-available && node scripts/import-roster-snapshot.mjs --if-available && node scripts/import-recap-snapshot.mjs --if-available && node scripts/import-news-snapshot.mjs --if-available && node scripts/generate-player-profiles.mjs",
     "build": "node scripts/validate-production-schedule.mjs --source && astro build && node scripts/validate-production-schedule.mjs --dist",
 
     "test:tickets": "node --test tests/tickets.test.mjs",
@@ -22,6 +22,7 @@
     "tickets:eventspy-mirror": "node scripts/tickets/eventspy-mirror.mjs --output-root public/data/eventspy-mirror",
     "tickets:match-report": "node scripts/tickets/generate-match-report.mjs",
     "validate:tickets": "node scripts/tickets/validate-fixtures.mjs",
+    "prebuild:offline": "node scripts/import-roster-snapshot.mjs --if-available",
     "build:offline": "ASTRO_TELEMETRY_DISABLED=1 astro build",
     "build:production-offline": "node scripts/validate-player-profiles.mjs --production && node scripts/validate-production-schedule.mjs --source && npm run build:offline && node scripts/validate-player-profiles.mjs --production --dist && node scripts/validate-production-schedule.mjs --dist",
     "test:player-profiles": "node --test tests/player-profiles-static.test.mjs",
