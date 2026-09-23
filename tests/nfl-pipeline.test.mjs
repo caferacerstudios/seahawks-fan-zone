@@ -6,7 +6,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createNflApiClient } from "../scripts/nfl-api-client.mjs";
+import { createNflApiClient, collectTeamSeasonStats, normalizeTeamSeasonStats } from "../scripts/nfl-api-client.mjs";
 import { importNflSnapshot } from "../scripts/import-nfl-snapshot.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -173,10 +173,12 @@ test("strict collection fails on a provider error even with a valid cached sched
   assert.equal(fs.readFileSync(path.join(setup.directory, "src/data/nfl/seahawks.json"), "utf8"), previous);
 });
 
-test("collector uses documented phase filters and reports one coherent fresh snapshot", (t) => {
+for (const teamStatus of [200, 403]) test(`collector publishes coherent player/team data with optional team endpoint HTTP ${teamStatus}`, (t) => {
   const setup = collectorProject(t);
+  const teamStats = { team, season: 2026, season_type: 2, kicking_extra_points_made: 5, kicking_extra_point_attempts: 6 };
+  const player = { id: 1, first_name: "Test", last_name: "Player", position_abbreviation: "K", jersey_number: "5" };
   const result = setup.run(`
-    const team = ${JSON.stringify(team)}, game = ${JSON.stringify(game)}, stat = ${JSON.stringify(stat)};
+    const team = ${JSON.stringify(team)}, game = ${JSON.stringify(game)}, stat = ${JSON.stringify({ ...stat, player })};
     globalThis.fetch = async (url) => {
       const name = url.pathname.split('/').at(-1);
       let data;
@@ -184,12 +186,16 @@ test("collector uses documented phase filters and reports one coherent fresh sna
       else if (name === 'games') {
         if (url.searchParams.getAll('season_types[]').join(',') !== '1,2,3') throw new Error('missing game phases');
         data = [game];
-      } else if (name === 'players') data = [{id:1, first_name:'Test',last_name:'Player'}];
+      } else if (name === 'players') data = [];
       else if (name === 'season_stats') {
         if (url.searchParams.has('postseason')) throw new Error('unsupported postseason parameter');
         const phase = url.searchParams.get('season_types[]');
         if (!['2','3'].includes(phase)) throw new Error('missing stats phase');
-        data = phase === '2' ? [stat] : [];
+        data = [stat];
+      } else if (name === 'team_season_stats') {
+        if (url.searchParams.get('season') !== '2026' || url.searchParams.getAll('team_ids[]').join(',') !== '31' || url.searchParams.getAll('season_types[]').join(',') !== '2') throw new Error('wrong team stats scope');
+        if (${teamStatus} !== 200) return new Response('local-test-key private body', {status:${teamStatus}});
+        data = [${JSON.stringify(teamStats)}];
       } else throw new Error('unexpected API endpoint');
       return new Response(JSON.stringify({data,meta:{next_cursor:null}}));
     };
@@ -197,11 +203,69 @@ test("collector uses documented phase filters and reports one coherent fresh sna
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(fs.readFileSync(setup.reportPath));
   assert.equal(report.status, "success");
-  assert.equal(report.requestCount, 5);
+  assert.equal(report.requestCount, 6);
   assert.equal(report.playerStatsSeason, 2026);
+  assert.equal(report.teamStatsAvailable, teamStatus === 200);
+  assert.doesNotMatch(result.stdout + result.stderr, /local-test-key/);
   for (const name of ["seahawks.json", "players.json", "standings.json"]) {
     const payload = JSON.parse(fs.readFileSync(path.join(setup.directory, "src/data/nfl", name)));
     assert.equal(payload.updatedAt, report.updatedAt);
     assert.equal(payload.season, report.season);
+    if (name !== "standings.json") {
+      assert.deepEqual(payload.teamSeasonStats, teamStatus === 200 ? { ...teamStats, team_id: 31 } : null);
+      assert.deepEqual(payload.playerSeasonStats.map((row) => row.season_type), [2, 3]);
+      assert.deepEqual(payload.playerSeasonStats[0].player, player);
+    }
   }
+});
+
+const row = {
+  team: { id: 31, abbreviation: "SEA" },
+  season: 2026,
+  season_type: 2,
+  kicking_extra_points_made: 5,
+  kicking_extra_point_attempts: 6,
+};
+
+test("collect team stats for the same regular season as player ratings", async () => {
+  let request;
+  const stats = await collectTeamSeasonStats(async (...args) => {
+    request = args;
+    return [row];
+  }, 31, 2026);
+  assert.deepEqual(request, ["/team_season_stats", {
+    season: 2026, "team_ids[]": [31], "season_types[]": [2],
+  }]);
+  assert.deepEqual(stats, { ...row, team_id: 31 });
+  assert.equal(stats.kicking_extra_points_made, 5);
+  assert.equal(stats.kicking_extra_point_attempts, 6);
+});
+
+test("team totals reject another team, season, phase or ambiguous collection", () => {
+  for (const rows of [
+    [], null, [row, row],
+    [{ ...row, team: { id: 15 } }],
+    [{ ...row, team_id: 15 }],
+    [{ ...row, season: 2025 }],
+    [{ ...row, season_type: 3 }],
+    [{ ...row, season_type: undefined }],
+    [{ ...row, postseason: true }],
+    [{ ...row, team: { id: true } }],
+  ]) assert.equal(normalizeTeamSeasonStats(rows, 31, 2026), null);
+  assert.equal(normalizeTeamSeasonStats([row], true, 2026), null);
+  assert.deepEqual(normalizeTeamSeasonStats([
+    { ...row, team: { id: 15 } },
+    { ...row, season_type: 3 },
+    row,
+  ], 31, 2026), { ...row, team_id: 31 });
+});
+
+test("zero or absent samples stay exactly as supplied; provider errors are not fabricated totals", async () => {
+  const zero = { ...row, kicking_extra_points_made: 0, kicking_extra_point_attempts: 0 };
+  assert.deepEqual(normalizeTeamSeasonStats([zero], 31, 2026), { ...zero, team_id: 31 });
+  const missing = { team: row.team, season: 2026, season_type: 2 };
+  assert.deepEqual(normalizeTeamSeasonStats([missing], 31, 2026), { ...missing, team_id: 31 });
+  await assert.rejects(collectTeamSeasonStats(async () => {
+    throw new Error("NFL HTTP 401: /team_season_stats");
+  }, 31, 2026), /HTTP 401/);
 });

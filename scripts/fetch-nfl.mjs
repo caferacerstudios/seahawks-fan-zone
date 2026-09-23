@@ -22,7 +22,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createNflApiClient } from "./nfl-api-client.mjs";
+import { createNflApiClient, collectTeamSeasonStats } from "./nfl-api-client.mjs";
 import { normalizeSchedule } from "../src/lib/schedule.mjs";
 import { reconcileOfficialSchedule } from "../src/lib/schedule-guide.mjs";
 import { buildPhasedStandings } from "../src/lib/standings.mjs";
@@ -192,17 +192,18 @@ async function main() {
   }
 
   const seasonStatsAll = [
-    ...seasonStatsRegular,
-    ...seasonStatsPostseason,
+    ...seasonStatsRegular.map((row) => ({ ...row, season_type: 2 })),
+    ...seasonStatsPostseason.map((row) => ({ ...row, season_type: 3 })),
   ];
 
   const enriched = seasonStatsAll.map((row) => {
     const playerId =
       row.player_id ?? row.player?.id ?? row.playerId ?? null;
 
-    const player = playerId
-      ? playersById.get(String(playerId))
-      : (row.player || null);
+    const player =
+      (playerId ? playersById.get(String(playerId)) : null) ??
+      row.player ??
+      null;
 
     return {
       ...row,
@@ -212,6 +213,17 @@ async function main() {
       season: row.season ?? playerStatsSeason,
     };
   });
+  // Player season rows do not always contain extra-point attempts. Preserve
+  // authoritative team totals separately so consumers can label a team fallback
+  // without attributing all of the team's kicks to an individual player.
+  let teamSeasonStats = null;
+  try {
+    teamSeasonStats = await collectTeamSeasonStats(pagedGet, team.id, playerStatsSeason);
+    if (!teamSeasonStats) console.warn(`No unambiguous regular-season team stats for ${TEAM_ABBR} ${playerStatsSeason}.`);
+  } catch (error) {
+    const message = String(error?.message || error).replaceAll(API_KEY, "[redacted]");
+    console.warn(`Team season stats unavailable; retaining the completed player/schedule refresh. ${message}`);
+  }
   const updatedAt = new Date().toISOString();
   const otherLeagueGames = leagueGames.filter((g) => ![g.home_team?.id, g.visitor_team?.id].includes(team.id));
   const phasedStandings = buildPhasedStandings({ season: SEASON, updatedAt, games: [...otherLeagueGames, ...reconciledGames], teams });
@@ -237,11 +249,7 @@ async function main() {
     nextGameId,
     currentRoster,
     playerDirectory,
-    // This API request returns player rows, not authoritative team totals.
-    // Keep the team-season slot explicit so consumers never rediscover totals
-    // by traversing or summing player data. Populate only from a future
-    // authoritative, team-scoped endpoint after normalizing its identity fields.
-    teamSeasonStats: null,
+    teamSeasonStats,
     playerSeasonStats: enriched,
   };
 
@@ -272,13 +280,14 @@ async function main() {
     team: outCombined.team,
     currentRoster,
     playerDirectory,
+    teamSeasonStats,
     playerSeasonStats: enriched,
   });
   console.log(`wrote ${path.relative(process.cwd(), playersPath)}`);
 
   safeWriteJson(standingsPath, phasedStandings);
   console.log(`wrote ${path.relative(process.cwd(), standingsPath)}`);
-  report({ status: "success", updatedAt, playerStatsSeason });
+  report({ status: "success", updatedAt, playerStatsSeason, teamStatsAvailable: Boolean(teamSeasonStats) });
   console.log(`NFL refresh succeeded: ${client.requestCount} API requests`);
 }
 

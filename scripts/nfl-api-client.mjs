@@ -1,3 +1,33 @@
+// Keep team records distinct from player statistics and reject mixed collections.
+export function normalizeTeamSeasonStats(rows, teamId, season) {
+  const integer = (value) =>
+    (typeof value === "number" || typeof value === "string") &&
+    String(value).trim() !== "" && Number.isInteger(Number(value))
+      ? Number(value) : null;
+  const expectedTeam = integer(teamId), expectedSeason = integer(season);
+  if (!(expectedTeam > 0) || !(expectedSeason > 0) || !Array.isArray(rows)) return null;
+  const matches = rows.filter((row) => {
+    if (!row || typeof row !== "object" || Array.isArray(row) || row.player || row.player_id != null) return false;
+    const identities = [row.team_id, row.team?.id].filter((id) => id != null);
+    const phase = String(row.season_type?.id ?? row.season_type ?? "").toLowerCase();
+    return identities.length > 0 && identities.every((id) => integer(id) === expectedTeam) &&
+      integer(row.season) === expectedSeason &&
+      ["2", "regular", "regular season"].includes(phase) && row.postseason !== true;
+  });
+  return matches.length === 1
+    ? { ...matches[0], team_id: expectedTeam, season: expectedSeason, season_type: 2 }
+    : null;
+}
+
+export async function collectTeamSeasonStats(getRows, teamId, season) {
+  const rows = await getRows("/team_season_stats", {
+    season,
+    "team_ids[]": [teamId],
+    "season_types[]": [2],
+  });
+  return normalizeTeamSeasonStats(rows, teamId, season);
+}
+
 // Shared pacing applies to every endpoint, page and retry within this process.
 // Other applications using the same API key still share its account allowance.
 export function createNflApiClient({
